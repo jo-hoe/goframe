@@ -37,14 +37,14 @@ func TestLoadConfig_Success(t *testing.T) {
 func TestLoadConfig_FileNotFound(t *testing.T) {
 	// Test with a non-existent file
 	nonExistentPath := "/path/that/does/not/exist/config.yaml"
-	
+
 	config, err := LoadConfig(nonExistentPath)
-	
+
 	// Expect an error
 	if err == nil {
 		t.Fatal("Expected error for non-existent file, got nil")
 	}
-	
+
 	// Config should be nil
 	if config != nil {
 		t.Error("Expected config to be nil when file doesn't exist")
