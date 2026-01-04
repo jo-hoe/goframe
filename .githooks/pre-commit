@@ -1,0 +1,7 @@
+#!/bin/sh
+# Pre-commit hook to run go fmt on all Go files
+
+echo "Running go fmt on all Go files..."
+
+# Run go fmt on all .go files in the project
+go fmt ./...
