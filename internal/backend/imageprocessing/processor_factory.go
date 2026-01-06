@@ -107,3 +107,36 @@ func validateRequiredParams(params map[string]any, required []string) error {
 	}
 	return nil
 }
+
+// ProcessorConfig represents a processor configuration with name and parameters
+type ProcessorConfig struct {
+	Name   string
+	Params map[string]any
+}
+
+// ApplyProcessors applies a sequence of processors to an image in order
+func ApplyProcessors(imageData []byte, processorConfigs []ProcessorConfig) ([]byte, error) {
+	if len(processorConfigs) == 0 {
+		return imageData, nil
+	}
+	
+	currentData := imageData
+	
+	for i, config := range processorConfigs {
+		// Create the processor from the registry
+		processor, err := DefaultRegistry.Create(config.Name, config.Params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create processor at index %d (%s): %w", i, config.Name, err)
+		}
+		
+		// Apply the processor
+		processedData, err := processor.ProcessImage(currentData)
+		if err != nil {
+			return nil, fmt.Errorf("processor %s (index %d) failed: %w", config.Name, i, err)
+		}
+		
+		currentData = processedData
+	}
+	
+	return currentData, nil
+}

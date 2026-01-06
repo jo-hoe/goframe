@@ -1,8 +1,13 @@
 port: 8080
 connectionString: "someconnectionstring"
 processors:
+  - name: ImageConverterProcessor
+    targetType: png
   - name: OrientationProcessor
     orientation: portrait
+  - name: ScaleProcessor
+    height: 1920
+    width: 1080
   - name: CropProcessor
     height: 1600
     width: 1200

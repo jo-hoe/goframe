@@ -249,3 +249,48 @@ func TestValidateRequiredParams(t *testing.T) {
 		t.Errorf("Expected no error for empty required list, got %v", err)
 	}
 }
+
+func TestApplyProcessors_EmptyList(t *testing.T) {
+	testData := []byte("test data")
+	result, err := ApplyProcessors(testData, []ProcessorConfig{})
+	
+	if err != nil {
+		t.Errorf("Expected no error for empty processor list, got %v", err)
+	}
+	
+	if string(result) != string(testData) {
+		t.Error("Expected result to match input for empty processor list")
+	}
+}
+
+func TestApplyProcessors_UnknownProcessor(t *testing.T) {
+	testData := []byte("test data")
+	configs := []ProcessorConfig{
+		{
+			Name:   "UnknownProcessor",
+			Params: map[string]any{},
+		},
+	}
+	
+	_, err := ApplyProcessors(testData, configs)
+	if err == nil {
+		t.Error("Expected error for unknown processor")
+	}
+}
+
+func TestApplyProcessors_InvalidProcessorConfig(t *testing.T) {
+	testData := []byte("test data")
+	configs := []ProcessorConfig{
+		{
+			Name: "CropProcessor",
+			Params: map[string]any{
+				// Missing required height and width
+			},
+		},
+	}
+	
+	_, err := ApplyProcessors(testData, configs)
+	if err == nil {
+		t.Error("Expected error for invalid processor configuration")
+	}
+}
