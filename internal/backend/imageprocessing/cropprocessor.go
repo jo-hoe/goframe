@@ -1,6 +1,11 @@
 package imageprocessing
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+	"image"
+	"image/png"
+)
 
 // CropParams represents typed parameters for crop processor
 type CropParams struct {
@@ -56,11 +61,56 @@ func (p *CropProcessor) Type() string {
 	return p.name
 }
 
-// ProcessImage processes the image (placeholder implementation)
+// ProcessImage crops the image to the configured dimensions
 func (p *CropProcessor) ProcessImage(imageData []byte) ([]byte, error) {
-	// Placeholder: In a real scenario, this would crop the image
-	// to p.width x p.height dimensions
-	return imageData, nil
+	// Decode the PNG image
+	img, err := png.Decode(bytes.NewReader(imageData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode PNG image: %w", err)
+	}
+
+	// Get original dimensions
+	bounds := img.Bounds()
+	originalWidth := bounds.Dx()
+	originalHeight := bounds.Dy()
+
+	// Calculate crop dimensions (center crop)
+	cropWidth := p.params.Width
+	cropHeight := p.params.Height
+
+	// If requested dimensions are larger than original, return original
+	if cropWidth >= originalWidth && cropHeight >= originalHeight {
+		return imageData, nil
+	}
+
+	// Limit crop dimensions to original size
+	if cropWidth > originalWidth {
+		cropWidth = originalWidth
+	}
+	if cropHeight > originalHeight {
+		cropHeight = originalHeight
+	}
+
+	// Calculate crop rectangle (center crop)
+	x0 := (originalWidth - cropWidth) / 2
+	y0 := (originalHeight - cropHeight) / 2
+
+	// Create a new image with the cropped region
+	croppedImg := image.NewRGBA(image.Rect(0, 0, cropWidth, cropHeight))
+	for y := 0; y < cropHeight; y++ {
+		for x := 0; x < cropWidth; x++ {
+			croppedImg.Set(x, y, img.At(x0+x, y0+y))
+		}
+	}
+
+	// Encode the cropped image back to PNG bytes
+	var buf bytes.Buffer
+	err = png.Encode(&buf, croppedImg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode cropped PNG image: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }
 
 // GetHeight returns the configured height

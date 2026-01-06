@@ -114,23 +114,24 @@ func TestCropProcessor_Name(t *testing.T) {
 
 func TestCropProcessor_ProcessImage(t *testing.T) {
 	processor, err := NewCropProcessor(map[string]any{
-		"height": 1600,
-		"width":  1200,
+		"height": 100,
+		"width":  100,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create processor: %v", err)
 	}
 
-	testData := []byte("test image data")
-	result, err := processor.ProcessImage(testData)
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
-	}
+	// Test with invalid image data - should return error
+	t.Run("Invalid image data", func(t *testing.T) {
+		testData := []byte("test image data")
+		_, err := processor.ProcessImage(testData)
+		if err == nil {
+			t.Error("Expected error for invalid image data, got nil")
+		}
+	})
 
-	// Since this is a placeholder implementation, it should return the input unchanged
-	if string(result) != string(testData) {
-		t.Error("Expected result to match input data")
-	}
+	// Note: Testing with real image data would require creating/loading actual image files
+	// For now, we test error handling. Integration tests with real images should be added separately.
 }
 
 func TestCropProcessor_RegisteredInDefaultRegistry(t *testing.T) {

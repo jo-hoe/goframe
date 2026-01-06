@@ -1,6 +1,11 @@
 package imageprocessing
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+	"image"
+	"image/png"
+)
 
 // OrientationParams represents typed parameters for orientation processor
 type OrientationParams struct {
@@ -50,11 +55,45 @@ func (p *OrientationProcessor) Type() string {
 	return p.name
 }
 
-// ProcessImage processes the image (placeholder implementation)
+// ProcessImage rotates the image based on the configured orientation
 func (p *OrientationProcessor) ProcessImage(imageData []byte) ([]byte, error) {
-	// Placeholder: In a real scenario, this would adjust the image orientation
-	// based on p.orientation
-	return imageData, nil
+	// Decode the PNG image
+	img, err := png.Decode(bytes.NewReader(imageData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode PNG image: %w", err)
+	}
+
+	// Get original dimensions
+	bounds := img.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+
+	// Determine if rotation is needed
+	isCurrentlyPortrait := height >= width
+	needsPortrait := p.params.Orientation == "portrait"
+
+	// If already in correct orientation, return original
+	if isCurrentlyPortrait == needsPortrait {
+		return imageData, nil
+	}
+
+	// Rotate 90 degrees clockwise to switch between portrait and landscape
+	rotatedImg := image.NewRGBA(image.Rect(0, 0, height, width))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			// Rotate 90 degrees clockwise: (x,y) -> (height-1-y, x)
+			rotatedImg.Set(height-1-y, x, img.At(x, y))
+		}
+	}
+
+	// Encode the rotated image back to PNG bytes
+	var buf bytes.Buffer
+	err = png.Encode(&buf, rotatedImg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode rotated PNG image: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }
 
 // GetOrientation returns the configured orientation
