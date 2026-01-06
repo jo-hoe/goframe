@@ -9,8 +9,8 @@ import (
 
 // ProcessorConfig represents a generic processor configuration
 type ProcessorConfig struct {
-	Name   string                 `yaml:"name"`
-	Params map[string]interface{} `yaml:",inline"`
+	Name   string         `yaml:"name"`
+	Params map[string]any `yaml:",inline"`
 }
 
 type BackendConfig struct {

@@ -10,7 +10,7 @@ type CropProcessor struct {
 }
 
 // NewCropProcessor creates a new crop processor from configuration parameters
-func NewCropProcessor(params map[string]interface{}) (ImageProcessor, error) {
+func NewCropProcessor(params map[string]any) (ImageProcessor, error) {
 	// Height and width are required parameters
 	if err := validateRequiredParams(params, []string{"height", "width"}); err != nil {
 		return nil, err

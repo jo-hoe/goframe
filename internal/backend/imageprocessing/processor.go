@@ -11,7 +11,7 @@ type ImageProcessor interface {
 }
 
 // ProcessorFactory is a function type that creates a processor from configuration parameters
-type ProcessorFactory func(params map[string]interface{}) (ImageProcessor, error)
+type ProcessorFactory func(params map[string]any) (ImageProcessor, error)
 
 // ProcessorRegistry manages the registration and creation of image processors
 type ProcessorRegistry struct {
@@ -41,7 +41,7 @@ func (r *ProcessorRegistry) Register(name string, factory ProcessorFactory) erro
 }
 
 // Create instantiates a processor by name with the given parameters
-func (r *ProcessorRegistry) Create(name string, params map[string]interface{}) (ImageProcessor, error) {
+func (r *ProcessorRegistry) Create(name string, params map[string]any) (ImageProcessor, error) {
 	factory, exists := r.factories[name]
 	if !exists {
 		return nil, fmt.Errorf("unknown processor: %s", name)
@@ -74,7 +74,7 @@ func (r *ProcessorRegistry) GetRegisteredNames() []string {
 var DefaultRegistry = NewProcessorRegistry()
 
 // getStringParam safely extracts a string parameter from the params map
-func getStringParam(params map[string]interface{}, key string, defaultValue string) string {
+func getStringParam(params map[string]any, key string, defaultValue string) string {
 	if val, ok := params[key]; ok {
 		if strVal, ok := val.(string); ok {
 			return strVal
@@ -84,7 +84,7 @@ func getStringParam(params map[string]interface{}, key string, defaultValue stri
 }
 
 // getIntParam safely extracts an int parameter from the params map
-func getIntParam(params map[string]interface{}, key string, defaultValue int) int {
+func getIntParam(params map[string]any, key string, defaultValue int) int {
 	if val, ok := params[key]; ok {
 		switch v := val.(type) {
 		case int:
@@ -99,7 +99,7 @@ func getIntParam(params map[string]interface{}, key string, defaultValue int) in
 }
 
 // validateRequiredParams checks that all required parameters are present
-func validateRequiredParams(params map[string]interface{}, required []string) error {
+func validateRequiredParams(params map[string]any, required []string) error {
 	for _, key := range required {
 		if _, ok := params[key]; !ok {
 			return fmt.Errorf("missing required parameter: %s", key)

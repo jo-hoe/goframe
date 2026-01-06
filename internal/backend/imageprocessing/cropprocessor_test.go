@@ -5,7 +5,7 @@ import (
 )
 
 func TestNewCropProcessor_Success(t *testing.T) {
-	params := map[string]interface{}{
+	params := map[string]any{
 		"height": 1600,
 		"width":  1200,
 	}
@@ -29,7 +29,7 @@ func TestNewCropProcessor_Success(t *testing.T) {
 }
 
 func TestNewCropProcessor_MissingHeight(t *testing.T) {
-	params := map[string]interface{}{
+	params := map[string]any{
 		"width": 1200,
 	}
 
@@ -40,7 +40,7 @@ func TestNewCropProcessor_MissingHeight(t *testing.T) {
 }
 
 func TestNewCropProcessor_MissingWidth(t *testing.T) {
-	params := map[string]interface{}{
+	params := map[string]any{
 		"height": 1600,
 	}
 
@@ -53,7 +53,7 @@ func TestNewCropProcessor_MissingWidth(t *testing.T) {
 func TestNewCropProcessor_InvalidHeight(t *testing.T) {
 	tests := []struct {
 		name   string
-		height interface{}
+		height any
 	}{
 		{"Zero height", 0},
 		{"Negative height", -100},
@@ -61,7 +61,7 @@ func TestNewCropProcessor_InvalidHeight(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			params := map[string]interface{}{
+			params := map[string]any{
 				"height": tt.height,
 				"width":  1200,
 			}
@@ -77,7 +77,7 @@ func TestNewCropProcessor_InvalidHeight(t *testing.T) {
 func TestNewCropProcessor_InvalidWidth(t *testing.T) {
 	tests := []struct {
 		name  string
-		width interface{}
+		width any
 	}{
 		{"Zero width", 0},
 		{"Negative width", -100},
@@ -85,7 +85,7 @@ func TestNewCropProcessor_InvalidWidth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			params := map[string]interface{}{
+			params := map[string]any{
 				"height": 1600,
 				"width":  tt.width,
 			}
@@ -99,7 +99,7 @@ func TestNewCropProcessor_InvalidWidth(t *testing.T) {
 }
 
 func TestCropProcessor_Name(t *testing.T) {
-	processor, err := NewCropProcessor(map[string]interface{}{
+	processor, err := NewCropProcessor(map[string]any{
 		"height": 1600,
 		"width":  1200,
 	})
@@ -113,7 +113,7 @@ func TestCropProcessor_Name(t *testing.T) {
 }
 
 func TestCropProcessor_ProcessImage(t *testing.T) {
-	processor, err := NewCropProcessor(map[string]interface{}{
+	processor, err := NewCropProcessor(map[string]any{
 		"height": 1600,
 		"width":  1200,
 	})
@@ -139,7 +139,7 @@ func TestCropProcessor_RegisteredInDefaultRegistry(t *testing.T) {
 	}
 
 	// Test creating via registry
-	processor, err := DefaultRegistry.Create("CropProcessor", map[string]interface{}{
+	processor, err := DefaultRegistry.Create("CropProcessor", map[string]any{
 		"height": 800,
 		"width":  600,
 	})
@@ -162,7 +162,7 @@ func TestCropProcessor_RegisteredInDefaultRegistry(t *testing.T) {
 
 func TestCropProcessor_WithFloat64Params(t *testing.T) {
 	// YAML unmarshaling often produces float64 for numbers
-	params := map[string]interface{}{
+	params := map[string]any{
 		"height": float64(1600),
 		"width":  float64(1200),
 	}

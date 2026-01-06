@@ -6,23 +6,23 @@ import (
 
 func TestNewOrientationProcessor_Success(t *testing.T) {
 	tests := []struct {
-		name     string
-		params   map[string]interface{}
-		expected string
+		name        string
+		params      map[string]any
+		expected    string
 	}{
 		{
 			name:     "Portrait orientation",
-			params:   map[string]interface{}{"orientation": "portrait"},
+			params:   map[string]any{"orientation": "portrait"},
 			expected: "portrait",
 		},
 		{
 			name:     "Landscape orientation",
-			params:   map[string]interface{}{"orientation": "landscape"},
+			params:   map[string]any{"orientation": "landscape"},
 			expected: "landscape",
 		},
 		{
 			name:     "Default orientation",
-			params:   map[string]interface{}{},
+			params:   map[string]any{},
 			expected: "portrait",
 		},
 	}
@@ -47,7 +47,7 @@ func TestNewOrientationProcessor_Success(t *testing.T) {
 }
 
 func TestNewOrientationProcessor_InvalidOrientation(t *testing.T) {
-	params := map[string]interface{}{
+	params := map[string]any{
 		"orientation": "invalid",
 	}
 
@@ -58,7 +58,7 @@ func TestNewOrientationProcessor_InvalidOrientation(t *testing.T) {
 }
 
 func TestOrientationProcessor_Name(t *testing.T) {
-	processor, err := NewOrientationProcessor(map[string]interface{}{
+	processor, err := NewOrientationProcessor(map[string]any{
 		"orientation": "portrait",
 	})
 	if err != nil {
@@ -71,7 +71,7 @@ func TestOrientationProcessor_Name(t *testing.T) {
 }
 
 func TestOrientationProcessor_ProcessImage(t *testing.T) {
-	processor, err := NewOrientationProcessor(map[string]interface{}{
+	processor, err := NewOrientationProcessor(map[string]any{
 		"orientation": "portrait",
 	})
 	if err != nil {
@@ -96,7 +96,7 @@ func TestOrientationProcessor_RegisteredInDefaultRegistry(t *testing.T) {
 	}
 
 	// Test creating via registry
-	processor, err := DefaultRegistry.Create("OrientationProcessor", map[string]interface{}{
+	processor, err := DefaultRegistry.Create("OrientationProcessor", map[string]any{
 		"orientation": "landscape",
 	})
 	if err != nil {

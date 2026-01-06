@@ -9,7 +9,7 @@ type OrientationProcessor struct {
 }
 
 // NewOrientationProcessor creates a new orientation processor from configuration parameters
-func NewOrientationProcessor(params map[string]interface{}) (ImageProcessor, error) {
+func NewOrientationProcessor(params map[string]any) (ImageProcessor, error) {
 	orientation := getStringParam(params, "orientation", "portrait")
 
 	// Validate orientation value
