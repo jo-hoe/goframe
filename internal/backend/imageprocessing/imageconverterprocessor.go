@@ -19,7 +19,7 @@ type ImageConverterParams struct {
 func NewImageConverterParamsFromMap(params map[string]any) (*ImageConverterParams, error) {
 	targetType := getStringParam(params, "targetType", "png")
 	targetType = strings.ToLower(targetType)
-	
+
 	// Validate target type
 	validTypes := map[string]bool{
 		"png":  true,
@@ -27,16 +27,16 @@ func NewImageConverterParamsFromMap(params map[string]any) (*ImageConverterParam
 		"jpg":  true,
 		"gif":  true,
 	}
-	
+
 	if !validTypes[targetType] {
 		return nil, fmt.Errorf("invalid target type: %s (must be 'png', 'jpeg', 'jpg', or 'gif')", targetType)
 	}
-	
+
 	// Normalize jpeg/jpg to jpeg
 	if targetType == "jpg" {
 		targetType = "jpeg"
 	}
-	
+
 	return &ImageConverterParams{
 		TargetType: targetType,
 	}, nil
@@ -54,7 +54,7 @@ func NewImageConverterProcessor(params map[string]any) (ImageProcessor, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &ImageConverterProcessor{
 		name:   "ImageConverterProcessor",
 		params: typedParams,
@@ -73,18 +73,18 @@ func (p *ImageConverterProcessor) ProcessImage(imageData []byte) ([]byte, error)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode image: %w", err)
 	}
-	
+
 	// Normalize format names
 	currentFormat = strings.ToLower(currentFormat)
 	if currentFormat == "jpg" {
 		currentFormat = "jpeg"
 	}
-	
+
 	// If already in target format, return original
 	if currentFormat == p.params.TargetType {
 		return imageData, nil
 	}
-	
+
 	// Encode to target format
 	var buf bytes.Buffer
 	switch p.params.TargetType {
@@ -97,11 +97,11 @@ func (p *ImageConverterProcessor) ProcessImage(imageData []byte) ([]byte, error)
 	default:
 		return nil, fmt.Errorf("unsupported target format: %s", p.params.TargetType)
 	}
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode image to %s: %w", p.params.TargetType, err)
 	}
-	
+
 	return buf.Bytes(), nil
 }
 
