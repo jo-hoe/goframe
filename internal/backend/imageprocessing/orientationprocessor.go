@@ -11,17 +11,17 @@ type OrientationProcessor struct {
 // NewOrientationProcessor creates a new orientation processor from configuration parameters
 func NewOrientationProcessor(params map[string]interface{}) (ImageProcessor, error) {
 	orientation := getStringParam(params, "orientation", "portrait")
-	
+
 	// Validate orientation value
 	validOrientations := map[string]bool{
 		"portrait":  true,
 		"landscape": true,
 	}
-	
+
 	if !validOrientations[orientation] {
 		return nil, fmt.Errorf("invalid orientation: %s (must be 'portrait' or 'landscape')", orientation)
 	}
-	
+
 	return &OrientationProcessor{
 		name:        "OrientationProcessor",
 		orientation: orientation,

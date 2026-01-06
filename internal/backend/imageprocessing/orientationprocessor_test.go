@@ -6,9 +6,9 @@ import (
 
 func TestNewOrientationProcessor_Success(t *testing.T) {
 	tests := []struct {
-		name        string
-		params      map[string]interface{}
-		expected    string
+		name     string
+		params   map[string]interface{}
+		expected string
 	}{
 		{
 			name:     "Portrait orientation",

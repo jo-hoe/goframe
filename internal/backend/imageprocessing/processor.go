@@ -46,12 +46,12 @@ func (r *ProcessorRegistry) Create(name string, params map[string]interface{}) (
 	if !exists {
 		return nil, fmt.Errorf("unknown processor: %s", name)
 	}
-	
+
 	processor, err := factory(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create processor %s: %w", name, err)
 	}
-	
+
 	return processor, nil
 }
 
