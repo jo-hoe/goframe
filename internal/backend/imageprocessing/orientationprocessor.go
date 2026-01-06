@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"log/slog"
 )
 
 // OrientationParams represents typed parameters for orientation processor
@@ -57,9 +58,14 @@ func (p *OrientationProcessor) Type() string {
 
 // ProcessImage rotates the image based on the configured orientation
 func (p *OrientationProcessor) ProcessImage(imageData []byte) ([]byte, error) {
+	slog.Debug("OrientationProcessor: decoding image",
+		"input_size_bytes", len(imageData),
+		"target_orientation", p.params.Orientation)
+	
 	// Decode the PNG image
 	img, err := png.Decode(bytes.NewReader(imageData))
 	if err != nil {
+		slog.Error("OrientationProcessor: failed to decode PNG image", "error", err)
 		return nil, fmt.Errorf("failed to decode PNG image: %w", err)
 	}
 
@@ -71,11 +77,20 @@ func (p *OrientationProcessor) ProcessImage(imageData []byte) ([]byte, error) {
 	// Determine if rotation is needed
 	isCurrentlyPortrait := height >= width
 	needsPortrait := p.params.Orientation == "portrait"
+	
+	slog.Debug("OrientationProcessor: analyzing orientation",
+		"width", width,
+		"height", height,
+		"currently_portrait", isCurrentlyPortrait,
+		"needs_portrait", needsPortrait)
 
 	// If already in correct orientation, return original
 	if isCurrentlyPortrait == needsPortrait {
+		slog.Debug("OrientationProcessor: already in correct orientation, no rotation needed")
 		return imageData, nil
 	}
+	
+	slog.Debug("OrientationProcessor: rotating image 90 degrees clockwise")
 
 	// Rotate 90 degrees clockwise to switch between portrait and landscape
 	rotatedImg := image.NewRGBA(image.Rect(0, 0, height, width))
@@ -86,12 +101,20 @@ func (p *OrientationProcessor) ProcessImage(imageData []byte) ([]byte, error) {
 		}
 	}
 
+	slog.Debug("OrientationProcessor: encoding rotated image")
+	
 	// Encode the rotated image back to PNG bytes
 	var buf bytes.Buffer
 	err = png.Encode(&buf, rotatedImg)
 	if err != nil {
+		slog.Error("OrientationProcessor: failed to encode rotated image", "error", err)
 		return nil, fmt.Errorf("failed to encode rotated PNG image: %w", err)
 	}
+	
+	slog.Debug("OrientationProcessor: rotation complete",
+		"output_size_bytes", buf.Len(),
+		"new_width", height,
+		"new_height", width)
 
 	return buf.Bytes(), nil
 }

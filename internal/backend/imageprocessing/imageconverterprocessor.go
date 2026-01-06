@@ -7,6 +7,7 @@ import (
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"log/slog"
 	"strings"
 )
 
@@ -19,7 +20,7 @@ type ImageConverterParams struct {
 func NewImageConverterParamsFromMap(params map[string]any) (*ImageConverterParams, error) {
 	targetType := getStringParam(params, "targetType", "png")
 	targetType = strings.ToLower(targetType)
-
+	
 	// Validate target type
 	validTypes := map[string]bool{
 		"png":  true,
@@ -27,16 +28,16 @@ func NewImageConverterParamsFromMap(params map[string]any) (*ImageConverterParam
 		"jpg":  true,
 		"gif":  true,
 	}
-
+	
 	if !validTypes[targetType] {
 		return nil, fmt.Errorf("invalid target type: %s (must be 'png', 'jpeg', 'jpg', or 'gif')", targetType)
 	}
-
+	
 	// Normalize jpeg/jpg to jpeg
 	if targetType == "jpg" {
 		targetType = "jpeg"
 	}
-
+	
 	return &ImageConverterParams{
 		TargetType: targetType,
 	}, nil
@@ -54,7 +55,7 @@ func NewImageConverterProcessor(params map[string]any) (ImageProcessor, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	
 	return &ImageConverterProcessor{
 		name:   "ImageConverterProcessor",
 		params: typedParams,
@@ -68,23 +69,37 @@ func (p *ImageConverterProcessor) Type() string {
 
 // ProcessImage converts the image to the target format
 func (p *ImageConverterProcessor) ProcessImage(imageData []byte) ([]byte, error) {
+	slog.Debug("ImageConverterProcessor: decoding image",
+		"input_size_bytes", len(imageData),
+		"target_format", p.params.TargetType)
+	
 	// Decode the image (supports multiple formats)
 	img, currentFormat, err := image.Decode(bytes.NewReader(imageData))
 	if err != nil {
+		slog.Error("ImageConverterProcessor: failed to decode image", "error", err)
 		return nil, fmt.Errorf("failed to decode image: %w", err)
 	}
-
+	
 	// Normalize format names
 	currentFormat = strings.ToLower(currentFormat)
 	if currentFormat == "jpg" {
 		currentFormat = "jpeg"
 	}
-
+	
+	slog.Debug("ImageConverterProcessor: image decoded",
+		"current_format", currentFormat,
+		"target_format", p.params.TargetType)
+	
 	// If already in target format, return original
 	if currentFormat == p.params.TargetType {
+		slog.Debug("ImageConverterProcessor: already in target format, no conversion needed")
 		return imageData, nil
 	}
-
+	
+	slog.Debug("ImageConverterProcessor: converting image format",
+		"from", currentFormat,
+		"to", p.params.TargetType)
+	
 	// Encode to target format
 	var buf bytes.Buffer
 	switch p.params.TargetType {
@@ -95,13 +110,22 @@ func (p *ImageConverterProcessor) ProcessImage(imageData []byte) ([]byte, error)
 	case "gif":
 		err = gif.Encode(&buf, img, nil)
 	default:
+		slog.Error("ImageConverterProcessor: unsupported target format",
+			"target_format", p.params.TargetType)
 		return nil, fmt.Errorf("unsupported target format: %s", p.params.TargetType)
 	}
-
+	
 	if err != nil {
+		slog.Error("ImageConverterProcessor: failed to encode image",
+			"target_format", p.params.TargetType,
+			"error", err)
 		return nil, fmt.Errorf("failed to encode image to %s: %w", p.params.TargetType, err)
 	}
-
+	
+	slog.Debug("ImageConverterProcessor: conversion complete",
+		"output_size_bytes", buf.Len(),
+		"output_format", p.params.TargetType)
+	
 	return buf.Bytes(), nil
 }
 
