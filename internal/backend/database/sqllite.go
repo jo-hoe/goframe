@@ -24,13 +24,23 @@ func NewSQLiteDatabase(connectionString string) (DatabaseService, error) {
 }
 
 func (s *SQLiteDatabase) CreateDatabase() (*sql.DB, error) {
-	s.db.Exec(`CREATE TABLE IF NOT EXISTS entries (
+	_, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS images (
 		id TEXT PRIMARY KEY,
 		original_image BLOB,
 		processed_image BLOB
 	)`)
+	if err != nil {
+		return nil, err
+	}
 
 	return s.db, nil
+}
+
+func (s *SQLiteDatabase) Close() error {
+	if s.db != nil {
+		return s.db.Close()
+	}
+	return nil
 }
 
 func (s *SQLiteDatabase) DoesDatabaseExist() bool {
@@ -40,57 +50,57 @@ func (s *SQLiteDatabase) DoesDatabaseExist() bool {
 	return err == nil
 }
 
-func (s *SQLiteDatabase) CreateEntry(image []byte) (*Entry, error) {
+func (s *SQLiteDatabase) CreateImage(image []byte) (*Image, error) {
 	id, err := generateID(image)
 	if err != nil {
 		return nil, err
 	}
-	entry := &Entry{
+	img := &Image{
 		ID:            id,
 		OriginalImage: image,
 	}
 
-	_, err = s.db.Exec("INSERT INTO entries (id, original_image, processed_image) VALUES (?, ?, ?)", entry.ID, entry.OriginalImage, nil)
+	_, err = s.db.Exec("INSERT INTO images (id, original_image, processed_image) VALUES (?, ?, ?)", img.ID, img.OriginalImage, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return entry, nil
+	return img, nil
 }
 
-func (s *SQLiteDatabase) AddProccessedImage(id string, processedImage []byte) error {
-	_, err := s.db.Exec("UPDATE entries SET processed_image = ? WHERE id = ?", processedImage, id)
+func (s *SQLiteDatabase) AddProcessedImage(id string, processedImage []byte) error {
+	_, err := s.db.Exec("UPDATE images SET processed_image = ? WHERE id = ?", processedImage, id)
 	return err
 }
 
-func (s *SQLiteDatabase) GetAllEntrys() ([]*Entry, error) {
-	rows, err := s.db.Query("SELECT id, original_image, processed_image FROM entries")
+func (s *SQLiteDatabase) GetAllImages() ([]*Image, error) {
+	rows, err := s.db.Query("SELECT id, original_image, processed_image FROM images")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var entries []*Entry
+	var images []*Image
 	for rows.Next() {
-		var entry Entry
-		if err := rows.Scan(&entry.ID, &entry.OriginalImage, &entry.ProcessedImage); err != nil {
+		var img Image
+		if err := rows.Scan(&img.ID, &img.OriginalImage, &img.ProcessedImage); err != nil {
 			return nil, err
 		}
-		entries = append(entries, &entry)
+		images = append(images, &img)
 	}
-	return entries, nil
+	return images, nil
 }
 
-func (s *SQLiteDatabase) DeleteEntry(id string) error {
-	_, err := s.db.Exec("DELETE FROM entries WHERE id = ?", id)
+func (s *SQLiteDatabase) DeleteImage(id string) error {
+	_, err := s.db.Exec("DELETE FROM images WHERE id = ?", id)
 	return err
 }
 
-func (s *SQLiteDatabase) GetEntryByID(id string) (*Entry, error) {
-	row := s.db.QueryRow("SELECT id, original_image, processed_image FROM entries WHERE id = ?", id)
-	var entry Entry
-	if err := row.Scan(&entry.ID, &entry.OriginalImage, &entry.ProcessedImage); err != nil {
+func (s *SQLiteDatabase) GetImageByID(id string) (*Image, error) {
+	row := s.db.QueryRow("SELECT id, original_image, processed_image FROM images WHERE id = ?", id)
+	var img Image
+	if err := row.Scan(&img.ID, &img.OriginalImage, &img.ProcessedImage); err != nil {
 		return nil, err
 	}
-	return &entry, nil
+	return &img, nil
 }
