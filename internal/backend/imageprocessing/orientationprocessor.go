@@ -10,17 +10,17 @@ type OrientationParams struct {
 // NewOrientationParamsFromMap creates OrientationParams from a generic map
 func NewOrientationParamsFromMap(params map[string]any) (*OrientationParams, error) {
 	orientation := getStringParam(params, "orientation", "portrait")
-	
+
 	// Validate orientation value
 	validOrientations := map[string]bool{
 		"portrait":  true,
 		"landscape": true,
 	}
-	
+
 	if !validOrientations[orientation] {
 		return nil, fmt.Errorf("invalid orientation: %s (must be 'portrait' or 'landscape')", orientation)
 	}
-	
+
 	return &OrientationParams{
 		Orientation: orientation,
 	}, nil
@@ -38,7 +38,7 @@ func NewOrientationProcessor(params map[string]any) (ImageProcessor, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &OrientationProcessor{
 		name:   "OrientationProcessor",
 		params: typedParams,

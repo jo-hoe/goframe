@@ -14,10 +14,10 @@ func NewCropParamsFromMap(params map[string]any) (*CropParams, error) {
 	if err := validateRequiredParams(params, []string{"height", "width"}); err != nil {
 		return nil, err
 	}
-	
+
 	height := getIntParam(params, "height", 0)
 	width := getIntParam(params, "width", 0)
-	
+
 	// Validate dimensions are positive
 	if height <= 0 {
 		return nil, fmt.Errorf("height must be positive, got %d", height)
@@ -25,7 +25,7 @@ func NewCropParamsFromMap(params map[string]any) (*CropParams, error) {
 	if width <= 0 {
 		return nil, fmt.Errorf("width must be positive, got %d", width)
 	}
-	
+
 	return &CropParams{
 		Height: height,
 		Width:  width,
@@ -44,7 +44,7 @@ func NewCropProcessor(params map[string]any) (ImageProcessor, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &CropProcessor{
 		name:   "CropProcessor",
 		params: typedParams,
