@@ -52,9 +52,12 @@ func TestProcessorRegistry_Create(t *testing.T) {
 	registry := NewProcessorRegistry()
 
 	// Register a test processor
-	registry.Register("TestProcessor", func(params map[string]interface{}) (ImageProcessor, error) {
+	err := registry.Register("TestProcessor", func(params map[string]interface{}) (ImageProcessor, error) {
 		return &OrientationProcessor{name: "TestProcessor", orientation: "portrait"}, nil
 	})
+	if err != nil {
+		t.Fatalf("Failed to register processor: %v", err)
+	}
 
 	// Test creating registered processor
 	processor, err := registry.Create("TestProcessor", nil)
@@ -79,9 +82,12 @@ func TestProcessorRegistry_IsRegistered(t *testing.T) {
 	registry := NewProcessorRegistry()
 
 	// Register a test processor
-	registry.Register("TestProcessor", func(params map[string]interface{}) (ImageProcessor, error) {
+	err := registry.Register("TestProcessor", func(params map[string]interface{}) (ImageProcessor, error) {
 		return &OrientationProcessor{name: "TestProcessor", orientation: "portrait"}, nil
 	})
+	if err != nil {
+		t.Fatalf("Failed to register processor: %v", err)
+	}
 
 	// Test registered processor
 	if !registry.IsRegistered("TestProcessor") {
@@ -104,12 +110,18 @@ func TestProcessorRegistry_GetRegisteredNames(t *testing.T) {
 	}
 
 	// Register processors
-	registry.Register("Processor1", func(params map[string]interface{}) (ImageProcessor, error) {
+	err := registry.Register("Processor1", func(params map[string]interface{}) (ImageProcessor, error) {
 		return &OrientationProcessor{name: "Processor1", orientation: "portrait"}, nil
 	})
-	registry.Register("Processor2", func(params map[string]interface{}) (ImageProcessor, error) {
+	if err != nil {
+		t.Fatalf("Failed to register Processor1: %v", err)
+	}
+	err = registry.Register("Processor2", func(params map[string]interface{}) (ImageProcessor, error) {
 		return &OrientationProcessor{name: "Processor2", orientation: "portrait"}, nil
 	})
+	if err != nil {
+		t.Fatalf("Failed to register Processor2: %v", err)
+	}
 
 	names = registry.GetRegisteredNames()
 	if len(names) != 2 {

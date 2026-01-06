@@ -78,7 +78,9 @@ func (s *SQLiteDatabase) GetAllImages() ([]*Image, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close() // Explicitly ignore error as we're already returning an error from the function
+	}()
 
 	var images []*Image
 	for rows.Next() {
