@@ -119,26 +119,26 @@ type ProcessorConfig struct {
 // ApplyProcessors applies a sequence of processors to an image in order
 func ApplyProcessors(imageData []byte, processorConfigs []ProcessorConfig) ([]byte, error) {
 	start := time.Now()
-	
+
 	slog.Info("starting image processing pipeline",
 		"processor_count", len(processorConfigs),
 		"input_size_bytes", len(imageData))
-	
+
 	if len(processorConfigs) == 0 {
 		slog.Debug("no processors configured, returning original image")
 		return imageData, nil
 	}
-	
+
 	currentData := imageData
-	
+
 	for i, config := range processorConfigs {
 		processorStart := time.Now()
-		
+
 		slog.Debug("creating processor",
 			"index", i,
 			"processor_name", config.Name,
 			"params", config.Params)
-		
+
 		// Create the processor from the registry
 		processor, err := DefaultRegistry.Create(config.Name, config.Params)
 		if err != nil {
@@ -148,12 +148,12 @@ func ApplyProcessors(imageData []byte, processorConfigs []ProcessorConfig) ([]by
 				"error", err)
 			return nil, fmt.Errorf("failed to create processor at index %d (%s): %w", i, config.Name, err)
 		}
-		
+
 		slog.Info("applying processor",
 			"index", i,
 			"processor_name", config.Name,
 			"input_size_bytes", len(currentData))
-		
+
 		// Apply the processor
 		processedData, err := processor.ProcessImage(currentData)
 		if err != nil {
@@ -164,7 +164,7 @@ func ApplyProcessors(imageData []byte, processorConfigs []ProcessorConfig) ([]by
 				"input_size_bytes", len(currentData))
 			return nil, fmt.Errorf("processor %s (index %d) failed: %w", config.Name, i, err)
 		}
-		
+
 		processorDuration := time.Since(processorStart)
 		slog.Info("processor completed",
 			"index", i,
@@ -172,15 +172,15 @@ func ApplyProcessors(imageData []byte, processorConfigs []ProcessorConfig) ([]by
 			"duration_ms", processorDuration.Milliseconds(),
 			"input_size_bytes", len(currentData),
 			"output_size_bytes", len(processedData))
-		
+
 		currentData = processedData
 	}
-	
+
 	totalDuration := time.Since(start)
 	slog.Info("image processing pipeline completed",
 		"total_duration_ms", totalDuration.Milliseconds(),
 		"processor_count", len(processorConfigs),
 		"final_size_bytes", len(currentData))
-	
+
 	return currentData, nil
 }

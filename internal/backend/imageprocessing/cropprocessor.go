@@ -66,7 +66,7 @@ func (p *CropProcessor) Type() string {
 func (p *CropProcessor) ProcessImage(imageData []byte) ([]byte, error) {
 	slog.Debug("CropProcessor: decoding image",
 		"input_size_bytes", len(imageData))
-	
+
 	// Decode the PNG image
 	img, err := png.Decode(bytes.NewReader(imageData))
 	if err != nil {
@@ -78,7 +78,7 @@ func (p *CropProcessor) ProcessImage(imageData []byte) ([]byte, error) {
 	bounds := img.Bounds()
 	originalWidth := bounds.Dx()
 	originalHeight := bounds.Dy()
-	
+
 	slog.Debug("CropProcessor: image decoded",
 		"original_width", originalWidth,
 		"original_height", originalHeight,
@@ -112,7 +112,7 @@ func (p *CropProcessor) ProcessImage(imageData []byte) ([]byte, error) {
 	// Calculate crop rectangle (center crop)
 	x0 := (originalWidth - cropWidth) / 2
 	y0 := (originalHeight - cropHeight) / 2
-	
+
 	slog.Debug("CropProcessor: performing center crop",
 		"crop_x", x0,
 		"crop_y", y0,
@@ -128,7 +128,7 @@ func (p *CropProcessor) ProcessImage(imageData []byte) ([]byte, error) {
 	}
 
 	slog.Debug("CropProcessor: encoding cropped image")
-	
+
 	// Encode the cropped image back to PNG bytes
 	var buf bytes.Buffer
 	err = png.Encode(&buf, croppedImg)
@@ -136,7 +136,7 @@ func (p *CropProcessor) ProcessImage(imageData []byte) ([]byte, error) {
 		slog.Error("CropProcessor: failed to encode cropped image", "error", err)
 		return nil, fmt.Errorf("failed to encode cropped PNG image: %w", err)
 	}
-	
+
 	slog.Debug("CropProcessor: crop complete",
 		"output_size_bytes", buf.Len())
 

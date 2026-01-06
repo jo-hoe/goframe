@@ -22,10 +22,10 @@ func NewScaleParamsFromMap(params map[string]any) (*ScaleParams, error) {
 	if err := validateRequiredParams(params, []string{"height", "width"}); err != nil {
 		return nil, err
 	}
-	
+
 	height := getIntParam(params, "height", 0)
 	width := getIntParam(params, "width", 0)
-	
+
 	// Validate dimensions are positive
 	if height <= 0 {
 		return nil, fmt.Errorf("height must be positive, got %d", height)
@@ -33,7 +33,7 @@ func NewScaleParamsFromMap(params map[string]any) (*ScaleParams, error) {
 	if width <= 0 {
 		return nil, fmt.Errorf("width must be positive, got %d", width)
 	}
-	
+
 	return &ScaleParams{
 		Height: height,
 		Width:  width,
@@ -52,7 +52,7 @@ func NewScaleProcessor(params map[string]any) (ImageProcessor, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &ScaleProcessor{
 		name:   "ScaleProcessor",
 		params: typedParams,
@@ -68,26 +68,26 @@ func (p *ScaleProcessor) Type() string {
 func (p *ScaleProcessor) ProcessImage(imageData []byte) ([]byte, error) {
 	slog.Debug("ScaleProcessor: decoding image",
 		"input_size_bytes", len(imageData))
-	
+
 	// Decode the PNG image
 	img, err := png.Decode(bytes.NewReader(imageData))
 	if err != nil {
 		slog.Error("ScaleProcessor: failed to decode PNG image", "error", err)
 		return nil, fmt.Errorf("failed to decode PNG image: %w", err)
 	}
-	
+
 	// Get original dimensions
 	bounds := img.Bounds()
 	originalWidth := bounds.Dx()
 	originalHeight := bounds.Dy()
-	
+
 	targetWidth := p.params.Width
 	targetHeight := p.params.Height
-	
+
 	// Calculate aspect ratios
 	originalAspect := float64(originalWidth) / float64(originalHeight)
 	targetAspect := float64(targetWidth) / float64(targetHeight)
-	
+
 	slog.Debug("ScaleProcessor: calculating scaled dimensions",
 		"original_width", originalWidth,
 		"original_height", originalHeight,
@@ -95,7 +95,7 @@ func (p *ScaleProcessor) ProcessImage(imageData []byte) ([]byte, error) {
 		"target_width", targetWidth,
 		"target_height", targetHeight,
 		"target_aspect_ratio", targetAspect)
-	
+
 	// Calculate scaled dimensions that fit within target while preserving aspect ratio
 	var scaledWidth, scaledHeight int
 	if originalAspect > targetAspect {
@@ -109,24 +109,24 @@ func (p *ScaleProcessor) ProcessImage(imageData []byte) ([]byte, error) {
 		scaledWidth = int(float64(targetHeight) * originalAspect)
 		slog.Debug("ScaleProcessor: original is taller, scaling to target height")
 	}
-	
+
 	slog.Debug("ScaleProcessor: scaled dimensions calculated",
 		"scaled_width", scaledWidth,
 		"scaled_height", scaledHeight)
-	
+
 	// Create target image with white background
 	targetImg := image.NewRGBA(image.Rect(0, 0, targetWidth, targetHeight))
 	white := color.RGBA{255, 255, 255, 255}
 	draw.Draw(targetImg, targetImg.Bounds(), &image.Uniform{white}, image.Point{}, draw.Src)
-	
+
 	// Calculate position to center the scaled image
 	offsetX := (targetWidth - scaledWidth) / 2
 	offsetY := (targetHeight - scaledHeight) / 2
-	
+
 	slog.Debug("ScaleProcessor: centering image on canvas",
 		"offset_x", offsetX,
 		"offset_y", offsetY)
-	
+
 	// Scale and draw the image
 	// Simple nearest-neighbor scaling
 	for y := 0; y < scaledHeight; y++ {
@@ -134,7 +134,7 @@ func (p *ScaleProcessor) ProcessImage(imageData []byte) ([]byte, error) {
 			// Map scaled coordinates back to original image coordinates
 			srcX := int(float64(x) * float64(originalWidth) / float64(scaledWidth))
 			srcY := int(float64(y) * float64(originalHeight) / float64(scaledHeight))
-			
+
 			// Ensure we don't go out of bounds
 			if srcX >= originalWidth {
 				srcX = originalWidth - 1
@@ -142,13 +142,13 @@ func (p *ScaleProcessor) ProcessImage(imageData []byte) ([]byte, error) {
 			if srcY >= originalHeight {
 				srcY = originalHeight - 1
 			}
-			
+
 			targetImg.Set(offsetX+x, offsetY+y, img.At(srcX, srcY))
 		}
 	}
-	
+
 	slog.Debug("ScaleProcessor: encoding scaled image")
-	
+
 	// Encode the scaled image to PNG bytes
 	var buf bytes.Buffer
 	err = png.Encode(&buf, targetImg)
@@ -156,10 +156,10 @@ func (p *ScaleProcessor) ProcessImage(imageData []byte) ([]byte, error) {
 		slog.Error("ScaleProcessor: failed to encode scaled image", "error", err)
 		return nil, fmt.Errorf("failed to encode scaled PNG image: %w", err)
 	}
-	
+
 	slog.Debug("ScaleProcessor: scaling complete",
 		"output_size_bytes", buf.Len())
-	
+
 	return buf.Bytes(), nil
 }
 
