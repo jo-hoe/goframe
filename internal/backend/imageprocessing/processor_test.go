@@ -19,7 +19,10 @@ func TestProcessorRegistry_Register(t *testing.T) {
 
 	// Test successful registration
 	err := registry.Register("TestProcessor", func(params map[string]any) (ImageProcessor, error) {
-		return &OrientationProcessor{name: "TestProcessor", orientation: "portrait"}, nil
+		return &OrientationProcessor{
+			name:   "TestProcessor",
+			params: &OrientationParams{Orientation: "portrait"},
+		}, nil
 	})
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
@@ -27,7 +30,10 @@ func TestProcessorRegistry_Register(t *testing.T) {
 
 	// Test duplicate registration
 	err = registry.Register("TestProcessor", func(params map[string]any) (ImageProcessor, error) {
-		return &OrientationProcessor{name: "TestProcessor", orientation: "portrait"}, nil
+		return &OrientationProcessor{
+			name:   "TestProcessor",
+			params: &OrientationParams{Orientation: "portrait"},
+		}, nil
 	})
 	if err == nil {
 		t.Error("Expected error for duplicate registration")
@@ -35,7 +41,10 @@ func TestProcessorRegistry_Register(t *testing.T) {
 
 	// Test empty name
 	err = registry.Register("", func(params map[string]any) (ImageProcessor, error) {
-		return &OrientationProcessor{name: "", orientation: "portrait"}, nil
+		return &OrientationProcessor{
+			name:   "",
+			params: &OrientationParams{Orientation: "portrait"},
+		}, nil
 	})
 	if err == nil {
 		t.Error("Expected error for empty name")
@@ -53,7 +62,10 @@ func TestProcessorRegistry_Create(t *testing.T) {
 
 	// Register a test processor
 	err := registry.Register("TestProcessor", func(params map[string]any) (ImageProcessor, error) {
-		return &OrientationProcessor{name: "TestProcessor", orientation: "portrait"}, nil
+		return &OrientationProcessor{
+			name:   "TestProcessor",
+			params: &OrientationParams{Orientation: "portrait"},
+		}, nil
 	})
 	if err != nil {
 		t.Fatalf("Failed to register processor: %v", err)
@@ -83,7 +95,10 @@ func TestProcessorRegistry_IsRegistered(t *testing.T) {
 
 	// Register a test processor
 	err := registry.Register("TestProcessor", func(params map[string]any) (ImageProcessor, error) {
-		return &OrientationProcessor{name: "TestProcessor", orientation: "portrait"}, nil
+		return &OrientationProcessor{
+			name:   "TestProcessor",
+			params: &OrientationParams{Orientation: "portrait"},
+		}, nil
 	})
 	if err != nil {
 		t.Fatalf("Failed to register processor: %v", err)
@@ -111,13 +126,19 @@ func TestProcessorRegistry_GetRegisteredNames(t *testing.T) {
 
 	// Register processors
 	err := registry.Register("Processor1", func(params map[string]any) (ImageProcessor, error) {
-		return &OrientationProcessor{name: "Processor1", orientation: "portrait"}, nil
+		return &OrientationProcessor{
+			name:   "Processor1",
+			params: &OrientationParams{Orientation: "portrait"},
+		}, nil
 	})
 	if err != nil {
 		t.Fatalf("Failed to register Processor1: %v", err)
 	}
 	err = registry.Register("Processor2", func(params map[string]any) (ImageProcessor, error) {
-		return &OrientationProcessor{name: "Processor2", orientation: "portrait"}, nil
+		return &OrientationProcessor{
+			name:   "Processor2",
+			params: &OrientationParams{Orientation: "portrait"},
+		}, nil
 	})
 	if err != nil {
 		t.Fatalf("Failed to register Processor2: %v", err)

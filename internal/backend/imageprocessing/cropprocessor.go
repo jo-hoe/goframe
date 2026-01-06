@@ -2,23 +2,22 @@ package imageprocessing
 
 import "fmt"
 
-// CropProcessor handles image cropping operations
-type CropProcessor struct {
-	name   string
-	height int
-	width  int
+// CropParams represents typed parameters for crop processor
+type CropParams struct {
+	Height int
+	Width  int
 }
 
-// NewCropProcessor creates a new crop processor from configuration parameters
-func NewCropProcessor(params map[string]any) (ImageProcessor, error) {
-	// Height and width are required parameters
+// NewCropParamsFromMap creates CropParams from a generic map
+func NewCropParamsFromMap(params map[string]any) (*CropParams, error) {
+	// Validate required parameters exist
 	if err := validateRequiredParams(params, []string{"height", "width"}); err != nil {
 		return nil, err
 	}
-
+	
 	height := getIntParam(params, "height", 0)
 	width := getIntParam(params, "width", 0)
-
+	
 	// Validate dimensions are positive
 	if height <= 0 {
 		return nil, fmt.Errorf("height must be positive, got %d", height)
@@ -26,11 +25,29 @@ func NewCropProcessor(params map[string]any) (ImageProcessor, error) {
 	if width <= 0 {
 		return nil, fmt.Errorf("width must be positive, got %d", width)
 	}
+	
+	return &CropParams{
+		Height: height,
+		Width:  width,
+	}, nil
+}
 
+// CropProcessor handles image cropping operations
+type CropProcessor struct {
+	name   string
+	params *CropParams
+}
+
+// NewCropProcessor creates a new crop processor from configuration parameters
+func NewCropProcessor(params map[string]any) (ImageProcessor, error) {
+	typedParams, err := NewCropParamsFromMap(params)
+	if err != nil {
+		return nil, err
+	}
+	
 	return &CropProcessor{
 		name:   "CropProcessor",
-		height: height,
-		width:  width,
+		params: typedParams,
 	}, nil
 }
 
@@ -48,12 +65,17 @@ func (p *CropProcessor) ProcessImage(imageData []byte) ([]byte, error) {
 
 // GetHeight returns the configured height
 func (p *CropProcessor) GetHeight() int {
-	return p.height
+	return p.params.Height
 }
 
 // GetWidth returns the configured width
 func (p *CropProcessor) GetWidth() int {
-	return p.width
+	return p.params.Width
+}
+
+// GetParams returns the typed parameters
+func (p *CropProcessor) GetParams() *CropParams {
+	return p.params
 }
 
 func init() {
