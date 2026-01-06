@@ -55,3 +55,116 @@ func TestLoadConfig_FileNotFound(t *testing.T) {
 		t.Error("Expected config to be nil when file doesn't exist")
 	}
 }
+
+func TestLoadConfig_WithProcessors(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	configContent := `port: 8080
+connectionString: "test-connection-string"
+processors:
+  - name: OrientationProcessor
+    orientation: portrait
+  - name: CropProcessor
+    height: 1600
+    width: 1200`
+
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
+	config, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if len(config.Processors) != 2 {
+		t.Fatalf("Expected 2 processors, got %d", len(config.Processors))
+	}
+
+	// Verify first processor
+	if config.Processors[0].Name != "OrientationProcessor" {
+		t.Errorf("Expected first processor name to be 'OrientationProcessor', got '%s'", config.Processors[0].Name)
+	}
+	if orientation, ok := config.Processors[0].Params["orientation"].(string); !ok || orientation != "portrait" {
+		t.Errorf("Expected orientation to be 'portrait', got '%v'", config.Processors[0].Params["orientation"])
+	}
+
+	// Verify second processor
+	if config.Processors[1].Name != "CropProcessor" {
+		t.Errorf("Expected second processor name to be 'CropProcessor', got '%s'", config.Processors[1].Name)
+	}
+	if height, ok := config.Processors[1].Params["height"].(int); !ok || height != 1600 {
+		t.Errorf("Expected height to be 1600, got '%v'", config.Processors[1].Params["height"])
+	}
+	if width, ok := config.Processors[1].Params["width"].(int); !ok || width != 1200 {
+		t.Errorf("Expected width to be 1200, got '%v'", config.Processors[1].Params["width"])
+	}
+}
+
+func TestLoadConfig_EmptyProcessorName(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	configContent := `port: 8080
+connectionString: "test-connection-string"
+processors:
+  - name: ""
+    orientation: portrait`
+
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
+	_, err = LoadConfig(configPath)
+	if err == nil {
+		t.Fatal("Expected error for empty processor name, got nil")
+	}
+}
+
+func TestLoadConfig_DuplicateProcessorName(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	configContent := `port: 8080
+connectionString: "test-connection-string"
+processors:
+  - name: OrientationProcessor
+    orientation: portrait
+  - name: OrientationProcessor
+    orientation: landscape`
+
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
+	_, err = LoadConfig(configPath)
+	if err == nil {
+		t.Fatal("Expected error for duplicate processor name, got nil")
+	}
+}
+
+func TestLoadConfig_InvalidYAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	configContent := `port: 8080
+connectionString: "test-connection-string"
+processors:
+  - name: OrientationProcessor
+    orientation: portrait
+  invalid yaml syntax here`
+
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
+	_, err = LoadConfig(configPath)
+	if err == nil {
+		t.Fatal("Expected error for invalid YAML, got nil")
+	}
+}

@@ -1,0 +1,8 @@
+port: 8080
+connectionString: "someconnectionstring"
+processors:
+  - name: OrientationProcessor
+    orientation: portrait
+  - name: CropProcessor
+    height: 1600
+    width: 1200
