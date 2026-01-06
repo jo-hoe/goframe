@@ -12,7 +12,8 @@ func TestLoadConfig_Success(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
 	// Create a valid config file
-	configContent := `port: 8080`
+	configContent := `port: 8080
+connectionString: "test-connection-string"`
 	err := os.WriteFile(configPath, []byte(configContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create test config file: %v", err)
@@ -31,6 +32,10 @@ func TestLoadConfig_Success(t *testing.T) {
 
 	if config.Port != 8080 {
 		t.Errorf("Expected port to be 8080, got %d", config.Port)
+	}
+
+	if config.ConnectionString != "test-connection-string" {
+		t.Errorf("Expected connectionString to be 'test-connection-string', got '%s'", config.ConnectionString)
 	}
 }
 

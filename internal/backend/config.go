@@ -8,7 +8,8 @@ import (
 )
 
 type BackendConfig struct {
-	Port int `yaml:"port"`
+	Port             int    `yaml:"port"`
+	ConnectionString string `yaml:"connectionString"`
 }
 
 // LoadConfig loads configuration from the specified YAML file
