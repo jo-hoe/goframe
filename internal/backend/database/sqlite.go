@@ -68,7 +68,7 @@ func (s *SQLiteDatabase) CreateImage(image []byte) (*Image, error) {
 	return img, nil
 }
 
-func (s *SQLiteDatabase) AddProcessedImage(id string, processedImage []byte) error {
+func (s *SQLiteDatabase) SetProcessedImage(id string, processedImage []byte) error {
 	_, err := s.db.Exec("UPDATE images SET processed_image = ? WHERE id = ?", processedImage, id)
 	return err
 }

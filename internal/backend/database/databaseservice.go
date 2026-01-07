@@ -8,7 +8,7 @@ type DatabaseService interface {
 	Close() error
 
 	CreateImage(image []byte) (*Image, error)
-	AddProcessedImage(id string, processedImage []byte) error
+	SetProcessedImage(id string, processedImage []byte) error
 	GetAllImages() ([]*Image, error)
 	DeleteImage(id string) error
 	GetImageByID(id string) (*Image, error)

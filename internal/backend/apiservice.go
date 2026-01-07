@@ -35,9 +35,6 @@ func (s *APIService) Start() {
 }
 
 func setRoutes(e *echo.Echo) {
-	// Health endpoint for Kubernetes probes
-	//e.GET(HealthPath, service.healthHandler)
-
 	// Set probe route
 	e.GET("/", func(c echo.Context) error {
 		return c.String(200, "API Service is running")
