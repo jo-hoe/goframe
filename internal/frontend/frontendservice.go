@@ -40,7 +40,7 @@ func (service *FrontendService) SetRoutes(e *echo.Echo) {
 	}
 
 	e.GET("/", service.rootRedirectHandler) // Redirect root to index.html
-	e.GET(MainPageName, service.indexHandler)
+	e.GET("/"+MainPageName, service.indexHandler)
 	e.POST("/htmx/uploadImage", service.htmxUploadImageHandler)
 	e.GET("/htmx/image", service.htmxGetCurrentImageHandler)
 }
