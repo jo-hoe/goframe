@@ -2,11 +2,15 @@ package fontend
 
 import (
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"text/template"
+	"time"
 
 	"github.com/jo-hoe/goframe/internal/core"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 const MainPageName = "index.html"
@@ -29,6 +33,10 @@ func (service *FrontendService) rootRedirectHandler(ctx echo.Context) error {
 func (service *FrontendService) Start() {
 	e := echo.New()
 
+	e.Use(middleware.RequestLogger())
+	e.Use(middleware.Recover())
+	e.Pre(middleware.RemoveTrailingSlash())
+
 	service.setUIRoutes(e)
 
 	// Start server
@@ -47,17 +55,22 @@ func (service *FrontendService) setUIRoutes(e *echo.Echo) {
 	e.GET("/", service.rootRedirectHandler) // Redirect root to index.html
 	e.GET(MainPageName, service.indexHandler)
 	e.POST("/htmx/uploadImage", service.htmxUploadImageHandler)
-	e.POST("/htmx/image", service.htmxGetCurrentImageHandler)
+	e.GET("/htmx/image", service.htmxGetCurrentImageHandler)
 }
 
 func (service *FrontendService) htmxGetCurrentImageHandler(ctx echo.Context) error {
 	image, err := service.coreService.GetCurrentImage()
 	if err != nil {
-		return ctx.String(http.StatusInternalServerError, "Failed to get current image")
+		return ctx.String(http.StatusNotFound, "No image available")
 	}
 
 	imageType := service.coreService.GetConfig().ImageTargetType
 	contentType := "image/" + imageType
+
+	// Prevent caching so the latest uploaded image is always shown
+	ctx.Response().Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	ctx.Response().Header().Set("Pragma", "no-cache")
+	ctx.Response().Header().Set("Expires", "0")
 
 	// Return the image data
 	return ctx.Blob(http.StatusOK, contentType, image)
@@ -73,21 +86,30 @@ func (service *FrontendService) htmxUploadImageHandler(ctx echo.Context) error {
 	if err != nil {
 		return ctx.String(http.StatusBadRequest, "Failed to get uploaded file")
 	}
+
 	src, err := file.Open()
 	if err != nil {
 		return ctx.String(http.StatusInternalServerError, "Failed to open uploaded file")
 	}
-	defer src.Close()
+	defer func() {
+		if cerr := src.Close(); cerr != nil {
+			slog.Error("htmxUploadImageHandler: failed to close uploaded file reader", "error", cerr, "filename", file.Filename)
+		}
+	}()
 
-	// Read file content
-	image := make([]byte, file.Size)
-	_, err = src.Read(image)
+	// Read file content reliably
+	image, err := io.ReadAll(src)
 	if err != nil {
 		return ctx.String(http.StatusInternalServerError, "Failed to read uploaded file")
 	}
 
-	service.coreService.AddImage(image)
+	_, err = service.coreService.AddImage(image)
+	if err != nil {
+		return ctx.String(http.StatusInternalServerError, "Failed to process uploaded image")
+	}
 
-	// For demonstration, just return the filename
-	return ctx.String(http.StatusOK, "Uploaded file: "+file.Filename)
+	// Return an out-of-band swap to refresh the displayed image, plus a simple status message
+	ts := fmt.Sprintf("%d", time.Now().UnixNano())
+	html := fmt.Sprintf(`<div id="upload-result">Uploaded file: %s</div><img id="current-image" src="/htmx/image?ts=%s" hx-swap-oob="true">`, file.Filename, ts)
+	return ctx.HTML(http.StatusOK, html)
 }

@@ -1,4 +1,3 @@
-
 {{ block "index" . }}
 <!DOCTYPE html>
 <html lang="en">
@@ -10,12 +9,41 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <script src="https://unpkg.com/htmx.org/dist/htmx.min.js"></script>
     <style>
+      #current-image { max-width: 100%; height: auto; }
     </style>
 </head>
 
 <body>
     <main class="container">
         <h1>Go Frame</h1>
+
+        <section>
+            <h2>Upload Image</h2>
+            <form
+                hx-post="/htmx/uploadImage"
+                hx-target="#upload-result"
+                hx-swap="innerHTML"
+                method="post"
+                enctype="multipart/form-data">
+                <input type="file" name="image" accept="image/*" required>
+                <button type="submit">Upload</button>
+            </form>
+            <div id="upload-result"></div>
+        </section>
+
+        <section>
+            <h2>Current Image</h2>
+            <figure>
+                <img
+                    id="current-image"
+                    src="/htmx/image"
+                    alt="Current image"
+                    style="display:none"
+                    onload="this.style.display='block'; document.getElementById('no-image').style.display='none';"
+                    onerror="this.style.display='none'; document.getElementById('no-image').style.display='block';">
+                <figcaption id="no-image">No image uploaded yet.</figcaption>
+            </figure>
+        </section>
     </main>
 </body>
 
