@@ -288,7 +288,7 @@ func TestExecuteCommands_InvalidCommandConfig(t *testing.T) {
 	testData := []byte("test data")
 	configs := []CommandConfig{
 		{
-			Name: "CropCommand",
+			Name:   "CropCommand",
 			Params: map[string]any{
 				// Missing required height and width
 			},
