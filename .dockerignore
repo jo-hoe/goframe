@@ -1,0 +1,15 @@
+# Exclude VCS and IDE metadata
+.git
+.gitignore
+.github
+.vscode
+.idea
+
+# Local build artifacts
+bin/
+build/
+dist/
+*.log
+
+# Exclude local config from image (mount at runtime instead)
+config/

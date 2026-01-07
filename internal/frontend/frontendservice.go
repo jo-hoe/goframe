@@ -1,6 +1,7 @@
 package fontend
 
 import (
+	"fmt"
 	"net/http"
 	"text/template"
 
@@ -25,7 +26,17 @@ func (service *FrontendService) rootRedirectHandler(ctx echo.Context) error {
 	return ctx.Redirect(http.StatusMovedPermanently, "/"+MainPageName)
 }
 
-func (service *FrontendService) SetUIRoutes(e *echo.Echo) {
+func (service *FrontendService) Start() {
+	e := echo.New()
+
+	service.setUIRoutes(e)
+
+	// Start server
+	portString := fmt.Sprintf(":%d", service.coreService.GetConfig().Port)
+	e.Logger.Fatal(e.Start(portString))
+}
+
+func (service *FrontendService) setUIRoutes(e *echo.Echo) {
 	// Create template with helper functions
 	funcMap := template.FuncMap{}
 

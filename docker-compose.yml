@@ -1,0 +1,11 @@
+services:
+  goframe:
+    build:
+      context: .
+    image: goframe:latest
+    environment:
+      CONFIG_PATH: /config.yaml
+    ports:
+      - "8080:8080"
+    volumes:
+      - ${PWD}/config:/config:ro

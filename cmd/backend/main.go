@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	backend "github.com/jo-hoe/goframe/internal/backend"
 	"github.com/jo-hoe/goframe/internal/core"
 	frontend "github.com/jo-hoe/goframe/internal/frontend"
 )
@@ -37,9 +36,9 @@ func main() {
 	coreService := core.NewCoreService(config)
 
 	// Start the API apiService
-	apiService := backend.NewAPIService(config.Port, config.ImageTargetType)
-	apiService.Start()
+	// apiService := backend.NewAPIService(config.Port, config.ImageTargetType)
+	// apiService.Start()
 
 	frontendService := frontend.NewFrontendService(coreService)
-	_ = frontendService
+	frontendService.Start()
 }
