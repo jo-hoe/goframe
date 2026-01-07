@@ -1,0 +1,21 @@
+# Common Helm ignores
+# Helm ignores templates
+*.swp
+*.bak
+*.tmp
+*.orig
+*.rej
+*.swo
+.DS_Store
+.idea/
+.vscode/
+*.iml
+.git/
+.gitignore
+charts/
+Chart.lock
+__MACOSX/
+# Node / frontend misc
+node_modules/
+# OS
+Thumbs.db

@@ -1,0 +1,21 @@
+1. Chart goframe has been installed.
+
+Accessing the service:
+
+- Using kubectl port-forward (recommended for local dev without ingress):
+  kubectl port-forward svc/{{ include "goframe.fullname" . }} 8080:{{ .Values.service.port }}
+
+  Then open:
+  http://localhost:8080/
+
+- If you enabled ingress:
+  Host: {{ (index .Values.ingress.hosts 0).host | default "goframe.local" }}
+  Path: {{ (default (list (dict "path" "/" "pathType" "Prefix")) (index .Values.ingress.hosts 0).paths) | toYaml }}
+
+Probes:
+- Liveness:  GET /
+- Readiness: GET /
+
+Config:
+- Config is provided via a ConfigMap and mounted at /config/config.yaml
+- The application reads CONFIG_PATH=/config/config.yaml

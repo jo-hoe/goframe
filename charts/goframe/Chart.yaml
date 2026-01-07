@@ -1,0 +1,12 @@
+apiVersion: v2
+name: goframe
+description: Helm chart for the goframe image processing web service
+type: application
+version: 0.0.1
+appVersion: "0.0.1"
+keywords:
+  - go
+  - image
+  - web
+sources:
+  - https://github.com/jo-hoe/goframe

@@ -1,0 +1,39 @@
+# Overrides for local k3d development
+image:
+  repository: registry.localhost:5000/goframe
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Expose service directly via k3d loadbalancer (maps to localhost:8080 via k3d/clusterconfig.yaml)
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 8080
+
+# Optionally override app config for local runs
+config:
+  port: 8080
+  database:
+    type: sqlite
+    connectionString: ":memory:"
+  imageTargetType: "png"
+  processors:
+    - name: OrientationProcessor
+      orientation: portrait
+    - name: ScaleProcessor
+      height: 1920
+      width: 1080
+    - name: CropProcessor
+      height: 1600
+      width: 1200
+
+# Ingress disabled by default for k3d; direct access available at http://localhost:8080/
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    - host: localhost
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
