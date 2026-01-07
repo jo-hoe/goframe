@@ -20,8 +20,10 @@ RUN go mod download
 COPY . .
 
 # Build the backend binary
-RUN go build -trimpath -ldflags="-s -w" -o /out/goframe ./cmd/backend/main.go \
-    && upx --lzma --best /out/goframe || true
+RUN mkdir -p /out \
+    && go build -trimpath -ldflags="-s -w" -o /out/goframe ./cmd/server
+
+RUN upx --lzma --best /out/goframe || true
 
 # ---------- Runtime stage ----------
 # Distroless static nonroot keeps image very small and secure

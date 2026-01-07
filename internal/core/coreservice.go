@@ -14,10 +14,6 @@ type CoreService struct {
 	databaseService database.DatabaseService
 }
 
-func (service *CoreService) GetConfig() ServiceConfig {
-	return *service.config
-}
-
 func NewCoreService(config *ServiceConfig) *CoreService {
 	databaseService, err := getDatabaseService(config)
 	if err != nil {

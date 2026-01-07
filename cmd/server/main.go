@@ -1,12 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 
+	"github.com/jo-hoe/goframe/internal/backend"
 	"github.com/jo-hoe/goframe/internal/core"
 	frontend "github.com/jo-hoe/goframe/internal/frontend"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 func getConfigPath() string {
@@ -32,13 +36,26 @@ func main() {
 		panic(err)
 	}
 
-	// Initialize CoreService
 	coreService := core.NewCoreService(config)
+	server := defineServer()
 
-	// Start the API apiService
-	// apiService := backend.NewAPIService(config.Port, config.ImageTargetType)
-	// apiService.Start()
+	apiService := backend.NewAPIService(config, coreService)
+	apiService.SetRoutes(server)
+	frontendService := frontend.NewFrontendService(config, coreService)
+	frontendService.SetRoutes(server)
 
-	frontendService := frontend.NewFrontendService(coreService)
-	frontendService.Start()
+	portString := fmt.Sprintf(":%d", config.Port)
+
+	server.Logger.Fatal(server.Start(portString))
+}
+
+func defineServer() *echo.Echo {
+	e := echo.New()
+	e.Use(middleware.RequestLogger())
+	e.Use(middleware.Recover())
+	e.Pre(middleware.RemoveTrailingSlash())
+
+	e.Validator = &GenericEchoValidator{}
+
+	return e
 }

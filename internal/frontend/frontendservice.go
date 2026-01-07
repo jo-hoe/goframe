@@ -10,18 +10,19 @@ import (
 
 	"github.com/jo-hoe/goframe/internal/core"
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 )
 
 const MainPageName = "index.html"
 
 type FrontendService struct {
 	coreService *core.CoreService
+	config      *core.ServiceConfig
 }
 
-func NewFrontendService(coreService *core.CoreService) *FrontendService {
+func NewFrontendService(config *core.ServiceConfig, coreService *core.CoreService) *FrontendService {
 	return &FrontendService{
 		coreService: coreService,
+		config:      config,
 	}
 }
 
@@ -30,21 +31,7 @@ func (service *FrontendService) rootRedirectHandler(ctx echo.Context) error {
 	return ctx.Redirect(http.StatusMovedPermanently, "/"+MainPageName)
 }
 
-func (service *FrontendService) Start() {
-	e := echo.New()
-
-	e.Use(middleware.RequestLogger())
-	e.Use(middleware.Recover())
-	e.Pre(middleware.RemoveTrailingSlash())
-
-	service.setUIRoutes(e)
-
-	// Start server
-	portString := fmt.Sprintf(":%d", service.coreService.GetConfig().Port)
-	e.Logger.Fatal(e.Start(portString))
-}
-
-func (service *FrontendService) setUIRoutes(e *echo.Echo) {
+func (service *FrontendService) SetRoutes(e *echo.Echo) {
 	// Create template with helper functions
 	funcMap := template.FuncMap{}
 
@@ -64,7 +51,7 @@ func (service *FrontendService) htmxGetCurrentImageHandler(ctx echo.Context) err
 		return ctx.String(http.StatusNotFound, "No image available")
 	}
 
-	imageType := service.coreService.GetConfig().ImageTargetType
+	imageType := service.config.ImageTargetType
 	contentType := "image/" + imageType
 
 	// Prevent caching so the latest uploaded image is always shown
