@@ -1,4 +1,4 @@
-package imageprocessing
+package command
 
 import (
 	"fmt"
