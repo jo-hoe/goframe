@@ -43,6 +43,34 @@ func NewImageConverterParamsFromMap(params map[string]any) (*ImageConverterParam
 	}, nil
 }
 
+// hasCorrectSignature checks whether the provided data begins with a valid signature for the given image format.
+func hasCorrectSignature(data []byte, format string) bool {
+	switch format {
+	case "png":
+		// PNG signature: 0x89 'P' 'N' 'G' 0x0D 0x0A 0x1A 0x0A
+		if len(data) < 8 {
+			return false
+		}
+		expected := []byte{0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A}
+		return bytes.Equal(data[:8], expected)
+	case "jpeg":
+		// JPEG signature: 0xFF 0xD8 0xFF (third byte is a marker like 0xE0, 0xE1, etc.)
+		if len(data) < 3 {
+			return false
+		}
+		return data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF
+	case "gif":
+		// GIF signatures: "GIF87a" or "GIF89a"
+		if len(data) < 6 {
+			return false
+		}
+		sig := data[:6]
+		return bytes.Equal(sig, []byte("GIF87a")) || bytes.Equal(sig, []byte("GIF89a"))
+	default:
+		return false
+	}
+}
+
 // ImageConverterCommand handles image format conversion
 type ImageConverterCommand struct {
 	name   string
@@ -90,10 +118,14 @@ func (c *ImageConverterCommand) Execute(imageData []byte) ([]byte, error) {
 		"current_format", currentFormat,
 		"target_format", c.params.TargetType)
 
-	// If already in target format, return original
+	// If already in target format, verify signature; only re-encode if signature is incorrect
 	if currentFormat == c.params.TargetType {
-		slog.Debug("ImageConverterCommand: already in target format, no conversion needed")
-		return imageData, nil
+		if hasCorrectSignature(imageData, c.params.TargetType) {
+			slog.Debug("ImageConverterCommand: already in target format with correct signature, no conversion needed")
+			return imageData, nil
+		}
+		slog.Warn("ImageConverterCommand: target format matches but signature incorrect, re-encoding to fix header",
+			"format", c.params.TargetType)
 	}
 
 	slog.Debug("ImageConverterCommand: converting image format",
