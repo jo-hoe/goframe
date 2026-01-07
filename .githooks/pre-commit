@@ -1,7 +1,50 @@
 #!/bin/sh
-# Pre-commit hook to run go fmt on all Go files
+# Pre-commit hook to run go fmt on staged Go files before committing
+# Ensures formatting changes are included in the same commit.
 
-echo "Running go fmt on all Go files..."
+set -e
 
-# Run go fmt on all .go files in the project
-go fmt ./...
+# Ensure Go is available
+if ! command -v go >/dev/null 2>&1; then
+  echo "[pre-commit] 'go' not found, skipping go fmt"
+  exit 0
+fi
+
+# Collect staged .go files (Added, Copied, Modified)
+STAGED_GO_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.go$' || true)
+
+# No Go files staged
+if [ -z "$STAGED_GO_FILES" ]; then
+  exit 0
+fi
+
+echo "[pre-commit] Running go fmt on staged Go files..."
+
+# Format each staged file
+echo "$STAGED_GO_FILES" | while IFS= read -r file; do
+  # Ensure file still exists (not deleted or renamed out)
+  [ -f "$file" ] || continue
+  gofmt -s -w "$file"
+done
+
+# Re-stage any files changed by gofmt so formatting is included in the commit
+echo "$STAGED_GO_FILES" | while IFS= read -r file; do
+  [ -f "$file" ] || continue
+  git add "$file"
+done
+
+# Verify formatting (should be no output)
+UNFORMATTED=$(echo "$STAGED_GO_FILES" | while IFS= read -r file; do
+  [ -f "$file" ] || continue
+  gofmt -l "$file"
+done)
+
+if [ -n "$UNFORMATTED" ]; then
+  echo "[pre-commit] Error: some files remain unformatted:"
+  echo "$UNFORMATTED"
+  echo "[pre-commit] Please run: gofmt -s -w (files above) and commit again."
+  exit 1
+fi
+
+echo "[pre-commit] go fmt complete. Proceeding with commit."
+exit 0
