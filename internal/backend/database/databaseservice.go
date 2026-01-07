@@ -7,9 +7,10 @@ type DatabaseService interface {
 	DoesDatabaseExist() bool
 	Close() error
 
-	CreateImage(image []byte) (*Image, error)
+	CreateImage(image []byte) (string, error)
 	SetProcessedImage(id string, processedImage []byte) error
 	GetAllImages() ([]*Image, error)
 	DeleteImage(id string) error
-	GetImageByID(id string) (*Image, error)
+	GetOriginalImageByID(id string) ([]byte, error)
+	GetProcessedImageByID(id string) ([]byte, error)
 }

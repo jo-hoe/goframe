@@ -36,6 +36,20 @@ func (service *FrontendService) SetUIRoutes(e *echo.Echo) {
 	e.GET("/", service.rootRedirectHandler) // Redirect root to index.html
 	e.GET(MainPageName, service.indexHandler)
 	e.POST("/htmx/uploadImage", service.htmxUploadImageHandler)
+	e.POST("/htmx/image", service.htmxGetCurrentImageHandler)
+}
+
+func (service *FrontendService) htmxGetCurrentImageHandler(ctx echo.Context) error {
+	image, err := service.coreService.GetCurrentImage()
+	if err != nil {
+		return ctx.String(http.StatusInternalServerError, "Failed to get current image")
+	}
+
+	imageType := service.coreService.GetConfig().ImageTargetType
+	contentType := "image/" + imageType
+
+	// Return the image data
+	return ctx.Blob(http.StatusOK, contentType, image)
 }
 
 func (service *FrontendService) indexHandler(ctx echo.Context) error {
@@ -48,11 +62,20 @@ func (service *FrontendService) htmxUploadImageHandler(ctx echo.Context) error {
 	if err != nil {
 		return ctx.String(http.StatusBadRequest, "Failed to get uploaded file")
 	}
-	imageFile, err := file.Open()
+	src, err := file.Open()
 	if err != nil {
 		return ctx.String(http.StatusInternalServerError, "Failed to open uploaded file")
 	}
-	defer imageFile.Close()
+	defer src.Close()
+
+	// Read file content
+	image := make([]byte, file.Size)
+	_, err = src.Read(image)
+	if err != nil {
+		return ctx.String(http.StatusInternalServerError, "Failed to read uploaded file")
+	}
+
+	service.coreService.AddImage(image)
 
 	// For demonstration, just return the filename
 	return ctx.String(http.StatusOK, "Uploaded file: "+file.Filename)

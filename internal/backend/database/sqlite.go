@@ -50,22 +50,18 @@ func (s *SQLiteDatabase) DoesDatabaseExist() bool {
 	return err == nil
 }
 
-func (s *SQLiteDatabase) CreateImage(image []byte) (*Image, error) {
+func (s *SQLiteDatabase) CreateImage(image []byte) (string, error) {
 	id, err := generateID(image)
 	if err != nil {
-		return nil, err
-	}
-	img := &Image{
-		ID:            id,
-		OriginalImage: image,
+		return "", err
 	}
 
-	_, err = s.db.Exec("INSERT INTO images (id, original_image, processed_image) VALUES (?, ?, ?)", img.ID, img.OriginalImage, nil)
+	_, err = s.db.Exec("INSERT INTO images (id, original_image, processed_image) VALUES (?, ?, ?)", id, image, nil)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return img, nil
+	return id, nil
 }
 
 func (s *SQLiteDatabase) SetProcessedImage(id string, processedImage []byte) error {
@@ -98,11 +94,20 @@ func (s *SQLiteDatabase) DeleteImage(id string) error {
 	return err
 }
 
-func (s *SQLiteDatabase) GetImageByID(id string) (*Image, error) {
-	row := s.db.QueryRow("SELECT id, original_image, processed_image FROM images WHERE id = ?", id)
-	var img Image
-	if err := row.Scan(&img.ID, &img.OriginalImage, &img.ProcessedImage); err != nil {
+func (s *SQLiteDatabase) GetOriginalImageByID(id string) ([]byte, error) {
+	row := s.db.QueryRow("SELECT original_image FROM images WHERE id = ?", id)
+	var original []byte
+	if err := row.Scan(&original); err != nil {
 		return nil, err
 	}
-	return &img, nil
+	return original, nil
+}
+
+func (s *SQLiteDatabase) GetProcessedImageByID(id string) ([]byte, error) {
+	row := s.db.QueryRow("SELECT processed_image FROM images WHERE id = ?", id)
+	var processed []byte
+	if err := row.Scan(&processed); err != nil {
+		return nil, err
+	}
+	return processed, nil
 }

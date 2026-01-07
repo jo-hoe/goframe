@@ -16,12 +16,6 @@ type APIService struct {
 	imageTargetType string
 }
 
-type Image struct {
-	ID                string
-	OriginalImageUrl  string
-	ProcessedImageUrl string
-}
-
 func NewAPIService(port int, imageTargetType string) *APIService {
 	return &APIService{
 		port:            port,
