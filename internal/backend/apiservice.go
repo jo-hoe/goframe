@@ -12,11 +12,21 @@ import (
 )
 
 type APIService struct {
-	port int
+	port            int
+	imageTargetType string
 }
 
-func NewAPIService(port int) *APIService {
-	return &APIService{port: port}
+type Image struct {
+	ID                string
+	OriginalImageUrl  string
+	ProcessedImageUrl string
+}
+
+func NewAPIService(port int, imageTargetType string) *APIService {
+	return &APIService{
+		port:            port,
+		imageTargetType: imageTargetType,
+	}
 }
 
 func (s *APIService) Start() {
@@ -27,14 +37,14 @@ func (s *APIService) Start() {
 
 	e.Validator = &common.GenericEchoValidator{}
 
-	setRoutes(e)
+	s.setRoutes(e)
 
 	port := strconv.Itoa(s.port)
 	log.Printf("starting server on port %s", port)
 	e.Logger.Fatal(e.Start(fmt.Sprintf(":%s", port)))
 }
 
-func setRoutes(e *echo.Echo) {
+func (s *APIService) setRoutes(e *echo.Echo) {
 	// Set probe route
 	e.GET("/", func(c echo.Context) error {
 		return c.String(200, "API Service is running")

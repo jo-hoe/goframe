@@ -12,8 +12,12 @@ func TestLoadConfig_Success(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
 	// Create a valid config file
-	configContent := `port: 8080
-connectionString: "test-connection-string"`
+	configContent := `
+port: 8080
+database:
+	type: "sqlite"
+	connectionString: "test-connection-string"
+imageTargetType: "png"`
 	err := os.WriteFile(configPath, []byte(configContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create test config file: %v", err)
@@ -34,8 +38,16 @@ connectionString: "test-connection-string"`
 		t.Errorf("Expected port to be 8080, got %d", config.Port)
 	}
 
-	if config.ConnectionString != "test-connection-string" {
-		t.Errorf("Expected connectionString to be 'test-connection-string', got '%s'", config.ConnectionString)
+	if config.Database.ConnectionString != "test-connection-string" {
+		t.Errorf("Expected connectionString to be 'test-connection-string', got '%s'", config.Database.ConnectionString)
+	}
+
+	if config.Database.Type != "sqlite" {
+		t.Errorf("Expected database type to be 'sqlite', got '%s'", config.Database.Type)
+	}
+
+	if config.ImageTargetType != "png" {
+		t.Errorf("Expected imageTargetType to be 'png', got '%s'", config.ImageTargetType)
 	}
 }
 

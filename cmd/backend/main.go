@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/jo-hoe/goframe/internal/backend"
+	fontend "github.com/jo-hoe/goframe/internal/frontend"
 )
 
 func getConfigPath() string {
@@ -31,7 +32,10 @@ func main() {
 		panic(err)
 	}
 
-	// Start the API service
-	service := backend.NewAPIService(config.Port)
-	service.Start()
+	// Start the API apiService
+	apiService := backend.NewAPIService(config.Port, config.ImageTargetType)
+	apiService.Start()
+
+	frontendService := fontend.NewFrontendService()
+	_ = frontendService
 }

@@ -13,10 +13,16 @@ type ProcessorConfig struct {
 	Params map[string]any `yaml:",inline"`
 }
 
+type Database struct {
+	Type             string
+	ConnectionString string
+}
+
 type BackendConfig struct {
-	Port             int               `yaml:"port"`
-	ConnectionString string            `yaml:"connectionString"`
-	Processors       []ProcessorConfig `yaml:"processors"`
+	Port            int               `yaml:"port"`
+	Database        Database          `yaml:"database"`
+	ImageTargetType string            `yaml:"imageTargetType"`
+	Processors      []ProcessorConfig `yaml:"processors"`
 }
 
 // LoadConfig loads configuration from the specified YAML file

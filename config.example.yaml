@@ -1,8 +1,7 @@
 port: 8080
 connectionString: "someconnectionstring"
+imageTargetType: "png"
 processors:
-  - name: ImageConverterProcessor
-    targetType: png
   - name: OrientationProcessor
     orientation: portrait
   - name: ScaleProcessor
