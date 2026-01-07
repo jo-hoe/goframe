@@ -2,6 +2,7 @@ package backend
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/jo-hoe/goframe/internal/core"
 
@@ -35,5 +36,7 @@ func (s *APIService) handleGetCurrentImage(ctx echo.Context) error {
 	if err != nil {
 		return ctx.JSON(500, map[string]string{"error": err.Error()})
 	}
+	// Set Content-Length header explicitly to allow clients to know exact payload size
+	ctx.Response().Header().Set(echo.HeaderContentLength, strconv.Itoa(len(imageData)))
 	return ctx.Blob(200, "image/"+s.config.ImageTargetType, imageData)
 }
