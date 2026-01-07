@@ -1,4 +1,4 @@
-package backend
+package core
 
 import (
 	"os"
@@ -14,10 +14,10 @@ func TestLoadConfig_Success(t *testing.T) {
 	// Create a valid config file
 	configContent := `
 port: 8080
+imageTargetType: "png"
 database:
-	type: "sqlite"
-	connectionString: "test-connection-string"
-imageTargetType: "png"`
+  type: "sqlite"
+  connectionString: "test-connection-string"`
 	err := os.WriteFile(configPath, []byte(configContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create test config file: %v", err)

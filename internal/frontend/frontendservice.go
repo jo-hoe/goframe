@@ -4,16 +4,20 @@ import (
 	"net/http"
 	"text/template"
 
+	"github.com/jo-hoe/goframe/internal/core"
 	"github.com/labstack/echo/v4"
 )
 
 const MainPageName = "index.html"
 
 type FrontendService struct {
+	coreService *core.CoreService
 }
 
-func NewFrontendService() *FrontendService {
-	return &FrontendService{}
+func NewFrontendService(coreService *core.CoreService) *FrontendService {
+	return &FrontendService{
+		coreService: coreService,
+	}
 }
 
 // rootRedirectHandler redirects root path to index.html
@@ -39,6 +43,17 @@ func (service *FrontendService) indexHandler(ctx echo.Context) error {
 }
 
 func (service *FrontendService) htmxUploadImageHandler(ctx echo.Context) error {
-	// Handle image upload via HTMX
-	return ctx.String(http.StatusOK, "Image uploaded successfully via HTMX")
+	// Get uploaded file
+	file, err := ctx.FormFile("image")
+	if err != nil {
+		return ctx.String(http.StatusBadRequest, "Failed to get uploaded file")
+	}
+	imageFile, err := file.Open()
+	if err != nil {
+		return ctx.String(http.StatusInternalServerError, "Failed to open uploaded file")
+	}
+	defer imageFile.Close()
+
+	// For demonstration, just return the filename
+	return ctx.String(http.StatusOK, "Uploaded file: "+file.Filename)
 }

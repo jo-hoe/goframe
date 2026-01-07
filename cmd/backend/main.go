@@ -5,8 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/jo-hoe/goframe/internal/backend"
-	fontend "github.com/jo-hoe/goframe/internal/frontend"
+	backend "github.com/jo-hoe/goframe/internal/backend"
+	"github.com/jo-hoe/goframe/internal/core"
+	frontend "github.com/jo-hoe/goframe/internal/frontend"
 )
 
 func getConfigPath() string {
@@ -26,16 +27,19 @@ func getConfigPath() string {
 func main() {
 	// Load configuration
 	configPath := getConfigPath()
-	config, err := backend.LoadConfig(configPath)
+	config, err := core.LoadConfig(configPath)
 	if err != nil {
 		log.Printf("failed to load config from %s: %v", configPath, err)
 		panic(err)
 	}
 
+	// Initialize CoreService
+	coreService := core.NewCoreService(config)
+
 	// Start the API apiService
 	apiService := backend.NewAPIService(config.Port, config.ImageTargetType)
 	apiService.Start()
 
-	frontendService := fontend.NewFrontendService()
+	frontendService := frontend.NewFrontendService(coreService)
 	_ = frontendService
 }

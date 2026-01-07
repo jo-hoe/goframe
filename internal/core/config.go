@@ -1,4 +1,4 @@
-package backend
+package core
 
 import (
 	"fmt"
@@ -14,11 +14,11 @@ type ProcessorConfig struct {
 }
 
 type Database struct {
-	Type             string
-	ConnectionString string
+	Type             string `yaml:"type"`
+	ConnectionString string `yaml:"connectionString"`
 }
 
-type BackendConfig struct {
+type ServiceConfig struct {
 	Port            int               `yaml:"port"`
 	Database        Database          `yaml:"database"`
 	ImageTargetType string            `yaml:"imageTargetType"`
@@ -26,7 +26,7 @@ type BackendConfig struct {
 }
 
 // LoadConfig loads configuration from the specified YAML file
-func LoadConfig(configPath string) (*BackendConfig, error) {
+func LoadConfig(configPath string) (*ServiceConfig, error) {
 	// Read the config file
 	data, err := os.ReadFile(configPath)
 	if err != nil {
@@ -34,7 +34,7 @@ func LoadConfig(configPath string) (*BackendConfig, error) {
 	}
 
 	// Parse YAML
-	var config BackendConfig
+	var config ServiceConfig
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
