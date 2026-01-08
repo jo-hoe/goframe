@@ -29,8 +29,11 @@ func NewDitherParamsFromMap(params map[string]any) (*DitherParams, error) {
 		}
 		ditherParams.Palette = palette
 	} else {
-		// Default to black and white
-		ditherParams.Palette = [][]int{{0, 0, 0}, {255, 255, 255}}
+		// Default to black and white palette
+		ditherParams.Palette = [][]int{
+			{0, 0, 0},       // Black
+			{255, 255, 255}, // White
+		}
 	}
 
 	// Parse strength (optional)

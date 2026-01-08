@@ -1,19 +1,23 @@
 port: 8080
 connectionString: "someconnectionstring"
 imageTargetType: "png"
-processors:
-  - name: OrientationProcessor
+commands:
+  - name: OrientationCommand
     orientation: portrait
-  - name: ScaleProcessor
+  - name: ScaleCommand
     height: 1920
     width: 1080
-  - name: CropProcessor
+  - name: CropCommand
     height: 1600
     width: 1200
-  - name: DitherProcessor
-    # Optional: Custom color palette as RGB values (default is black and white)
-    # palette:
-    #   - [0, 0, 0]       # Black
-    #   - [255, 255, 255] # White
+  - name: DitherCommand
+    # Custom color palette as RGB values
+    palette:
+      - [0, 0, 0]         # Black
+      - [255, 255, 255]   # White
+      - [255, 255, 0]     # Yellow
+      - [0, 0, 255]       # Blue
+      - [255, 0, 0]       # Red
+      - [0, 255, 0]       # Green
     # Optional: Dithering strength between 0.0 and 1.0 (default is 1.0)
     # strength: 0.8

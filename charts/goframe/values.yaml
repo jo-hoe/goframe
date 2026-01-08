@@ -101,8 +101,8 @@ config:
   # -- Output image format for the /api/image endpoint
   imageTargetType: "png"
   # -- Processing pipeline configuration
-  processors:
-    - name: OrientationProcessor
+  commands:
+    - name: OrientationCommand
       orientation: portrait
 
 # -- Extra environment variables to inject into the container

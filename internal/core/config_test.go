@@ -64,16 +64,16 @@ func TestLoadConfig_FileNotFound(t *testing.T) {
 	}
 }
 
-func TestLoadConfig_WithProcessors(t *testing.T) {
+func TestLoadConfig_WithCommands(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
 	configContent := `port: 8080
 connectionString: "test-connection-string"
-processors:
-  - name: OrientationProcessor
+commands:
+  - name: OrientationCommand
     orientation: portrait
-  - name: CropProcessor
+  - name: CropCommand
     height: 1600
     width: 1200`
 
@@ -87,37 +87,37 @@ processors:
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
 
-	if len(config.Processors) != 2 {
-		t.Fatalf("Expected 2 processors, got %d", len(config.Processors))
+	if len(config.Commands) != 2 {
+		t.Fatalf("Expected 2 commands, got %d", len(config.Commands))
 	}
 
-	// Verify first processor
-	if config.Processors[0].Name != "OrientationProcessor" {
-		t.Errorf("Expected first processor name to be 'OrientationProcessor', got '%s'", config.Processors[0].Name)
+	// Verify first command
+	if config.Commands[0].Name != "OrientationCommand" {
+		t.Errorf("Expected first command name to be 'OrientationCommand', got '%s'", config.Commands[0].Name)
 	}
-	if orientation, ok := config.Processors[0].Params["orientation"].(string); !ok || orientation != "portrait" {
-		t.Errorf("Expected orientation to be 'portrait', got '%v'", config.Processors[0].Params["orientation"])
+	if orientation, ok := config.Commands[0].Params["orientation"].(string); !ok || orientation != "portrait" {
+		t.Errorf("Expected orientation to be 'portrait', got '%v'", config.Commands[0].Params["orientation"])
 	}
 
-	// Verify second processor
-	if config.Processors[1].Name != "CropProcessor" {
-		t.Errorf("Expected second processor name to be 'CropProcessor', got '%s'", config.Processors[1].Name)
+	// Verify second command
+	if config.Commands[1].Name != "CropCommand" {
+		t.Errorf("Expected second command name to be 'CropCommand', got '%s'", config.Commands[1].Name)
 	}
-	if height, ok := config.Processors[1].Params["height"].(int); !ok || height != 1600 {
-		t.Errorf("Expected height to be 1600, got '%v'", config.Processors[1].Params["height"])
+	if height, ok := config.Commands[1].Params["height"].(int); !ok || height != 1600 {
+		t.Errorf("Expected height to be 1600, got '%v'", config.Commands[1].Params["height"])
 	}
-	if width, ok := config.Processors[1].Params["width"].(int); !ok || width != 1200 {
-		t.Errorf("Expected width to be 1200, got '%v'", config.Processors[1].Params["width"])
+	if width, ok := config.Commands[1].Params["width"].(int); !ok || width != 1200 {
+		t.Errorf("Expected width to be 1200, got '%v'", config.Commands[1].Params["width"])
 	}
 }
 
-func TestLoadConfig_EmptyProcessorName(t *testing.T) {
+func TestLoadConfig_EmptyCommandName(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
 	configContent := `port: 8080
 connectionString: "test-connection-string"
-processors:
+commands:
   - name: ""
     orientation: portrait`
 
@@ -128,20 +128,20 @@ processors:
 
 	_, err = LoadConfig(configPath)
 	if err == nil {
-		t.Fatal("Expected error for empty processor name, got nil")
+		t.Fatal("Expected error for empty command name, got nil")
 	}
 }
 
-func TestLoadConfig_DuplicateProcessorName(t *testing.T) {
+func TestLoadConfig_DuplicateCommandName(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
 	configContent := `port: 8080
 connectionString: "test-connection-string"
-processors:
-  - name: OrientationProcessor
+commands:
+  - name: OrientationCommand
     orientation: portrait
-  - name: OrientationProcessor
+  - name: OrientationCommand
     orientation: landscape`
 
 	err := os.WriteFile(configPath, []byte(configContent), 0644)
@@ -151,7 +151,7 @@ processors:
 
 	_, err = LoadConfig(configPath)
 	if err == nil {
-		t.Fatal("Expected error for duplicate processor name, got nil")
+		t.Fatal("Expected error for duplicate command name, got nil")
 	}
 }
 
@@ -161,8 +161,8 @@ func TestLoadConfig_InvalidYAML(t *testing.T) {
 
 	configContent := `port: 8080
 connectionString: "test-connection-string"
-processors:
-  - name: OrientationProcessor
+commands:
+  - name: OrientationCommand
     orientation: portrait
   invalid yaml syntax here`
 

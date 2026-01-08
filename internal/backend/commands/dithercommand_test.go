@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -22,7 +23,9 @@ func createTestImage(width, height int) []byte {
 	}
 
 	var buf bytes.Buffer
-	png.Encode(&buf, img)
+	if err := png.Encode(&buf, img); err != nil {
+		panic(fmt.Sprintf("failed to encode test image: %v", err))
+	}
 	return buf.Bytes()
 }
 

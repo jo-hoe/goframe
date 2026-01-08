@@ -17,13 +17,13 @@ config:
     type: sqlite
     connectionString: ":memory:"
   imageTargetType: "png"
-  processors:
-    - name: OrientationProcessor
+  commands:
+    - name: OrientationCommand
       orientation: portrait
-    - name: ScaleProcessor
+    - name: ScaleCommand
       height: 1920
       width: 1080
-    - name: CropProcessor
+    - name: CropCommand
       height: 1600
       width: 1200
 
