@@ -55,13 +55,13 @@ spec:
           {{- end }}
           livenessProbe:
             httpGet:
-              path: /
+              path: /probe
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /
+              path: /probe
               port: http
             initialDelaySeconds: 2
             periodSeconds: 5

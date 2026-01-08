@@ -44,6 +44,16 @@
                 <figcaption id="no-image">No image uploaded yet.</figcaption>
             </figure>
         </section>
+
+        <section>
+            <h2>All Images</h2>
+            <div id="image-list"
+                 hx-get="/htmx/images"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <p>Loading images...</p>
+            </div>
+        </section>
     </main>
 </body>
 

@@ -7,7 +7,9 @@ type DatabaseService interface {
 	DoesDatabaseExist() bool
 	Close() error
 
-	CreateImage(image []byte) (string, error)
+	// CreateImage inserts a new image row with both original and processed image in a single transaction,
+	// eliminating race conditions where processed_image is temporarily NULL.
+	CreateImage(original []byte, processed []byte) (string, error)
 	SetProcessedImage(id string, processedImage []byte) error
 	GetAllImages() ([]*Image, error)
 	DeleteImage(id string) error

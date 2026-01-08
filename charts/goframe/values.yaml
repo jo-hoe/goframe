@@ -97,7 +97,7 @@ config:
     # -- Database driver (e.g., sqlite)
     type: sqlite
     # -- Connection string (':memory:' for in-memory SQLite)
-    connectionString: ":memory:"
+    connectionString: "data.db"
   # -- Output image format for the /api/image endpoint
   imageTargetType: "png"
   # -- Processing pipeline configuration

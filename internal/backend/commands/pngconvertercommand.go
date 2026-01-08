@@ -7,6 +7,12 @@ import (
 	"image"
 	"image/png"
 	"log/slog"
+
+	_ "golang.org/x/image/bmp"
+	_ "golang.org/x/image/tiff"
+	_ "golang.org/x/image/webp"
+	_ "image/gif"
+	_ "image/jpeg"
 )
 
 // hasCorrectPngSignature checks whether the provided data begins with a valid PNG signature

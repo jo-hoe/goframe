@@ -22,7 +22,7 @@ func NewAPIService(config *core.ServiceConfig, coreService *core.CoreService) *A
 
 func (s *APIService) SetRoutes(e *echo.Echo) {
 	// Set probe route
-	e.GET("/", func(c echo.Context) error {
+	e.GET("/probe", func(c echo.Context) error {
 		return c.String(200, "API Service is running")
 	})
 

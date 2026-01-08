@@ -17,6 +17,11 @@ func NewSQLiteDatabase(connectionString string) (DatabaseService, error) {
 		return nil, err
 	}
 
+	// Ensure a single underlying connection to avoid issues with in-memory or per-connection state.
+	// This also stabilizes behavior in environments where ':memory:' might still be configured.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
 	return &SQLiteDatabase{
 		db:               db,
 		connectionString: connectionString,
@@ -50,17 +55,17 @@ func (s *SQLiteDatabase) DoesDatabaseExist() bool {
 	return err == nil
 }
 
-func (s *SQLiteDatabase) CreateImage(image []byte) (string, error) {
-	id, err := generateID(image)
+func (s *SQLiteDatabase) CreateImage(original []byte, processed []byte) (string, error) {
+	id, err := generateID(original)
 	if err != nil {
 		return "", err
 	}
 
-	_, err = s.db.Exec("INSERT INTO images (id, original_image, processed_image) VALUES (?, ?, ?)", id, image, nil)
+	// Insert both original and processed image atomically to avoid NULL race windows
+	_, err = s.db.Exec("INSERT INTO images (id, original_image, processed_image) VALUES (?, ?, ?)", id, original, processed)
 	if err != nil {
 		return "", err
 	}
-
 	return id, nil
 }
 
@@ -70,7 +75,9 @@ func (s *SQLiteDatabase) SetProcessedImage(id string, processedImage []byte) err
 }
 
 func (s *SQLiteDatabase) GetAllImages() ([]*Image, error) {
-	rows, err := s.db.Query("SELECT id, original_image, processed_image FROM images")
+	// Ensure deterministic ordering. Without ORDER BY, SQLite does not guarantee row order.
+	// Use rowid as a stable insertion order proxy since schema has no created_at.
+	rows, err := s.db.Query("SELECT id, original_image, processed_image FROM images ORDER BY rowid ASC")
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +115,10 @@ func (s *SQLiteDatabase) GetProcessedImageByID(id string) ([]byte, error) {
 	var processed []byte
 	if err := row.Scan(&processed); err != nil {
 		return nil, err
+	}
+	// Guard against race where the row exists but processed_image is still NULL
+	if processed == nil || len(processed) == 0 {
+		return nil, sql.ErrNoRows
 	}
 	return processed, nil
 }
