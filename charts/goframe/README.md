@@ -1,6 +1,6 @@
 # goframe
 
-![Version: 0.0.2](https://img.shields.io/badge/Version-0.0.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.0.2](https://img.shields.io/badge/AppVersion-0.0.2-informational?style=flat-square)
+![Version: 0.0.3](https://img.shields.io/badge/Version-0.0.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.0.3](https://img.shields.io/badge/AppVersion-0.0.3-informational?style=flat-square)
 
 Helm chart for the goframe image processing web service
 
@@ -13,13 +13,13 @@ Helm chart for the goframe image processing web service
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` | Affinity rules for Pod scheduling |
-| config | object | `{"database":{"connectionString":":memory:","type":"sqlite"},"imageTargetType":"png","port":8080,"processors":[{"name":"OrientationProcessor","orientation":"portrait"}]}` | Application configuration rendered into config.yaml and mounted into the container |
-| config.database | object | `{"connectionString":":memory:","type":"sqlite"}` | Database configuration |
-| config.database.connectionString | string | `":memory:"` | Connection string (':memory:' for in-memory SQLite) |
+| config | object | `{"commands":[{"name":"OrientationCommand","orientation":"portrait"}],"database":{"connectionString":"data.db","type":"sqlite"},"imageTargetType":"png","port":8080}` | Application configuration rendered into config.yaml and mounted into the container |
+| config.commands | list | `[{"name":"OrientationCommand","orientation":"portrait"}]` | Processing pipeline configuration |
+| config.database | object | `{"connectionString":"data.db","type":"sqlite"}` | Database configuration |
+| config.database.connectionString | string | `"data.db"` | Connection string (':memory:' for in-memory SQLite) |
 | config.database.type | string | `"sqlite"` | Database driver (e.g., sqlite) |
 | config.imageTargetType | string | `"png"` | Output image format for the /api/image endpoint |
 | config.port | int | `8080` | Port of the application |
-| config.processors | list | `[{"name":"OrientationProcessor","orientation":"portrait"}]` | Processing pipeline configuration |
 | extraEnv | list | `[]` | Extra environment variables to inject into the container |
 | extraEnvFrom | list | `[]` | Extra environment sources (e.g., ConfigMaps or Secrets) |
 | fullnameOverride | string | `""` | Fully override the release name |
