@@ -17,7 +17,6 @@ type CoreService struct {
 func NewCoreService(config *ServiceConfig) *CoreService {
 	databaseService, err := getDatabaseService(config)
 	if err != nil {
-		slog.Error("failed to initialize database service", "error", err)
 		panic(err)
 	}
 	return &CoreService{
@@ -31,13 +30,11 @@ func (service *CoreService) GetCurrentImage() ([]byte, error) {
 
 	images, err := service.databaseService.GetAllImages()
 	if err != nil {
-		slog.Error("CoreService.GetCurrentImage: GetAllImages failed", "error", err)
 		return nil, fmt.Errorf("failed to get all images: %w", err)
 	}
 	slog.Info("CoreService.GetCurrentImage: images fetched", "count", len(images))
 
 	if len(images) == 0 {
-		slog.Warn("CoreService.GetCurrentImage: no images found")
 		return nil, fmt.Errorf("no images found in database")
 	}
 
@@ -46,7 +43,6 @@ func (service *CoreService) GetCurrentImage() ([]byte, error) {
 
 	processedImageData, err := service.databaseService.GetProcessedImageByID(latestImage.ID)
 	if err != nil {
-		slog.Error("CoreService.GetCurrentImage: GetProcessedImageByID failed", "id", latestImage.ID, "error", err)
 		return nil, fmt.Errorf("failed to get processed image by ID: %w", err)
 	}
 
@@ -59,26 +55,22 @@ func (service *CoreService) AddImage(image []byte) (*common.ApiImage, error) {
 
 	command, err := commands.NewPngConverterCommand(map[string]any{})
 	if err != nil {
-		slog.Error("CoreService.AddImage: failed to create PngConverterCommand", "error", err)
 		return nil, fmt.Errorf("failed to create PNG converter command: %w", err)
 	}
 
 	convertedImageData, err := command.Execute(image)
 	if err != nil {
-		slog.Error("CoreService.AddImage: image conversion failed", "error", err)
 		return nil, fmt.Errorf("failed to convert image to PNG: %w", err)
 	}
 	slog.Info("CoreService.AddImage: image converted to PNG", "converted_bytes", len(convertedImageData))
 
 	databaseImageID, err := service.databaseService.CreateImage(image)
 	if err != nil {
-		slog.Error("CoreService.AddImage: failed to create database image", "error", err)
 		return nil, fmt.Errorf("failed to create database image: %w", err)
 	}
 	slog.Info("CoreService.AddImage: original image stored", "id", databaseImageID, "bytes", len(image))
 
 	if err := service.databaseService.SetProcessedImage(databaseImageID, convertedImageData); err != nil {
-		slog.Error("CoreService.AddImage: failed to set processed image", "id", databaseImageID, "error", err)
 		return nil, fmt.Errorf("failed to set processed image: %w", err)
 	}
 	slog.Info("CoreService.AddImage: processed image stored", "id", databaseImageID, "bytes", len(convertedImageData))
