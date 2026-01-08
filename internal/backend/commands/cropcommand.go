@@ -3,10 +3,10 @@ package commands
 import (
 	"bytes"
 	"fmt"
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 	"image"
 	"image/png"
 	"log/slog"
-	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
 // CropParams represents typed parameters for crop command
@@ -55,6 +55,24 @@ func NewCropCommand(params map[string]any) (commandstructure.Command, error) {
 	return &CropCommand{
 		name:   "CropCommand",
 		params: typedParams,
+	}, nil
+}
+
+// NewCropCommandWithParams creates a new crop command from concrete typed parameters
+func NewCropCommandWithParams(height, width int) (*CropCommand, error) {
+	if height <= 0 {
+		return nil, fmt.Errorf("height must be positive, got %d", height)
+	}
+	if width <= 0 {
+		return nil, fmt.Errorf("width must be positive, got %d", width)
+	}
+
+	return &CropCommand{
+		name: "CropCommand",
+		params: &CropParams{
+			Height: height,
+			Width:  width,
+		},
 	}, nil
 }
 

@@ -31,6 +31,13 @@ func NewPngConverterCommand(params map[string]any) (commandstructure.Command, er
 	}, nil
 }
 
+// NewPngConverterCommandDirect creates a new PNG converter command directly (no parameters needed)
+func NewPngConverterCommandDirect() *PngConverterCommand {
+	return &PngConverterCommand{
+		name: "PngConverterCommand",
+	}
+}
+
 // Name returns the command name
 func (c *PngConverterCommand) Name() string {
 	return c.name

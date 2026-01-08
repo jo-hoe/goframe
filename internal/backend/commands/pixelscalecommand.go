@@ -67,6 +67,29 @@ func NewPixelScaleCommand(params map[string]any) (commandstructure.Command, erro
 	}, nil
 }
 
+// NewPixelScaleCommandWithParams creates a new pixel scale command from concrete typed parameters
+// Either height or width can be nil, but not both. If one is nil, it will be calculated to preserve aspect ratio.
+func NewPixelScaleCommandWithParams(height, width *int) (*PixelScaleCommand, error) {
+	if height == nil && width == nil {
+		return nil, fmt.Errorf("at least one of 'height' or 'width' must be specified")
+	}
+
+	if height != nil && *height <= 0 {
+		return nil, fmt.Errorf("height must be positive, got %d", *height)
+	}
+	if width != nil && *width <= 0 {
+		return nil, fmt.Errorf("width must be positive, got %d", *width)
+	}
+
+	return &PixelScaleCommand{
+		name: "PixelScaleCommand",
+		params: &PixelScaleParams{
+			Height: height,
+			Width:  width,
+		},
+	}, nil
+}
+
 // Name returns the command name
 func (c *PixelScaleCommand) Name() string {
 	return c.name

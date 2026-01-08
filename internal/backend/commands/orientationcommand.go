@@ -3,10 +3,10 @@ package commands
 import (
 	"bytes"
 	"fmt"
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 	"image"
 	"image/png"
 	"log/slog"
-	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
 // OrientationParams represents typed parameters for orientation command
@@ -49,6 +49,25 @@ func NewOrientationCommand(params map[string]any) (commandstructure.Command, err
 	return &OrientationCommand{
 		name:   "OrientationCommand",
 		params: typedParams,
+	}, nil
+}
+
+// NewOrientationCommandWithParams creates a new orientation command from concrete typed parameters
+func NewOrientationCommandWithParams(orientation string) (*OrientationCommand, error) {
+	validOrientations := map[string]bool{
+		"portrait":  true,
+		"landscape": true,
+	}
+
+	if !validOrientations[orientation] {
+		return nil, fmt.Errorf("invalid orientation: %s (must be 'portrait' or 'landscape')", orientation)
+	}
+
+	return &OrientationCommand{
+		name: "OrientationCommand",
+		params: &OrientationParams{
+			Orientation: orientation,
+		},
 	}, nil
 }
 

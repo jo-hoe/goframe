@@ -3,12 +3,12 @@ package commands
 import (
 	"bytes"
 	"fmt"
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 	"image"
 	"image/color"
 	"image/draw"
 	"image/png"
 	"log/slog"
-	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
 // ScaleParams represents typed parameters for scale command
@@ -57,6 +57,24 @@ func NewScaleCommand(params map[string]any) (commandstructure.Command, error) {
 	return &ScaleCommand{
 		name:   "ScaleCommand",
 		params: typedParams,
+	}, nil
+}
+
+// NewScaleCommandWithParams creates a new scale command from concrete typed parameters
+func NewScaleCommandWithParams(height, width int) (*ScaleCommand, error) {
+	if height <= 0 {
+		return nil, fmt.Errorf("height must be positive, got %d", height)
+	}
+	if width <= 0 {
+		return nil, fmt.Errorf("width must be positive, got %d", width)
+	}
+
+	return &ScaleCommand{
+		name: "ScaleCommand",
+		params: &ScaleParams{
+			Height: height,
+			Width:  width,
+		},
 	}, nil
 }
 

@@ -14,6 +14,10 @@ update: ## pulls git repo
 test: ## run golang test (including integration tests)
 	go test -timeout 0  ./...
 
+.PHONY: build
+build: ## build goframe binary
+	go build ./...
+
 .PHONY: lint
 lint: ## run golangci-lint
 	golangci-lint run ${ROOT_DIR}...
