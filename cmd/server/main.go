@@ -57,6 +57,15 @@ func defineServer() *echo.Echo {
 		Skipper: func(c echo.Context) bool {
 			return c.Path() == "/"
 		},
+		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			log.Printf("%s %s - Status: %d - Latency: %v",
+				v.Method,
+				v.URI,
+				v.Status,
+				v.Latency,
+			)
+			return nil
+		},
 	}))
 
 	e.Use(middleware.Recover())
