@@ -19,12 +19,12 @@ func getConfigPath() string {
 		return configPath
 	}
 
-	// Default to config/config.yaml in current working directory
+	// Default to config.yaml in current working directory
 	cwd, err := os.Getwd()
 	if err != nil {
 		panic(err)
 	}
-	return filepath.Join(cwd, "config", "config.yaml")
+	return filepath.Join(cwd, "config.yaml")
 }
 
 func main() {
