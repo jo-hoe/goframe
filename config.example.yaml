@@ -10,3 +10,10 @@ processors:
   - name: CropProcessor
     height: 1600
     width: 1200
+  - name: DitherProcessor
+    # Optional: Custom color palette as RGB values (default is black and white)
+    # palette:
+    #   - [0, 0, 0]       # Black
+    #   - [255, 255, 255] # White
+    # Optional: Dithering strength between 0.0 and 1.0 (default is 1.0)
+    # strength: 0.8
