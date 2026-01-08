@@ -51,7 +51,14 @@ func main() {
 
 func defineServer() *echo.Echo {
 	e := echo.New()
-	e.Use(middleware.RequestLogger())
+
+	// Configure request logger to skip "/" endpoint (health check/probe)
+	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		Skipper: func(c echo.Context) bool {
+			return c.Path() == "/"
+		},
+	}))
+
 	e.Use(middleware.Recover())
 	e.Pre(middleware.RemoveTrailingSlash())
 
