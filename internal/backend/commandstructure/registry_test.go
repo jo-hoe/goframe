@@ -1,7 +1,8 @@
-package command
+package commandstructure
 
 import (
 	"testing"
+	"internal/backend/commands"
 )
 
 func TestNewCommandRegistry(t *testing.T) {
@@ -19,9 +20,9 @@ func TestCommandRegistry_Register(t *testing.T) {
 
 	// Test successful registration
 	err := registry.Register("TestCommand", func(params map[string]any) (Command, error) {
-		return &OrientationCommand{
+		return &commands.OrientationCommand{
 			name:   "TestCommand",
-			params: &OrientationParams{Orientation: "portrait"},
+			params: &commands.OrientationParams{Orientation: "portrait"},
 		}, nil
 	})
 	if err != nil {
@@ -30,9 +31,9 @@ func TestCommandRegistry_Register(t *testing.T) {
 
 	// Test duplicate registration
 	err = registry.Register("TestCommand", func(params map[string]any) (Command, error) {
-		return &OrientationCommand{
+		return &commands.OrientationCommand{
 			name:   "TestCommand",
-			params: &OrientationParams{Orientation: "portrait"},
+			params: &commands.OrientationParams{Orientation: "portrait"},
 		}, nil
 	})
 	if err == nil {
@@ -41,9 +42,9 @@ func TestCommandRegistry_Register(t *testing.T) {
 
 	// Test empty name
 	err = registry.Register("", func(params map[string]any) (Command, error) {
-		return &OrientationCommand{
+		return &commands.OrientationCommand{
 			name:   "",
-			params: &OrientationParams{Orientation: "portrait"},
+			params: &commands.OrientationParams{Orientation: "portrait"},
 		}, nil
 	})
 	if err == nil {
@@ -62,9 +63,9 @@ func TestCommandRegistry_Create(t *testing.T) {
 
 	// Register a test command
 	err := registry.Register("TestCommand", func(params map[string]any) (Command, error) {
-		return &OrientationCommand{
+		return &commands.OrientationCommand{
 			name:   "TestCommand",
-			params: &OrientationParams{Orientation: "portrait"},
+			params: &commands.OrientationParams{Orientation: "portrait"},
 		}, nil
 	})
 	if err != nil {
@@ -95,9 +96,9 @@ func TestCommandRegistry_IsRegistered(t *testing.T) {
 
 	// Register a test command
 	err := registry.Register("TestCommand", func(params map[string]any) (Command, error) {
-		return &OrientationCommand{
+		return &commands.OrientationCommand{
 			name:   "TestCommand",
-			params: &OrientationParams{Orientation: "portrait"},
+			params: &commands.OrientationParams{Orientation: "portrait"},
 		}, nil
 	})
 	if err != nil {
@@ -126,18 +127,18 @@ func TestCommandRegistry_GetRegisteredNames(t *testing.T) {
 
 	// Register commands
 	err := registry.Register("Command1", func(params map[string]any) (Command, error) {
-		return &OrientationCommand{
+		return &commands.OrientationCommand{
 			name:   "Command1",
-			params: &OrientationParams{Orientation: "portrait"},
+			params: &commands.OrientationParams{Orientation: "portrait"},
 		}, nil
 	})
 	if err != nil {
 		t.Fatalf("Failed to register Command1: %v", err)
 	}
 	err = registry.Register("Command2", func(params map[string]any) (Command, error) {
-		return &OrientationCommand{
+		return &commands.OrientationCommand{
 			name:   "Command2",
-			params: &OrientationParams{Orientation: "portrait"},
+			params: &commands.OrientationParams{Orientation: "portrait"},
 		}, nil
 	})
 	if err != nil {

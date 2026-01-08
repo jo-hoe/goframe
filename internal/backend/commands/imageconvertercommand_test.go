@@ -1,6 +1,7 @@
-package command
+package commands
 
 import (
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 	"testing"
 )
 
@@ -107,12 +108,12 @@ func TestImageConverterCommand_Execute(t *testing.T) {
 }
 
 func TestImageConverterCommand_RegisteredInDefaultRegistry(t *testing.T) {
-	if !DefaultRegistry.IsRegistered("ImageConverterCommand") {
+	if !commandstructure.DefaultRegistry.IsRegistered("ImageConverterCommand") {
 		t.Error("Expected ImageConverterCommand to be registered in DefaultRegistry")
 	}
 
 	// Test creating via registry
-	command, err := DefaultRegistry.Create("ImageConverterCommand", map[string]any{
+	command, err := commandstructure.DefaultRegistry.Create("ImageConverterCommand", map[string]any{
 		"targetType": "jpeg",
 	})
 	if err != nil {

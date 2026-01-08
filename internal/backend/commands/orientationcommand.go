@@ -1,4 +1,4 @@
-package command
+package commands
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/png"
 	"log/slog"
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
 // OrientationParams represents typed parameters for orientation command
@@ -15,7 +16,7 @@ type OrientationParams struct {
 
 // NewOrientationParamsFromMap creates OrientationParams from a generic map
 func NewOrientationParamsFromMap(params map[string]any) (*OrientationParams, error) {
-	orientation := getStringParam(params, "orientation", "portrait")
+	orientation := commandstructure.GetStringParam(params, "orientation", "portrait")
 
 	// Validate orientation value
 	validOrientations := map[string]bool{
@@ -39,7 +40,7 @@ type OrientationCommand struct {
 }
 
 // NewOrientationCommand creates a new orientation command from configuration parameters
-func NewOrientationCommand(params map[string]any) (Command, error) {
+func NewOrientationCommand(params map[string]any) (commandstructure.Command, error) {
 	typedParams, err := NewOrientationParamsFromMap(params)
 	if err != nil {
 		return nil, err
@@ -131,7 +132,7 @@ func (c *OrientationCommand) GetParams() *OrientationParams {
 
 func init() {
 	// Register the command in the default registry
-	if err := DefaultRegistry.Register("OrientationCommand", NewOrientationCommand); err != nil {
+	if err := commandstructure.DefaultRegistry.Register("OrientationCommand", NewOrientationCommand); err != nil {
 		panic(fmt.Sprintf("failed to register OrientationCommand: %v", err))
 	}
 }

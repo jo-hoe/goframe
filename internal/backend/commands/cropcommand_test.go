@@ -1,7 +1,9 @@
-package command
+package commands
 
 import (
 	"testing"
+
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
 func TestNewCropCommand_Success(t *testing.T) {
@@ -135,12 +137,12 @@ func TestCropCommand_Execute(t *testing.T) {
 }
 
 func TestCropCommand_RegisteredInDefaultRegistry(t *testing.T) {
-	if !DefaultRegistry.IsRegistered("CropCommand") {
+	if !commandstructure.DefaultRegistry.IsRegistered("CropCommand") {
 		t.Error("Expected CropCommand to be registered in DefaultRegistry")
 	}
 
 	// Test creating via registry
-	command, err := DefaultRegistry.Create("CropCommand", map[string]any{
+	command, err := commandstructure.DefaultRegistry.Create("CropCommand", map[string]any{
 		"height": 800,
 		"width":  600,
 	})

@@ -1,4 +1,4 @@
-package command
+package commands
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"log/slog"
 	"strings"
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
 // ImageConverterParams represents typed parameters for image converter command
@@ -18,7 +19,7 @@ type ImageConverterParams struct {
 
 // NewImageConverterParamsFromMap creates ImageConverterParams from a generic map
 func NewImageConverterParamsFromMap(params map[string]any) (*ImageConverterParams, error) {
-	targetType := getStringParam(params, "targetType", "png")
+	targetType := commandstructure.GetStringParam(params, "targetType", "png")
 	targetType = strings.ToLower(targetType)
 
 	// Validate target type
@@ -78,7 +79,7 @@ type ImageConverterCommand struct {
 }
 
 // NewImageConverterCommand creates a new image converter command from configuration parameters
-func NewImageConverterCommand(params map[string]any) (Command, error) {
+func NewImageConverterCommand(params map[string]any) (commandstructure.Command, error) {
 	typedParams, err := NewImageConverterParamsFromMap(params)
 	if err != nil {
 		return nil, err
@@ -173,7 +174,7 @@ func (c *ImageConverterCommand) GetParams() *ImageConverterParams {
 
 func init() {
 	// Register the command in the default registry
-	if err := DefaultRegistry.Register("ImageConverterCommand", NewImageConverterCommand); err != nil {
+	if err := commandstructure.DefaultRegistry.Register("ImageConverterCommand", NewImageConverterCommand); err != nil {
 		panic(fmt.Sprintf("failed to register ImageConverterCommand: %v", err))
 	}
 }

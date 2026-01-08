@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/jo-hoe/goframe/internal/backend/command"
+	"github.com/jo-hoe/goframe/internal/backend/commands"
 	"github.com/jo-hoe/goframe/internal/backend/database"
 	"github.com/jo-hoe/goframe/internal/common"
 )
@@ -58,7 +58,7 @@ func (service *CoreService) AddImage(image []byte) (*common.ApiImage, error) {
 	targetType := service.config.ImageTargetType
 	slog.Info("CoreService.AddImage: start", "bytes", len(image), "targetType", targetType)
 
-	command, err := command.NewImageConverterCommand(map[string]any{
+	command, err := commands.NewImageConverterCommand(map[string]any{
 		"targetType": targetType,
 	})
 	if err != nil {

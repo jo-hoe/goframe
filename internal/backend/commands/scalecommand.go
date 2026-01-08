@@ -1,4 +1,4 @@
-package command
+package commands
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"image/draw"
 	"image/png"
 	"log/slog"
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
 // ScaleParams represents typed parameters for scale command
@@ -19,12 +20,12 @@ type ScaleParams struct {
 // NewScaleParamsFromMap creates ScaleParams from a generic map
 func NewScaleParamsFromMap(params map[string]any) (*ScaleParams, error) {
 	// Validate required parameters exist
-	if err := validateRequiredParams(params, []string{"height", "width"}); err != nil {
+	if err := commandstructure.ValidateRequiredParams(params, []string{"height", "width"}); err != nil {
 		return nil, err
 	}
 
-	height := getIntParam(params, "height", 0)
-	width := getIntParam(params, "width", 0)
+	height := commandstructure.GetIntParam(params, "height", 0)
+	width := commandstructure.GetIntParam(params, "width", 0)
 
 	// Validate dimensions are positive
 	if height <= 0 {
@@ -47,7 +48,7 @@ type ScaleCommand struct {
 }
 
 // NewScaleCommand creates a new scale command from configuration parameters
-func NewScaleCommand(params map[string]any) (Command, error) {
+func NewScaleCommand(params map[string]any) (commandstructure.Command, error) {
 	typedParams, err := NewScaleParamsFromMap(params)
 	if err != nil {
 		return nil, err
@@ -180,7 +181,7 @@ func (c *ScaleCommand) GetParams() *ScaleParams {
 
 func init() {
 	// Register the command in the default registry
-	if err := DefaultRegistry.Register("ScaleCommand", NewScaleCommand); err != nil {
+	if err := commandstructure.DefaultRegistry.Register("ScaleCommand", NewScaleCommand); err != nil {
 		panic(fmt.Sprintf("failed to register ScaleCommand: %v", err))
 	}
 }

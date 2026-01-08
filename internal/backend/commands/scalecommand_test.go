@@ -1,7 +1,8 @@
-package command
+package commands
 
 import (
 	"testing"
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
 func TestNewScaleCommand_Success(t *testing.T) {
@@ -135,12 +136,12 @@ func TestScaleCommand_Execute(t *testing.T) {
 }
 
 func TestScaleCommand_RegisteredInDefaultRegistry(t *testing.T) {
-	if !DefaultRegistry.IsRegistered("ScaleCommand") {
+	if !commandstructure.DefaultRegistry.IsRegistered("ScaleCommand") {
 		t.Error("Expected ScaleCommand to be registered in DefaultRegistry")
 	}
 
 	// Test creating via registry
-	command, err := DefaultRegistry.Create("ScaleCommand", map[string]any{
+	command, err := commandstructure.DefaultRegistry.Create("ScaleCommand", map[string]any{
 		"height": 1024,
 		"width":  768,
 	})

@@ -1,4 +1,4 @@
-package command
+package commands
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/png"
 	"log/slog"
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
 // CropParams represents typed parameters for crop command
@@ -17,12 +18,12 @@ type CropParams struct {
 // NewCropParamsFromMap creates CropParams from a generic map
 func NewCropParamsFromMap(params map[string]any) (*CropParams, error) {
 	// Validate required parameters exist
-	if err := validateRequiredParams(params, []string{"height", "width"}); err != nil {
+	if err := commandstructure.ValidateRequiredParams(params, []string{"height", "width"}); err != nil {
 		return nil, err
 	}
 
-	height := getIntParam(params, "height", 0)
-	width := getIntParam(params, "width", 0)
+	height := commandstructure.GetIntParam(params, "height", 0)
+	width := commandstructure.GetIntParam(params, "width", 0)
 
 	// Validate dimensions are positive
 	if height <= 0 {
@@ -45,7 +46,7 @@ type CropCommand struct {
 }
 
 // NewCropCommand creates a new crop command from configuration parameters
-func NewCropCommand(params map[string]any) (Command, error) {
+func NewCropCommand(params map[string]any) (commandstructure.Command, error) {
 	typedParams, err := NewCropParamsFromMap(params)
 	if err != nil {
 		return nil, err
@@ -160,7 +161,7 @@ func (c *CropCommand) GetParams() *CropParams {
 
 func init() {
 	// Register the command in the default registry
-	if err := DefaultRegistry.Register("CropCommand", NewCropCommand); err != nil {
+	if err := commandstructure.DefaultRegistry.Register("CropCommand", NewCropCommand); err != nil {
 		panic(fmt.Sprintf("failed to register CropCommand: %v", err))
 	}
 }

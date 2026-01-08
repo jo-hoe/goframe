@@ -1,6 +1,8 @@
-package command
+package commandstructure
 
 import (
+	"internal/backend/commands"
+	
 	"testing"
 )
 
@@ -63,9 +65,9 @@ func TestCommandInvoker_EmptyCommandList(t *testing.T) {
 
 func TestCommandInvoker_InvalidImageData(t *testing.T) {
 	// Create a simple test command
-	testCmd := &OrientationCommand{
+	testCmd := &commands.OrientationCommand{
 		name:   "TestCommand",
-		params: &OrientationParams{Orientation: "portrait"},
+		params: &commands.OrientationParams{Orientation: "portrait"},
 	}
 
 	invoker := NewCommandInvoker([]Command{testCmd})
@@ -78,9 +80,9 @@ func TestCommandInvoker_InvalidImageData(t *testing.T) {
 
 func TestNewCommandInvoker(t *testing.T) {
 	commands := []Command{
-		&OrientationCommand{
+		&commands.OrientationCommand{
 			name:   "TestCommand",
-			params: &OrientationParams{Orientation: "portrait"},
+			params: &commands.OrientationParams{Orientation: "portrait"},
 		},
 	}
 

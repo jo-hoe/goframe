@@ -1,4 +1,4 @@
-package command
+package commandstructure
 
 // Command defines the interface for all image processing commands
 type Command interface {
