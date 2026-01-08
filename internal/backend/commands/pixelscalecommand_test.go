@@ -1,8 +1,12 @@
 package commands
 
 import (
-	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
+	"bytes"
+	"image/png"
+	"os"
 	"testing"
+
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
 func TestNewPixelScaleCommand_BothDimensions(t *testing.T) {
@@ -275,5 +279,35 @@ func TestPixelScaleCommand_PartialParams(t *testing.T) {
 				t.Errorf("Expected no error but got: %v", err)
 			}
 		})
+	}
+}
+
+func TestPixelScaleCommand_WithRealImage(t *testing.T) {
+	// Load real test image
+	imageData, err := os.ReadFile("testdata/peppers.png")
+	if err != nil {
+		t.Fatalf("Failed to load test image: %v", err)
+	}
+
+	command, err := NewPixelScaleCommand(map[string]any{
+		"width": 200,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create command: %v", err)
+	}
+
+	result, err := command.Execute(imageData)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if len(result) == 0 {
+		t.Error("Expected non-empty result")
+	}
+
+	// Verify result is valid PNG
+	_, err = png.Decode(bytes.NewReader(result))
+	if err != nil {
+		t.Errorf("Result is not valid PNG: %v", err)
 	}
 }

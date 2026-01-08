@@ -1,7 +1,11 @@
 package commands
 
 import (
+	"bytes"
+	"image/png"
+	"os"
 	"testing"
+
 	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
@@ -211,5 +215,42 @@ func TestScaleCommand_GetParams(t *testing.T) {
 	}
 	if params.Width != 1080 {
 		t.Errorf("Expected width 1080, got %d", params.Width)
+	}
+}
+
+func TestScaleCommand_WithRealImage(t *testing.T) {
+	// Load real test image
+	imageData, err := os.ReadFile("testdata/peppers.png")
+	if err != nil {
+		t.Fatalf("Failed to load test image: %v", err)
+	}
+
+	command, err := NewScaleCommand(map[string]any{
+		"height": 300,
+		"width":  300,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create command: %v", err)
+	}
+
+	result, err := command.Execute(imageData)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if len(result) == 0 {
+		t.Error("Expected non-empty result")
+	}
+
+	// Verify result is valid PNG
+	img, err := png.Decode(bytes.NewReader(result))
+	if err != nil {
+		t.Errorf("Result is not valid PNG: %v", err)
+	}
+
+	// Verify output dimensions
+	bounds := img.Bounds()
+	if bounds.Dx() != 300 || bounds.Dy() != 300 {
+		t.Errorf("Expected output dimensions 300x300, got %dx%d", bounds.Dx(), bounds.Dy())
 	}
 }

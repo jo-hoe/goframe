@@ -1,6 +1,9 @@
 package commands
 
 import (
+	"bytes"
+	"image/png"
+	"os"
 	"testing"
 
 	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
@@ -185,5 +188,36 @@ func TestCropCommand_WithFloat64Params(t *testing.T) {
 	}
 	if cropCmd.GetWidth() != 1200 {
 		t.Errorf("Expected width 1200, got %d", cropCmd.GetWidth())
+	}
+}
+
+func TestCropCommand_WithRealImage(t *testing.T) {
+	// Load real test image
+	imageData, err := os.ReadFile("testdata/peppers.png")
+	if err != nil {
+		t.Fatalf("Failed to load test image: %v", err)
+	}
+
+	command, err := NewCropCommand(map[string]any{
+		"height": 200,
+		"width":  200,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create command: %v", err)
+	}
+
+	result, err := command.Execute(imageData)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if len(result) == 0 {
+		t.Error("Expected non-empty result")
+	}
+
+	// Verify result is valid PNG
+	_, err = png.Decode(bytes.NewReader(result))
+	if err != nil {
+		t.Errorf("Result is not valid PNG: %v", err)
 	}
 }

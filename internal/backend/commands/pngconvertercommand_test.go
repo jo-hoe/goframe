@@ -1,8 +1,12 @@
 package commands
 
 import (
-	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
+	"bytes"
+	"image/png"
+	"os"
 	"testing"
+
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
 func TestNewPngConverterCommand_Success(t *testing.T) {
@@ -145,5 +149,38 @@ func TestHasCorrectPngSignature(t *testing.T) {
 				t.Errorf("Expected %v, got %v", tt.expected, result)
 			}
 		})
+	}
+}
+
+func TestPngConverterCommand_WithRealImage(t *testing.T) {
+	// Load real test image
+	imageData, err := os.ReadFile("testdata/peppers.png")
+	if err != nil {
+		t.Fatalf("Failed to load test image: %v", err)
+	}
+
+	command, err := NewPngConverterCommand(map[string]any{})
+	if err != nil {
+		t.Fatalf("Failed to create command: %v", err)
+	}
+
+	result, err := command.Execute(imageData)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if len(result) == 0 {
+		t.Error("Expected non-empty result")
+	}
+
+	// Verify result is valid PNG
+	_, err = png.Decode(bytes.NewReader(result))
+	if err != nil {
+		t.Errorf("Result is not valid PNG: %v", err)
+	}
+
+	// Since input is already PNG, output should be the same
+	if !bytes.Equal(imageData, result) {
+		t.Error("Expected result to be identical to input for PNG image")
 	}
 }

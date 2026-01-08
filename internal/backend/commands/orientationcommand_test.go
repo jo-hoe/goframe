@@ -1,7 +1,11 @@
 package commands
 
 import (
+	"bytes"
+	"image/png"
+	"os"
 	"testing"
+
 	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
@@ -112,5 +116,35 @@ func TestOrientationCommand_RegisteredInDefaultRegistry(t *testing.T) {
 
 	if orientationCmd.GetOrientation() != "landscape" {
 		t.Errorf("Expected orientation 'landscape', got '%s'", orientationCmd.GetOrientation())
+	}
+}
+
+func TestOrientationCommand_WithRealImage(t *testing.T) {
+	// Load real test image
+	imageData, err := os.ReadFile("testdata/peppers.png")
+	if err != nil {
+		t.Fatalf("Failed to load test image: %v", err)
+	}
+
+	command, err := NewOrientationCommand(map[string]any{
+		"orientation": "portrait",
+	})
+	if err != nil {
+		t.Fatalf("Failed to create command: %v", err)
+	}
+
+	result, err := command.Execute(imageData)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if len(result) == 0 {
+		t.Error("Expected non-empty result")
+	}
+
+	// Verify result is valid PNG
+	_, err = png.Decode(bytes.NewReader(result))
+	if err != nil {
+		t.Errorf("Result is not valid PNG: %v", err)
 	}
 }
