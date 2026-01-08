@@ -19,10 +19,9 @@ type Database struct {
 }
 
 type ServiceConfig struct {
-	Port            int               `yaml:"port"`
-	Database        Database          `yaml:"database"`
-	ImageTargetType string            `yaml:"imageTargetType"`
-	Processors      []ProcessorConfig `yaml:"processors"`
+	Port       int               `yaml:"port"`
+	Database   Database          `yaml:"database"`
+	Processors []ProcessorConfig `yaml:"processors"`
 }
 
 // LoadConfig loads configuration from the specified YAML file

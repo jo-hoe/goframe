@@ -51,16 +51,13 @@ func (service *FrontendService) htmxGetCurrentImageHandler(ctx echo.Context) err
 		return ctx.String(http.StatusNotFound, "No image available")
 	}
 
-	imageType := service.config.ImageTargetType
-	contentType := "image/" + imageType
-
 	// Prevent caching so the latest uploaded image is always shown
 	ctx.Response().Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
 	ctx.Response().Header().Set("Pragma", "no-cache")
 	ctx.Response().Header().Set("Expires", "0")
 
 	// Return the image data
-	return ctx.Blob(http.StatusOK, contentType, image)
+	return ctx.Blob(http.StatusOK, "image/png", image)
 }
 
 func (service *FrontendService) indexHandler(ctx echo.Context) error {

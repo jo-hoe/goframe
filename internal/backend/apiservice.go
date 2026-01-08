@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/jo-hoe/goframe/internal/core"
@@ -27,7 +26,7 @@ func (s *APIService) SetRoutes(e *echo.Echo) {
 		return c.String(200, "API Service is running")
 	})
 
-	imageUrl := fmt.Sprintf("/api/image.%s", s.config.ImageTargetType)
+	imageUrl := "/api/image.png"
 	e.GET(imageUrl, s.handleGetCurrentImage)
 }
 
@@ -38,5 +37,5 @@ func (s *APIService) handleGetCurrentImage(ctx echo.Context) error {
 	}
 	// Set Content-Length header explicitly to allow clients to know exact payload size
 	ctx.Response().Header().Set(echo.HeaderContentLength, strconv.Itoa(len(imageData)))
-	return ctx.Blob(200, "image/"+s.config.ImageTargetType, imageData)
+	return ctx.Blob(200, "image/png", imageData)
 }

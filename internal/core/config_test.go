@@ -45,10 +45,6 @@ database:
 	if config.Database.Type != "sqlite" {
 		t.Errorf("Expected database type to be 'sqlite', got '%s'", config.Database.Type)
 	}
-
-	if config.ImageTargetType != "png" {
-		t.Errorf("Expected imageTargetType to be 'png', got '%s'", config.ImageTargetType)
-	}
 }
 
 func TestLoadConfig_FileNotFound(t *testing.T) {
