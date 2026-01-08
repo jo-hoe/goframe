@@ -55,23 +55,20 @@ func (service *CoreService) GetCurrentImage() ([]byte, error) {
 }
 
 func (service *CoreService) AddImage(image []byte) (*common.ApiImage, error) {
-	targetType := service.config.ImageTargetType
-	slog.Info("CoreService.AddImage: start", "bytes", len(image), "targetType", targetType)
+	slog.Info("CoreService.AddImage: start", "bytes", len(image))
 
-	command, err := commands.NewImageConverterCommand(map[string]any{
-		"targetType": targetType,
-	})
+	command, err := commands.NewPngConverterCommand(map[string]any{})
 	if err != nil {
-		slog.Error("CoreService.AddImage: failed to create ImageConverterCommand", "error", err)
-		return nil, fmt.Errorf("failed to create image converter command: %w", err)
+		slog.Error("CoreService.AddImage: failed to create PngConverterCommand", "error", err)
+		return nil, fmt.Errorf("failed to create PNG converter command: %w", err)
 	}
 
 	convertedImageData, err := command.Execute(image)
 	if err != nil {
 		slog.Error("CoreService.AddImage: image conversion failed", "error", err)
-		return nil, fmt.Errorf("failed to convert image: %w", err)
+		return nil, fmt.Errorf("failed to convert image to PNG: %w", err)
 	}
-	slog.Info("CoreService.AddImage: image converted", "converted_bytes", len(convertedImageData), "targetType", targetType)
+	slog.Info("CoreService.AddImage: image converted to PNG", "converted_bytes", len(convertedImageData))
 
 	databaseImageID, err := service.databaseService.CreateImage(image)
 	if err != nil {
