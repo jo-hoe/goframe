@@ -59,8 +59,8 @@ func TestSQLite_GetImages_Projection(t *testing.T) {
 		if img.ProcessedImage != nil {
 			t.Errorf("image[%d].ProcessedImage is not nil; expected nil when not selected", i)
 		}
-		if img.CreatedAt != "" {
-			t.Errorf("image[%d].CreatedAt is not empty; expected empty when not selected", i)
+		if !img.CreatedAt.IsZero() {
+			t.Errorf("image[%d].CreatedAt is not zero; expected zero when not selected", i)
 		}
 		seen[img.ID] = true
 	}
@@ -80,8 +80,8 @@ func TestSQLite_GetImages_Projection(t *testing.T) {
 		if img.ID == "" {
 			t.Errorf("image2[%d].ID is empty; expected non-empty", i)
 		}
-		if img.CreatedAt == "" {
-			t.Errorf("image2[%d].CreatedAt is empty; expected non-empty", i)
+		if img.CreatedAt.IsZero() {
+			t.Errorf("image2[%d].CreatedAt is zero; expected non-zero", i)
 		}
 		if img.OriginalImage != nil || img.ProcessedImage != nil {
 			t.Errorf("image2[%d] binary fields should be nil when not selected", i)
@@ -119,8 +119,8 @@ func TestSQLite_GetImages_AllFields(t *testing.T) {
 	if img.ID != id {
 		t.Errorf("expected ID %q, got %q", id, img.ID)
 	}
-	if img.CreatedAt == "" {
-		t.Errorf("CreatedAt is empty; expected non-empty")
+	if img.CreatedAt.IsZero() {
+		t.Errorf("CreatedAt is zero; expected non-zero")
 	}
 	if !bytes.Equal(img.OriginalImage, []byte("original")) {
 		t.Errorf("OriginalImage mismatch: got %q", string(img.OriginalImage))
