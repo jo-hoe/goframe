@@ -3,7 +3,7 @@ include help.mk
 # get root dir
 ROOT_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 
-.DEFAULT_GOAL := start
+.DEFAULT_GOAL := start-docker
 
 .PHONY: update
 update: ## pulls git repo
@@ -26,6 +26,11 @@ lint: ## run golangci-lint
 install-hooks: ## install git hooks
 	@echo Installing git hooks...
 	@go run -C .githooks install.go
+
+
+.PHONY: start-docker
+start-docker: ## start goframe server via docker compose
+	@docker-compose -f ${ROOT_DIR}docker-compose.yml up --build
 
 # --- Local K3D development targets (modeled after website-webhook) ---
 IMAGE_NAME := goframe
