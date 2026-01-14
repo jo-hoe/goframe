@@ -135,30 +135,13 @@ func BenchmarkOrientationCommand_Execute(b *testing.B) {
 	}
 }
 
-func BenchmarkDitherCommand_Execute(b *testing.B) {
+func BenchmarkSpectra6DitheringCommand_Execute(b *testing.B) {
 	imageData := loadPeppers(b)
 
-	b.Run("DefaultPalette", func(b *testing.B) {
-		command, err := NewDitherCommand(map[string]any{})
+	b.Run("Spectra6Defaults", func(b *testing.B) {
+		command, err := NewSpectra6DitheringCommand(map[string]any{})
 		if err != nil {
-			b.Fatalf("failed to create DitherCommand: %v", err)
-		}
-
-		b.ReportAllocs()
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			if _, err := command.Execute(imageData); err != nil {
-				b.Fatalf("execute failed: %v", err)
-			}
-		}
-	})
-
-	b.Run("DefaultPalette-Strength-0.8", func(b *testing.B) {
-		command, err := NewDitherCommand(map[string]any{
-			"strength": 0.8,
-		})
-		if err != nil {
-			b.Fatalf("failed to create DitherCommand: %v", err)
+			b.Fatalf("failed to create Spectra6DitheringCommand: %v", err)
 		}
 
 		b.ReportAllocs()

@@ -27,6 +27,9 @@ install-hooks: ## install git hooks
 	@echo Installing git hooks...
 	@go run -C .githooks install.go
 
+.PHONY: start
+start: ## start goframe server
+	@go run ${ROOT_DIR}cmd/server/main.go
 
 .PHONY: start-docker
 start-docker: ## start goframe server via docker compose

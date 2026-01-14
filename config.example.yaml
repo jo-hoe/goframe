@@ -10,14 +10,4 @@ commands:
   - name: CropCommand
     height: 1600
     width: 1200
-  - name: DitherCommand
-    # Custom color palette as RGB values
-    palette:
-      - [0, 0, 0]         # Black
-      - [255, 255, 255]   # White
-      - [255, 255, 0]     # Yellow
-      - [0, 0, 255]       # Blue
-      - [255, 0, 0]       # Red
-      - [0, 255, 0]       # Green
-    # Optional: Dithering strength between 0.0 and 1.0 (default is 1.0)
-    # strength: 0.8
+  - name: Spectra6DitheringCommand
