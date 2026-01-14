@@ -26,8 +26,6 @@ func NewCoreService(config *ServiceConfig) *CoreService {
 }
 
 func (service *CoreService) GetCurrentImage() ([]byte, error) {
-	slog.Info("CoreService.GetCurrentImage: fetching current image")
-
 	images, err := service.databaseService.GetAllImages()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all images: %w", err)
@@ -86,8 +84,6 @@ func getDatabaseService(DatabaseConfig *ServiceConfig) (database.DatabaseService
 }
 
 func (service *CoreService) GetAllImageIDs() ([]string, error) {
-	slog.Info("CoreService.GetAllImageIDs: fetching image IDs")
-
 	images, err := service.databaseService.GetAllImages()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all images: %w", err)
@@ -100,6 +96,7 @@ func (service *CoreService) GetAllImageIDs() ([]string, error) {
 			ids = append(ids, img.ID)
 		}
 	}
+	slog.Info("CoreService.GetAllImageIDs: fetched image IDs", "count", len(ids))
 	return ids, nil
 }
 
@@ -115,41 +112,9 @@ func (service *CoreService) Close() error {
 }
 
 func (service *CoreService) GetProcessedImageByID(id string) ([]byte, error) {
-	slog.Info("CoreService.GetProcessedImageByID: fetching processed image", "id", id)
-
-	// First try to fetch the processed image directly
-	if processed, err := service.databaseService.GetProcessedImageByID(id); err == nil && len(processed) > 0 {
-		return processed, nil
-	} else if err == nil && len(processed) == 0 {
-		// Defensive: treat empty blob as missing
-		slog.Warn("CoreService.GetProcessedImageByID: processed image empty, will attempt on-the-fly conversion", "id", id)
-	} else if err != nil {
-		slog.Warn("CoreService.GetProcessedImageByID: processed image not available, will attempt on-the-fly conversion", "id", id, "error", err)
+	processed, err := service.databaseService.GetProcessedImageByID(id)
+	if err != nil || len(processed) == 0 {
+		return nil, fmt.Errorf("processed image not available for id %s", id)
 	}
-
-	// Fallback: fetch original and convert on the fly
-	original, err := service.databaseService.GetOriginalImageByID(id)
-	if err != nil || len(original) == 0 {
-		if err != nil {
-			return nil, fmt.Errorf("failed to get original image by ID: %w", err)
-		}
-		return nil, fmt.Errorf("original image empty for id %s", id)
-	}
-
-	command, err := commands.NewPngConverterCommand(map[string]any{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create PNG converter command: %w", err)
-	}
-
-	converted, err := command.Execute(original)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert original image to PNG: %w", err)
-	}
-
-	// Best-effort store converted image to eliminate future fallback work
-	if setErr := service.databaseService.SetProcessedImage(id, converted); setErr != nil {
-		slog.Warn("CoreService.GetProcessedImageByID: failed to persist converted processed image", "id", id, "error", setErr)
-	}
-
-	return converted, nil
+	return processed, nil
 }
