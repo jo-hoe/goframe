@@ -29,7 +29,7 @@ install-hooks: ## install git hooks
 
 .PHONY: start
 start: ## start goframe server
-	@go run ${ROOT_DIR}cmd/server/main.go
+	@go run ${ROOT_DIR}cmd/server
 
 .PHONY: start-docker
 start-docker: ## start goframe server via docker compose

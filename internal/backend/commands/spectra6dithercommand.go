@@ -164,7 +164,7 @@ func spectra6PaletteColors() []color.Color {
 }
 
 // isSpectra6Image checks whether all pixels in the image are within tolerance of Spectra6 palette colors.
-func isSpectra6Image(img image.Image, tol int) bool {
+func isSpectra6Image(img image.Image, tolerance int) bool {
 	allowed := [][3]uint8{
 		{0, 0, 0},       // Black
 		{255, 255, 255}, // White
@@ -180,7 +180,7 @@ func isSpectra6Image(img image.Image, tol int) bool {
 			r, g, bl, _ := img.At(x, y).RGBA()
 			r8, g8, b8 := uint8(r>>8), uint8(g>>8), uint8(bl>>8)
 
-			if !isAllowedColor(r8, g8, b8, allowed, tol) {
+			if !isAllowedColor(r8, g8, b8, allowed, tolerance) {
 				return false
 			}
 		}
