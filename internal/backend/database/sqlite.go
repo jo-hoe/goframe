@@ -2,6 +2,9 @@ package database
 
 import (
 	"database/sql"
+	"fmt"
+	"reflect"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -75,21 +78,58 @@ func (s *SQLiteDatabase) SetProcessedImage(id string, processedImage []byte) err
 	return err
 }
 
-func (s *SQLiteDatabase) GetAllImages() ([]*Image, error) {
-	// Ensure deterministic ordering by creation time. Without ORDER BY, SQLite does not guarantee row order.
-	// Use rowid as a tiebreaker for consistent ordering when timestamps are equal.
-	rows, err := s.db.Query("SELECT id, original_image, processed_image, created_at FROM images ORDER BY created_at ASC, rowid ASC")
+func (s *SQLiteDatabase) GetImages(fields ...string) ([]*Image, error) {
+	// Build mapping from db tag -> struct field index dynamically from Image type
+	imgType := reflect.TypeOf(Image{})
+	tagToIndex := make(map[string]int, imgType.NumField())
+	allTags := make([]string, 0, imgType.NumField())
+	for i := 0; i < imgType.NumField(); i++ {
+		f := imgType.Field(i)
+		tag := f.Tag.Get("db")
+		if tag == "" {
+			continue
+		}
+		tagToIndex[tag] = i
+		allTags = append(allTags, tag)
+	}
+
+	selected := fields
+	if len(selected) == 0 {
+		selected = allTags
+	} else {
+		// Validate the requested fields exist on the Image struct tags
+		for _, fld := range selected {
+			if _, ok := tagToIndex[fld]; !ok {
+				return nil, fmt.Errorf("unknown image field %q", fld)
+			}
+		}
+	}
+
+	selectClause := strings.Join(selected, ", ")
+	query := fmt.Sprintf("SELECT %s FROM images ORDER BY created_at ASC, rowid ASC", selectClause)
+
+	rows, err := s.db.Query(query)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
-		_ = rows.Close() // Explicitly ignore error as we're already returning an error from the function
+		_ = rows.Close()
 	}()
 
 	var images []*Image
 	for rows.Next() {
 		var img Image
-		if err := rows.Scan(&img.ID, &img.OriginalImage, &img.ProcessedImage, &img.CreatedAt); err != nil {
+		v := reflect.ValueOf(&img).Elem()
+
+		// Build scan destinations to the requested struct field pointers
+		dest := make([]any, 0, len(selected))
+		for _, tag := range selected {
+			idx := tagToIndex[tag]
+			field := v.Field(idx)
+			dest = append(dest, field.Addr().Interface())
+		}
+
+		if err := rows.Scan(dest...); err != nil {
 			return nil, err
 		}
 		images = append(images, &img)

@@ -11,7 +11,8 @@ type DatabaseService interface {
 	// eliminating race conditions where processed_image is temporarily NULL.
 	CreateImage(original []byte, processed []byte) (string, error)
 	SetProcessedImage(id string, processedImage []byte) error
-	GetAllImages() ([]*Image, error)
+	// GetImages returns images with only the specified fields populated; if no fields are provided, all fields are returned.
+	GetImages(fields ...string) ([]*Image, error)
 	DeleteImage(id string) error
 	GetOriginalImageByID(id string) ([]byte, error)
 	GetProcessedImageByID(id string) ([]byte, error)

@@ -26,7 +26,7 @@ func NewCoreService(config *ServiceConfig) *CoreService {
 }
 
 func (service *CoreService) GetImageForDate() ([]byte, error) {
-	images, err := service.databaseService.GetAllImages()
+	images, err := service.databaseService.GetImages()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all images: %w", err)
 	}
@@ -82,7 +82,7 @@ func getDatabaseService(DatabaseConfig *ServiceConfig) (database.DatabaseService
 }
 
 func (service *CoreService) GetAllImageIDs() ([]string, error) {
-	images, err := service.databaseService.GetAllImages()
+	images, err := service.databaseService.GetImages()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all images: %w", err)
 	}
