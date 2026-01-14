@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jo-hoe/goframe/internal/backend/commands"
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 	"github.com/jo-hoe/goframe/internal/backend/database"
 	"github.com/jo-hoe/goframe/internal/common"
 )
@@ -50,13 +51,19 @@ func (service *CoreService) AddImage(image []byte) (*common.ApiImage, error) {
 		return nil, fmt.Errorf("failed to create PNG converter command: %w", err)
 	}
 
+	// default PNG conversion
 	convertedImageData, err := command.Execute(image)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert image to PNG: %w", err)
 	}
+	// apply all configured commands
+	processedImage, err := service.applyConfiguredCommands(convertedImageData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply configured commands: %w", err)
+	}
 
 	// Insert atomically with processed image to avoid NULL windows
-	databaseImageID, err := service.databaseService.CreateImage(image, convertedImageData)
+	databaseImageID, err := service.databaseService.CreateImage(image, processedImage)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create database image: %w", err)
 	}
@@ -65,6 +72,34 @@ func (service *CoreService) AddImage(image []byte) (*common.ApiImage, error) {
 		ID: databaseImageID,
 	}
 	return databaseImage, nil
+}
+
+func (service *CoreService) applyConfiguredCommands(image []byte) (processedImage []byte, err error) {
+	if image == nil {
+		return nil, fmt.Errorf("input image is nil")
+	}
+
+	// If no commands are configured, return the original image unchanged
+	if service == nil || service.config == nil || len(service.config.Commands) == 0 {
+		slog.Debug("CoreService.applyConfiguredCommands: no commands configured, returning original image", "bytes", len(image))
+		return image, nil
+	}
+
+	// Map core.CommandConfig to commandstructure.CommandConfig
+	commandConfigs := make([]commandstructure.CommandConfig, 0, len(service.config.Commands))
+	for _, cfg := range service.config.Commands {
+		commandConfigs = append(commandConfigs, commandstructure.CommandConfig{
+			Name:   cfg.Name,
+			Params: cfg.Params,
+		})
+	}
+
+	slog.Info("CoreService.applyConfiguredCommands: executing configured commands", "count", len(commandConfigs), "input_size_bytes", len(image))
+	out, execErr := commandstructure.ExecuteCommands(image, commandConfigs)
+	if execErr != nil {
+		return nil, fmt.Errorf("failed to apply configured commands: %w", execErr)
+	}
+	return out, nil
 }
 
 func (service *CoreService) selectImageForTime(now time.Time) (string, error) {
