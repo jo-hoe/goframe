@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/jo-hoe/goframe/internal/backend/commands"
 	"github.com/jo-hoe/goframe/internal/backend/database"
@@ -25,25 +26,20 @@ func NewCoreService(config *ServiceConfig) *CoreService {
 	}
 }
 
-func (service *CoreService) GetImageForDate() ([]byte, error) {
-	images, err := service.databaseService.GetImages()
+func (service *CoreService) GetImageForDate(date time.Time) ([]byte, error) {
+	// Stateless, time-driven LIFO selection
+	id, err := service.selectImageForTime(date)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get all images: %w", err)
+		return nil, err
 	}
-
-	if len(images) == 0 {
-		return nil, fmt.Errorf("no images found in database")
+	// it is possible that the selected image has changed in the mean time (was deleted)
+	// the case is not handled here; just return error if image not found
+	processed, err := service.databaseService.GetProcessedImageByID(id)
+	if err != nil || len(processed) == 0 {
+		slog.Warn("CoreService.GetImageForDate: selected image was calculated but was unavailable", "id", id)
+		return nil, fmt.Errorf("no processed images available")
 	}
-
-	// Find the latest image that has a non-empty processed image
-	for i := len(images) - 1; i >= 0; i-- {
-		img := images[i]
-		if len(img.ProcessedImage) > 0 {
-			return img.ProcessedImage, nil
-		}
-	}
-
-	return nil, fmt.Errorf("no processed images available")
+	return processed, nil
 }
 
 func (service *CoreService) AddImage(image []byte) (*common.ApiImage, error) {
@@ -69,6 +65,48 @@ func (service *CoreService) AddImage(image []byte) (*common.ApiImage, error) {
 		ID: databaseImageID,
 	}
 	return databaseImage, nil
+}
+
+func (service *CoreService) selectImageForTime(now time.Time) (string, error) {
+	// Load configured timezone, fallback to UTC on error
+	loc, err := time.LoadLocation(service.config.RotationTimezone)
+	if err != nil || loc == nil {
+		slog.Warn("invalid rotation timezone; defaulting to UTC", "tz", service.config.RotationTimezone, "err", err)
+		loc = time.UTC
+	}
+	nowTZ := now.In(loc)
+	anchor := time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
+	if nowTZ.Before(anchor) {
+		// Should never happen in practice; clamp to anchor
+		nowTZ = anchor
+	}
+	// Day-based bucket index
+	days := int(nowTZ.Sub(anchor).Hours() / 24.0)
+
+	// Fetch ascending by created_at; SQLite GetImages orders by created_at ASC, rowid ASC
+	images, err := service.databaseService.GetImages("id", "processed_image")
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch images: %w", err)
+	}
+	// Filter eligible (processed_image non-empty)
+	eligible := make([]database.Image, 0, len(images))
+	for _, img := range images {
+		if img != nil && len(img.ProcessedImage) > 0 {
+			eligible = append(eligible, *img)
+		}
+	}
+	n := len(eligible)
+	if n == 0 {
+		return "", fmt.Errorf("no eligible images")
+	}
+
+	// LIFO: newest first. Since eligible is ascending, pick from end.
+	idx := days % n
+	if idx < 0 {
+		idx += n
+	}
+	indexFromEnd := n - 1 - idx
+	return eligible[indexFromEnd].ID, nil
 }
 
 func getDatabaseService(DatabaseConfig *ServiceConfig) (database.DatabaseService, error) {

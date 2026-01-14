@@ -19,9 +19,10 @@ type Database struct {
 }
 
 type ServiceConfig struct {
-	Port     int             `yaml:"port"`
-	Database Database        `yaml:"database"`
-	Commands []CommandConfig `yaml:"commands"`
+	Port             int             `yaml:"port"`
+	Database         Database        `yaml:"database"`
+	Commands         []CommandConfig `yaml:"commands"`
+	RotationTimezone string          `yaml:"rotationTimezone"`
 }
 
 // LoadConfig loads configuration from the specified YAML file
@@ -42,6 +43,11 @@ func LoadConfig(configPath string) (*ServiceConfig, error) {
 	// Validate commands
 	if err := validateCommands(config.Commands); err != nil {
 		return nil, fmt.Errorf("invalid command configuration: %w", err)
+	}
+
+	// Defaults
+	if config.RotationTimezone == "" {
+		config.RotationTimezone = "UTC"
 	}
 
 	return &config, nil

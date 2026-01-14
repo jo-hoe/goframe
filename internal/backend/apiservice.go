@@ -2,6 +2,7 @@ package backend
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/jo-hoe/goframe/internal/core"
 
@@ -31,7 +32,7 @@ func (s *APIService) SetRoutes(e *echo.Echo) {
 }
 
 func (s *APIService) handleGetCurrentImage(ctx echo.Context) error {
-	imageData, err := s.coreService.GetImageForDate()
+	imageData, err := s.coreService.GetImageForDate(time.Now())
 	if err != nil {
 		return ctx.JSON(500, map[string]string{"error": err.Error()})
 	}

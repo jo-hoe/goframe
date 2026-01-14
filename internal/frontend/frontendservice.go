@@ -52,7 +52,7 @@ func (service *FrontendService) SetRoutes(e *echo.Echo) {
 }
 
 func (service *FrontendService) htmxGetCurrentImageHandler(ctx echo.Context) error {
-	image, err := service.coreService.GetImageForDate()
+	image, err := service.coreService.GetImageForDate(time.Now())
 	if err != nil {
 		// Explicit logging of error with status code and route
 		slog.Warn("htmxGetCurrentImageHandler: no image available",
