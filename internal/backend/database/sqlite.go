@@ -32,7 +32,8 @@ func (s *SQLiteDatabase) CreateDatabase() (*sql.DB, error) {
 	_, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS images (
 		id TEXT PRIMARY KEY,
 		original_image BLOB,
-		processed_image BLOB
+		processed_image BLOB,
+		created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 	)`)
 	if err != nil {
 		return nil, err
@@ -75,9 +76,9 @@ func (s *SQLiteDatabase) SetProcessedImage(id string, processedImage []byte) err
 }
 
 func (s *SQLiteDatabase) GetAllImages() ([]*Image, error) {
-	// Ensure deterministic ordering. Without ORDER BY, SQLite does not guarantee row order.
-	// Use rowid as a stable insertion order proxy since schema has no created_at.
-	rows, err := s.db.Query("SELECT id, original_image, processed_image FROM images ORDER BY rowid ASC")
+	// Ensure deterministic ordering by creation time. Without ORDER BY, SQLite does not guarantee row order.
+	// Use rowid as a tiebreaker for consistent ordering when timestamps are equal.
+	rows, err := s.db.Query("SELECT id, original_image, processed_image, created_at FROM images ORDER BY created_at ASC, rowid ASC")
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +89,7 @@ func (s *SQLiteDatabase) GetAllImages() ([]*Image, error) {
 	var images []*Image
 	for rows.Next() {
 		var img Image
-		if err := rows.Scan(&img.ID, &img.OriginalImage, &img.ProcessedImage); err != nil {
+		if err := rows.Scan(&img.ID, &img.OriginalImage, &img.ProcessedImage, &img.CreatedAt); err != nil {
 			return nil, err
 		}
 		images = append(images, &img)
@@ -117,7 +118,7 @@ func (s *SQLiteDatabase) GetProcessedImageByID(id string) ([]byte, error) {
 		return nil, err
 	}
 	// Guard against race where the row exists but processed_image is still NULL
-	if processed == nil || len(processed) == 0 {
+	if len(processed) == 0 {
 		return nil, sql.ErrNoRows
 	}
 	return processed, nil
