@@ -25,12 +25,11 @@ func NewCoreService(config *ServiceConfig) *CoreService {
 	}
 }
 
-func (service *CoreService) GetCurrentImage() ([]byte, error) {
+func (service *CoreService) GetImageForDate() ([]byte, error) {
 	images, err := service.databaseService.GetAllImages()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all images: %w", err)
 	}
-	slog.Info("CoreService.GetCurrentImage: images fetched", "count", len(images))
 
 	if len(images) == 0 {
 		return nil, fmt.Errorf("no images found in database")
@@ -40,7 +39,6 @@ func (service *CoreService) GetCurrentImage() ([]byte, error) {
 	for i := len(images) - 1; i >= 0; i-- {
 		img := images[i]
 		if len(img.ProcessedImage) > 0 {
-			slog.Info("CoreService.GetCurrentImage: using latest processed image", "id", img.ID)
 			return img.ProcessedImage, nil
 		}
 	}

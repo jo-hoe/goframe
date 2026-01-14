@@ -31,7 +31,7 @@ func (s *APIService) SetRoutes(e *echo.Echo) {
 }
 
 func (s *APIService) handleGetCurrentImage(ctx echo.Context) error {
-	imageData, err := s.coreService.GetCurrentImage()
+	imageData, err := s.coreService.GetImageForDate()
 	if err != nil {
 		return ctx.JSON(500, map[string]string{"error": err.Error()})
 	}
