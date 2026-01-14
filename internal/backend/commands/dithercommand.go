@@ -6,6 +6,9 @@ import (
 	"image/color"
 	"image/png"
 	"log/slog"
+	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 	"github.com/makeworld-the-better-one/dither/v2"
@@ -126,12 +129,65 @@ func (c *DitherCommand) Name() string {
 	return c.name
 }
 
-// Execute applies dithering to the image
-func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
-	slog.Debug("DitherCommand: decoding image",
-		"input_size_bytes", len(imageData))
+/*
+Execute applies dithering to the image.
 
-	// Decode the PNG image
+Primary path:
+- Use Node-based epdoptimize CLI with Spectra 6 defaults (palette + device colors).
+
+Fallback path:
+  - If Node or CLI is not available (e.g., in local tests), fall back to Go dithering
+    using the configured palette/strength with makeworld dither library.
+*/
+func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
+	slog.Debug("DitherCommand: starting execution", "input_size_bytes", len(imageData))
+
+	// Try Node CLI first
+	nodePath, nodeErr := exec.LookPath("node")
+	cliPath := "/app/tools/epdoptimize-cli/index.mjs"
+
+	if nodeErr == nil {
+		if _, statErr := os.Stat(cliPath); statErr == nil {
+			// Create temp dir
+			tmpDir, err := os.MkdirTemp("", "epdoptimize-*")
+			if err == nil {
+				defer os.RemoveAll(tmpDir)
+				inPath := filepath.Join(tmpDir, "input.png")
+				outPath := filepath.Join(tmpDir, "output.png")
+
+				// Write input image to temp file
+				if writeErr := os.WriteFile(inPath, imageData, 0o644); writeErr == nil {
+					// Run CLI: Spectra 6 defaults inside the tool
+					cmd := exec.Command(nodePath, cliPath, "--input", inPath, "--output", outPath)
+					var stderr bytes.Buffer
+					cmd.Stderr = &stderr
+
+					if runErr := cmd.Run(); runErr == nil {
+						// Read output PNG
+						outBytes, readErr := os.ReadFile(outPath)
+						if readErr == nil {
+							slog.Debug("DitherCommand: epdoptimize CLI succeeded", "output_size_bytes", len(outBytes))
+							return outBytes, nil
+						}
+						slog.Warn("DitherCommand: failed to read epdoptimize output, falling back", "error", readErr)
+					} else {
+						slog.Warn("DitherCommand: epdoptimize CLI failed, falling back", "error", runErr, "stderr", stderr.String())
+					}
+				} else {
+					slog.Warn("DitherCommand: failed to write temp input image, falling back", "error", writeErr)
+				}
+			} else {
+				slog.Warn("DitherCommand: failed to create temp dir, falling back", "error", err)
+			}
+		} else {
+			slog.Info("DitherCommand: epdoptimize CLI not found, using Go fallback", "path", cliPath)
+		}
+	} else {
+		slog.Info("DitherCommand: node binary not found, using Go fallback", "error", nodeErr)
+	}
+
+	// Fallback to Go dithering
+	slog.Debug("DitherCommand: decoding image (fallback)", "input_size_bytes", len(imageData))
 	img, err := png.Decode(bytes.NewReader(imageData))
 	if err != nil {
 		slog.Error("DitherCommand: failed to decode PNG image", "error", err)
@@ -149,8 +205,7 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 		}
 	}
 
-	slog.Debug("DitherCommand: creating ditherer",
-		"palette_size", len(palette))
+	slog.Debug("DitherCommand: creating ditherer (fallback)", "palette_size", len(palette))
 
 	// Create ditherer
 	d := dither.NewDitherer(palette)
@@ -166,12 +221,12 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 	}
 	d.Serpentine = true
 
-	slog.Debug("DitherCommand: applying dithering")
+	slog.Debug("DitherCommand: applying dithering (fallback)")
 
 	// Apply dithering
 	ditheredImg := d.Dither(img)
 
-	slog.Debug("DitherCommand: encoding dithered image")
+	slog.Debug("DitherCommand: encoding dithered image (fallback)")
 
 	// Encode the dithered image to PNG bytes
 	var buf bytes.Buffer
@@ -181,8 +236,7 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to encode dithered PNG image: %w", err)
 	}
 
-	slog.Debug("DitherCommand: dithering complete",
-		"output_size_bytes", buf.Len())
+	slog.Debug("DitherCommand: fallback dithering complete", "output_size_bytes", buf.Len())
 
 	return buf.Bytes(), nil
 }
