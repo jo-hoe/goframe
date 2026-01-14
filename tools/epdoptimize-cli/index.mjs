@@ -14,13 +14,13 @@
 */
 
 import { createCanvas, loadImage } from 'canvas';
-import sharp from 'sharp';
 import {
   ditherImage,
   getDefaultPalettes,
   getDeviceColors,
   replaceColors,
 } from 'epdoptimize';
+
 
 // Basic arg parsing
 function parseArgs(argv) {
@@ -61,28 +61,20 @@ async function main() {
 
   try {
     // Load image
-    // Decode via sharp, normalize to sRGB PNG to match browser canvas behavior
-    const normalizedBuffer = await sharp(inputPath)
-      .toColorspace('srgb')
-      .png()
-      .toBuffer();
-
-    const img = await loadImage(normalizedBuffer);
+    const img = await loadImage(inputPath);
     const width = img.width;
     const height = img.height;
 
     // Create canvases
     const inputCanvas = createCanvas(width, height);
     const inputCtx = inputCanvas.getContext('2d');
-    // Disable image smoothing to match demo defaults
-    inputCtx.imageSmoothingEnabled = false;
     inputCtx.drawImage(img, 0, 0);
 
     const ditheredCanvas = createCanvas(width, height);
     const deviceCanvas = createCanvas(width, height);
 
-    // Prepare palettes
-    const palette = getDefaultPalettes(paletteName);
+    // Prepare palette/device colors
+    const paletteHex = getDefaultPalettes(paletteName);
     const deviceColors = getDeviceColors(deviceName);
 
     // Dither
@@ -90,12 +82,12 @@ async function main() {
       ditheringType: ditheringType,
       errorDiffusionMatrix: matrix,
       serpentine: serpentine,
-      palette: palette,
+      palette: paletteName,
     });
 
     // Map to device colors
     replaceColors(ditheredCanvas, deviceCanvas, {
-      originalColors: palette,
+      originalColors: paletteHex,
       replaceColors: deviceColors,
     });
 

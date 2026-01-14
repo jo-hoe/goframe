@@ -213,7 +213,7 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to create ditherer with palette")
 	}
 
-	// Use FloydSteinberg algorithm with serpentine scanning
+	// Use FloydSteinberg algorithm with serpentine scanning; allow optional strength scaling (original behavior)
 	if c.params.Strength != nil {
 		d.Matrix = dither.ErrorDiffusionStrength(dither.FloydSteinberg, *c.params.Strength)
 	} else {
