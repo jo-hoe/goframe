@@ -26,23 +26,17 @@ RUN mkdir -p /out \
 RUN upx --lzma --best /out/goframe || true
 
 # ---------- Runtime stage ----------
-# Switch to a Python-based runtime since we need to execute a Python dithering script
-FROM python:3.11-alpine AS runner
+# Distroless static nonroot keeps image very small and secure
+FROM gcr.io/distroless/static:nonroot AS runner
 
-# CA certs for outbound HTTPS if needed
-RUN apk add --no-cache ca-certificates
+# Copy CA certs for outbound HTTPS if needed
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 WORKDIR /app
 
-# Copy the backend binary and scripts
+# Copy the binary
 COPY --from=builder /out/goframe /app/goframe
-COPY scripts/ /app/scripts/
 
-# Install Python dependencies
-RUN pip install --no-cache-dir pillow
-
-# Run as non-root
-RUN addgroup -S app && adduser -S -G app app && chown -R app:app /app
-USER app
+USER nonroot:nonroot
 
 ENTRYPOINT ["/app/goframe"]

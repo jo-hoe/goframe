@@ -3,14 +3,12 @@ package commands
 import (
 	"bytes"
 	"fmt"
+	"image"
 	"image/color"
 	"image/png"
 	"log/slog"
-	"os"
-	"os/exec"
 
 	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
-	"github.com/makeworld-the-better-one/dither/v2"
 )
 
 // DitherParams represents typed parameters for dither command
@@ -128,121 +126,159 @@ func (c *DitherCommand) Name() string {
 	return c.name
 }
 
-// Execute applies dithering to the image
+// Execute applies dithering to the image (Go-only, mimic Python gist behavior)
 func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
-	slog.Debug("DitherCommand: attempting Python dithering",
+	slog.Debug("DitherCommand: Go-only dithering (gist-like settings)",
 		"input_size_bytes", len(imageData))
 
-	// Use SPECTRA6 real-world RGB palette as in the reference gist
-	paletteStr := "25,30,33;232,232,232;239,222,68;178,19,24;33,87,186;18,95,32"
-
-	// Always use Floyd-Steinberg dithering like the reference gist
-	ditherMode := "fs"
-
-	// Try to locate a Python interpreter
-	pythonBins := []string{"python3", "python"}
-	var pythonPath string
-	for _, bin := range pythonBins {
-		if p, err := exec.LookPath(bin); err == nil {
-			pythonPath = p
-			break
-		}
-	}
-
-	// Potential script locations (container and local dev)
-	scriptCandidates := []string{
-		"/app/scripts/dither.py", // in container
-		"scripts/dither.py",      // local dev
-		"./scripts/dither.py",    // local dev explicit
-	}
-	var scriptPath string
-	for _, sp := range scriptCandidates {
-		if _, err := os.Stat(sp); err == nil {
-			scriptPath = sp
-			break
-		}
-	}
-
-	// If Python and script are available, try running Python dithering
-	if pythonPath != "" && scriptPath != "" {
-		cmd := exec.Command(pythonPath, scriptPath, "--palette", paletteStr, "--dither", ditherMode)
-
-		var stdout bytes.Buffer
-		var stderr bytes.Buffer
-		cmd.Stdin = bytes.NewReader(imageData)
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
-
-		if err := cmd.Run(); err == nil && stdout.Len() > 0 {
-			outBytes := stdout.Bytes()
-			slog.Debug("DitherCommand: Python dithering succeeded",
-				"output_size_bytes", len(outBytes))
-			return outBytes, nil
-		} else {
-			if err != nil {
-				slog.Warn("DitherCommand: Python dithering failed, falling back to Go implementation",
-					"error", err, "stderr", stderr.String())
-			} else {
-				slog.Warn("DitherCommand: Python dithering produced empty output, falling back")
-			}
-		}
-	} else {
-		if pythonPath == "" {
-			slog.Debug("DitherCommand: Python not found, using Go dithering fallback")
-		} else {
-			slog.Debug("DitherCommand: dithering script not found, using Go dithering fallback")
-		}
-	}
-
-	// Fallback: Go-based dithering (original implementation)
-	slog.Debug("DitherCommand: decoding image for Go fallback",
-		"input_size_bytes", len(imageData))
-
+	// Decode the PNG image
 	img, err := png.Decode(bytes.NewReader(imageData))
 	if err != nil {
-		slog.Error("DitherCommand: failed to decode PNG image in fallback", "error", err)
+		slog.Error("DitherCommand: failed to decode PNG image", "error", err)
 		return nil, fmt.Errorf("failed to decode PNG image: %w", err)
 	}
 
-	// Use fixed SPECTRA6 real-world RGB palette for fallback as well
-	fixedPalette := []color.Color{
-		color.RGBA{R: 25, G: 30, B: 33, A: 255},
-		color.RGBA{R: 232, G: 232, B: 232, A: 255},
-		color.RGBA{R: 239, G: 222, B: 68, A: 255},
-		color.RGBA{R: 178, G: 19, B: 24, A: 255},
-		color.RGBA{R: 33, G: 87, B: 186, A: 255},
-		color.RGBA{R: 18, G: 95, B: 32, A: 255},
+	// Use fixed SPECTRA6 real-world RGB palette to match the Python gist
+	fixedPalette := []color.RGBA{
+		{R: 25, G: 30, B: 33, A: 255},
+		{R: 232, G: 232, B: 232, A: 255},
+		{R: 239, G: 222, B: 68, A: 255},
+		{R: 178, G: 19, B: 24, A: 255},
+		{R: 33, G: 87, B: 186, A: 255},
+		{R: 18, G: 95, B: 32, A: 255},
 	}
 
-	slog.Debug("DitherCommand: creating Go ditherer",
-		"palette_size", len(fixedPalette))
+	bounds := img.Bounds()
+	w := bounds.Dx()
+	h := bounds.Dy()
 
-	// Create ditherer
-	d := dither.NewDitherer(fixedPalette)
-	if d == nil {
-		return nil, fmt.Errorf("failed to create ditherer with palette")
+	// Output image
+	out := image.NewRGBA(bounds)
+
+	// Implement integer-based Floyd-Steinberg error diffusion (non-serpentine)
+	// to more closely match Pillow's internal dithering (uses integer weights).
+	// We maintain error buffers as integers scaled by 16.
+	const fsScale = 16
+	// Weights numerator for FS kernel (sum = 16): right=7, down-left=3, down=5, down-right=1
+	const wRight = 7
+	const wDownLeft = 3
+	const wDown = 5
+	const wDownRight = 1
+
+	errCurrR := make([]int, w)
+	errCurrG := make([]int, w)
+	errCurrB := make([]int, w)
+	errNextR := make([]int, w)
+	errNextG := make([]int, w)
+	errNextB := make([]int, w)
+
+	clamp8 := func(v int) int {
+		if v < 0 {
+			return 0
+		}
+		if v > 255 {
+			return 255
+		}
+		return v
 	}
 
-	// Use Floyd-Steinberg algorithm with serpentine scanning (ignore strength for similarity with gist)
-	d.Matrix = dither.FloydSteinberg
-	d.Serpentine = true
+	// Round-to-nearest when de-scaling accumulated error (scaled by 16)
+	roundDiv16 := func(e int) int {
+		if e >= 0 {
+			return (e + fsScale/2) / fsScale
+		}
+		return (e - fsScale/2) / fsScale
+	}
 
-	slog.Debug("DitherCommand: applying Go dithering")
+	// Iterate rows top-to-bottom, left-to-right (no serpentine) to align with Pillow quantize dithering
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			xx := bounds.Min.X + x
+			yy := bounds.Min.Y + y
 
-	// Apply dithering
-	ditheredImg := d.Dither(img)
+			r16, g16, b16, a16 := img.At(xx, yy).RGBA()
+			r8 := int(uint8(r16 >> 8))
+			g8 := int(uint8(g16 >> 8))
+			b8 := int(uint8(b16 >> 8))
+			a8 := int(uint8(a16 >> 8))
 
-	slog.Debug("DitherCommand: encoding Go-dithered image")
+			// Composite over white background (unpremultiplied) with rounding
+			r0 := clamp8((r8*a8 + 255*(255-a8) + 127) / 255)
+			g0 := clamp8((g8*a8 + 255*(255-a8) + 127) / 255)
+			b0 := clamp8((b8*a8 + 255*(255-a8) + 127) / 255)
+
+			// Apply accumulated error with rounding to nearest (errors are scaled by 16)
+			rAdj := clamp8(r0 + roundDiv16(errCurrR[x]))
+			gAdj := clamp8(g0 + roundDiv16(errCurrG[x]))
+			bAdj := clamp8(b0 + roundDiv16(errCurrB[x]))
+
+			// Nearest palette color (Euclidean in sRGB)
+			bestIdx := 0
+			bestDist := int(^uint(0) >> 1)
+			for i := 0; i < len(fixedPalette); i++ {
+				pr := int(fixedPalette[i].R)
+				pg := int(fixedPalette[i].G)
+				pb := int(fixedPalette[i].B)
+				dr := rAdj - pr
+				dg := gAdj - pg
+				db := bAdj - pb
+				dist := dr*dr + dg*dg + db*db
+				if dist < bestDist {
+					bestDist = dist
+					bestIdx = i
+				}
+			}
+
+			chosen := fixedPalette[bestIdx]
+			out.Set(xx, yy, chosen)
+
+			// Error (unscaled)
+			er := rAdj - int(chosen.R)
+			eg := gAdj - int(chosen.G)
+			eb := bAdj - int(chosen.B)
+
+			// Distribute FS error to neighbors (L->R)
+			if x+1 < w {
+				errCurrR[x+1] += er * wRight
+				errCurrG[x+1] += eg * wRight
+				errCurrB[x+1] += eb * wRight
+			}
+			if y+1 < h {
+				if x-1 >= 0 {
+					errNextR[x-1] += er * wDownLeft
+					errNextG[x-1] += eg * wDownLeft
+					errNextB[x-1] += eb * wDownLeft
+				}
+				errNextR[x] += er * wDown
+				errNextG[x] += eg * wDown
+				errNextB[x] += eb * wDown
+				if x+1 < w {
+					errNextR[x+1] += er * wDownRight
+					errNextG[x+1] += eg * wDownRight
+					errNextB[x+1] += eb * wDownRight
+				}
+			}
+		}
+
+		// Move next-row errors to current and clear next
+		errCurrR, errNextR = errNextR, errCurrR
+		errCurrG, errNextG = errNextG, errCurrG
+		errCurrB, errNextB = errNextB, errCurrB
+		for i := 0; i < w; i++ {
+			errNextR[i] = 0
+			errNextG[i] = 0
+			errNextB[i] = 0
+		}
+	}
 
 	// Encode the dithered image to PNG bytes
 	var buf bytes.Buffer
-	err = png.Encode(&buf, ditheredImg)
-	if err != nil {
+	if err := png.Encode(&buf, out); err != nil {
 		slog.Error("DitherCommand: failed to encode dithered image", "error", err)
 		return nil, fmt.Errorf("failed to encode dithered PNG image: %w", err)
 	}
 
-	slog.Debug("DitherCommand: dithering complete (Go fallback)",
+	slog.Debug("DitherCommand: dithering complete",
 		"output_size_bytes", buf.Len())
 
 	return buf.Bytes(), nil
