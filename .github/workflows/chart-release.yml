@@ -19,7 +19,7 @@ on:
     branches:
       - main
     paths:
-      - 'charts/**'
+      - 'charts/goframe/Chart.yaml'
 
 jobs:
   release:
