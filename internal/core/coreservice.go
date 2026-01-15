@@ -189,3 +189,81 @@ func (service *CoreService) GetProcessedImageByID(id string) ([]byte, error) {
 	}
 	return processed, nil
 }
+
+// ImageSchedule represents when an image will be shown next according to rotation rules.
+type ImageSchedule struct {
+	ID       string
+	NextShow time.Time
+}
+
+func (service *CoreService) GetImageById(id string) ([]byte, error) {
+	original, err := service.databaseService.GetOriginalImageByID(id)
+	if err != nil || len(original) == 0 {
+		return nil, fmt.Errorf("original image not available for id %s", id)
+	}
+	return original, nil
+}
+
+// GetImageSchedules returns, for each eligible image (processed image present), the next time
+// it will be shown according to the same rotation logic used by selectImageForTime.
+// The NextShow is aligned to 00:00 of the rotation timezone for the respective day.
+func (service *CoreService) GetImageSchedules(date time.Time) ([]ImageSchedule, error) {
+	// Load configured timezone, fallback to UTC on error
+	loc, err := time.LoadLocation(service.config.RotationTimezone)
+	if err != nil || loc == nil {
+		slog.Warn("invalid rotation timezone; defaulting to UTC", "tz", service.config.RotationTimezone, "err", err)
+		loc = time.UTC
+	}
+	nowTZ := date.In(loc)
+	anchor := time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
+	if nowTZ.Before(anchor) {
+		nowTZ = anchor
+	}
+	daysNow := int(nowTZ.Sub(anchor).Hours() / 24.0)
+
+	// Fetch ascending by created_at; SQLite GetImages orders by created_at ASC, rowid ASC
+	images, err := service.databaseService.GetImages("id", "processed_image")
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch images: %w", err)
+	}
+
+	// Filter eligible (processed_image non-empty)
+	eligible := make([]database.Image, 0, len(images))
+	for _, img := range images {
+		if img != nil && len(img.ProcessedImage) > 0 {
+			eligible = append(eligible, *img)
+		}
+	}
+	n := len(eligible)
+	if n == 0 {
+		return []ImageSchedule{}, nil
+	}
+
+	mod := func(a, b int) int {
+		m := a % b
+		if m < 0 {
+			m += b
+		}
+		return m
+	}
+
+	curMod := mod(daysNow, n)
+	schedules := make([]ImageSchedule, 0, n)
+	for j, img := range eligible {
+		// selectImageForTime picks indexFromEnd = n - 1 - idx where idx = days % n
+		// For given image position j in ascending order, it is selected when idx == n - 1 - j
+		targetIdx := n - 1 - j
+		delta := mod(targetIdx-curMod, n)
+		if delta == 0 {
+			// If it's selected today, "next time" is the next cycle in n days
+			delta = n
+		}
+		nextDayIndex := daysNow + delta
+		nextShow := anchor.Add(time.Duration(nextDayIndex*24) * time.Hour).In(loc)
+		schedules = append(schedules, ImageSchedule{
+			ID:       img.ID,
+			NextShow: nextShow,
+		})
+	}
+	return schedules, nil
+}
