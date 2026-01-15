@@ -11,29 +11,25 @@ import (
 	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
+var defaultSpectra6 = [][]int{
+	{25, 30, 33},    // Black
+	{232, 232, 232}, // White
+	{239, 222, 68},  // Yellow
+	{178, 19, 24},   // Red
+	{33, 87, 186},   // Blue
+	{18, 95, 32},    // Green
+}
+
 // DitherParams represents typed parameters for dither command
 type DitherParams struct {
-	// Palette used for dithering (defaults to SPECTRA6 real-world)
+	// Palette used for dithering
 	Palette [][]int
-	// Optional override palette; if set, this overrides Palette for dithering
-	FixedPalette [][]int
 }
 
 // NewDitherParamsFromMap creates DitherParams from a generic map
 func NewDitherParamsFromMap(params map[string]any) (*DitherParams, error) {
 	ditherParams := &DitherParams{}
 
-	// Default SPECTRA6 real-world palette (also used if fixedPalette not provided)
-	defaultSpectra6 := [][]int{
-		{25, 30, 33},
-		{232, 232, 232},
-		{239, 222, 68},
-		{178, 19, 24},
-		{33, 87, 186},
-		{18, 95, 32},
-	}
-
-	// Parse palette (optional, defaults to SPECTRA6 real-world)
 	if paletteParam, ok := params["palette"]; ok {
 		palette, err := parsePalette(paletteParam)
 		if err != nil {
@@ -42,17 +38,6 @@ func NewDitherParamsFromMap(params map[string]any) (*DitherParams, error) {
 		ditherParams.Palette = palette
 	} else {
 		ditherParams.Palette = defaultSpectra6
-	}
-
-	// Parse fixedPalette (optional, defaults to SPECTRA6 real-world)
-	if fpParam, ok := params["fixedPalette"]; ok {
-		fp, err := parsePalette(fpParam)
-		if err != nil {
-			return nil, fmt.Errorf("invalid fixedPalette: %w", err)
-		}
-		ditherParams.FixedPalette = fp
-	} else {
-		ditherParams.FixedPalette = defaultSpectra6
 	}
 
 	return ditherParams, nil
@@ -165,15 +150,10 @@ func decodePNGData(data []byte) (image.Image, error) {
 	return png.Decode(bytes.NewReader(data))
 }
 
-// selectedPaletteRGBA returns the palette to use as []color.RGBA
-// If FixedPalette is provided, it takes precedence over Palette.
+// selectedPaletteRGBA returns the configured palette as []color.RGBA
 func (c *DitherCommand) selectedPaletteRGBA() ([]color.RGBA, error) {
-	var chosen [][]int
-	if len(c.params.FixedPalette) > 0 {
-		chosen = c.params.FixedPalette
-	} else {
-		chosen = c.params.Palette
-	}
+	chosen := c.params.Palette
+
 	// Convert to []color.RGBA
 	out := make([]color.RGBA, 0, len(chosen))
 	for _, rgb := range chosen {

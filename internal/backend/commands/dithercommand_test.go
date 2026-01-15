@@ -81,31 +81,6 @@ func TestNewDitherParamsFromMap_CustomPalette(t *testing.T) {
 	}
 }
 
-func TestNewDitherParamsFromMap_FixedPalette(t *testing.T) {
-	params := map[string]any{
-		"fixedPalette": []any{
-			[]any{0, 0, 0},
-			[]any{255, 255, 255},
-		},
-	}
-
-	ditherParams, err := NewDitherParamsFromMap(params)
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-
-	if len(ditherParams.FixedPalette) != 2 {
-		t.Errorf("Expected fixedPalette length 2, got %d", len(ditherParams.FixedPalette))
-	}
-
-	if ditherParams.FixedPalette[0][0] != 0 || ditherParams.FixedPalette[0][1] != 0 || ditherParams.FixedPalette[0][2] != 0 {
-		t.Errorf("Expected fixedPalette[0] [0,0,0], got %v", ditherParams.FixedPalette[0])
-	}
-	if ditherParams.FixedPalette[1][0] != 255 || ditherParams.FixedPalette[1][1] != 255 || ditherParams.FixedPalette[1][2] != 255 {
-		t.Errorf("Expected fixedPalette[1] [255,255,255], got %v", ditherParams.FixedPalette[1])
-	}
-}
-
 func TestNewDitherParamsFromMap_InvalidPalette(t *testing.T) {
 	testCases := []struct {
 		name    string
@@ -169,7 +144,7 @@ func TestDitherCommand_Execute(t *testing.T) {
 }
 
 func TestDitherCommand_Execute_WithCustomPalette(t *testing.T) {
-	// When a custom palette is provided, the command uses it (unless fixedPalette is set).
+	// When a custom palette is provided, the command uses it.
 	imageData := createTestImage(100, 100)
 
 	cmd, err := NewDitherCommand(map[string]any{
