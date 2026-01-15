@@ -14,6 +14,5 @@ type DatabaseService interface {
 	// GetImages returns images with only the specified fields populated; if no fields are provided, all fields are returned.
 	GetImages(fields ...string) ([]*Image, error)
 	DeleteImage(id string) error
-	GetOriginalImageByID(id string) ([]byte, error)
-	GetProcessedImageByID(id string) ([]byte, error)
+	GetImageByID(id string) (*Image, error)
 }

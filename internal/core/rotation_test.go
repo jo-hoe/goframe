@@ -54,7 +54,7 @@ func TestLIFOSelectionCycles(t *testing.T) {
 	expected := []string{id3, id2, id1, id3, id2, id1}
 	for k := 0; k < len(expected); k++ {
 		now := anchor.Add(time.Hour * 24 * time.Duration(k))
-		got, err := svc.selectImageForTime(now)
+		got, err := svc.GetImageForTime(now)
 		if err != nil {
 			t.Fatalf("selectImageIDLIFOForTime error at day %d: %v", k, err)
 		}
@@ -85,7 +85,7 @@ func TestDeletionMidDayAdvancesSelection(t *testing.T) {
 
 	// Day 0 should pick newest (id3)
 	now := anchor
-	chosen, err := svc.selectImageForTime(now)
+	chosen, err := svc.GetImageForTime(now)
 	if err != nil {
 		t.Fatalf("initial selection error: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestDeletionMidDayAdvancesSelection(t *testing.T) {
 	if err := svc.databaseService.DeleteImage(id3); err != nil {
 		t.Fatalf("DeleteImage error: %v", err)
 	}
-	chosen2, err := svc.selectImageForTime(now)
+	chosen2, err := svc.GetImageForTime(now)
 	if err != nil {
 		t.Fatalf("selection after deletion error: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestTimezoneConfigured(t *testing.T) {
 
 	// Use a UTC time; service will convert internally to Europe/Berlin
 	now := time.Date(2024, 1, 1, 22, 0, 0, 0, time.UTC) // near midnight in Berlin (winter UTC+1)
-	_, err = svc.selectImageForTime(now)
+	_, err = svc.GetImageForTime(now)
 	if err != nil {
 		t.Fatalf("selection with timezone configured error: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestNoEligibleImages(t *testing.T) {
 	}
 
 	now := time.Now()
-	_, err = svc.selectImageForTime(now)
+	_, err = svc.GetImageForTime(now)
 	if err == nil {
 		t.Fatalf("expected error for no eligible images, got nil")
 	}

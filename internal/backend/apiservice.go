@@ -32,11 +32,17 @@ func (s *APIService) SetRoutes(e *echo.Echo) {
 }
 
 func (s *APIService) handleGetCurrentImage(ctx echo.Context) error {
-	imageData, err := s.coreService.GetImageForDate(time.Now())
+	imageId, err := s.coreService.GetImageForTime(time.Now())
 	if err != nil {
-		return ctx.JSON(500, map[string]string{"error": err.Error()})
+		return ctx.String(500, "Failed to get image for current time")
 	}
+
+	imageData, err := s.coreService.GetImageById(imageId)
+	if err != nil {
+		return ctx.String(500, "Failed to get image data")
+	}
+
 	// Set Content-Length header explicitly to allow clients to know exact payload size
-	ctx.Response().Header().Set(echo.HeaderContentLength, strconv.Itoa(len(imageData)))
-	return ctx.Blob(200, "image/png", imageData)
+	ctx.Response().Header().Set(echo.HeaderContentLength, strconv.Itoa(len(imageData.ProcessedImage)))
+	return ctx.Blob(200, "image/png", imageData.ProcessedImage)
 }

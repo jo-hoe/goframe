@@ -27,22 +27,6 @@ func NewCoreService(config *ServiceConfig) *CoreService {
 	}
 }
 
-func (service *CoreService) GetImageForDate(date time.Time) ([]byte, error) {
-	// Stateless, time-driven LIFO selection
-	id, err := service.selectImageForTime(date)
-	if err != nil {
-		return nil, err
-	}
-	// it is possible that the selected image has changed in the mean time (was deleted)
-	// the case is not handled here; just return error if image not found
-	processed, err := service.databaseService.GetProcessedImageByID(id)
-	if err != nil || len(processed) == 0 {
-		slog.Warn("CoreService.GetImageForDate: selected image was calculated but was unavailable", "id", id)
-		return nil, fmt.Errorf("no processed images available")
-	}
-	return processed, nil
-}
-
 func (service *CoreService) AddImage(image []byte) (*common.ApiImage, error) {
 	slog.Info("CoreService.AddImage: start", "bytes", len(image))
 
@@ -102,7 +86,7 @@ func (service *CoreService) applyConfiguredCommands(image []byte) (processedImag
 	return out, nil
 }
 
-func (service *CoreService) selectImageForTime(now time.Time) (string, error) {
+func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
 	// Load configured timezone, fallback to UTC on error
 	loc, err := time.LoadLocation(service.config.RotationTimezone)
 	if err != nil || loc == nil {
@@ -182,26 +166,18 @@ func (service *CoreService) Close() error {
 	return service.databaseService.Close()
 }
 
-func (service *CoreService) GetProcessedImageByID(id string) ([]byte, error) {
-	processed, err := service.databaseService.GetProcessedImageByID(id)
-	if err != nil || len(processed) == 0 {
-		return nil, fmt.Errorf("processed image not available for id %s", id)
-	}
-	return processed, nil
-}
-
 // ImageSchedule represents when an image will be shown next according to rotation rules.
 type ImageSchedule struct {
 	ID       string
 	NextShow time.Time
 }
 
-func (service *CoreService) GetImageById(id string) ([]byte, error) {
-	original, err := service.databaseService.GetOriginalImageByID(id)
-	if err != nil || len(original) == 0 {
-		return nil, fmt.Errorf("original image not available for id %s", id)
+func (service *CoreService) GetImageById(id string) (*database.Image, error) {
+	image, err := service.databaseService.GetImageByID(id)
+	if err != nil {
+		return nil, err
 	}
-	return original, nil
+	return image, nil
 }
 
 // GetImageSchedules returns, for each eligible image (processed image present), the next time

@@ -172,24 +172,26 @@ func (s *SQLiteDatabase) DeleteImage(id string) error {
 	return err
 }
 
-func (s *SQLiteDatabase) GetOriginalImageByID(id string) ([]byte, error) {
-	row := s.db.QueryRow("SELECT original_image FROM images WHERE id = ?", id)
-	var original []byte
-	if err := row.Scan(&original); err != nil {
-		return nil, err
-	}
-	return original, nil
-}
+func (s *SQLiteDatabase) GetImageByID(id string) (*Image, error) {
+	row := s.db.QueryRow("SELECT id, original_image, processed_image, created_at FROM images WHERE id = ?", id)
 
-func (s *SQLiteDatabase) GetProcessedImageByID(id string) ([]byte, error) {
-	row := s.db.QueryRow("SELECT processed_image FROM images WHERE id = ?", id)
-	var processed []byte
-	if err := row.Scan(&processed); err != nil {
+	var img Image
+	var createdAtStr string
+	if err := row.Scan(&img.ID, &img.OriginalImage, &img.ProcessedImage, &createdAtStr); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Not found
+		}
 		return nil, err
 	}
-	// Guard against race where the row exists but processed_image is still NULL
-	if len(processed) == 0 {
-		return nil, sql.ErrNoRows
+
+	// Parse created_at time
+	if createdAtStr != "" {
+		tm, parseErr := time.Parse(time.RFC3339Nano, createdAtStr)
+		if parseErr != nil {
+			return nil, fmt.Errorf("failed to parse created_at time: %w", parseErr)
+		}
+		img.CreatedAt = tm
 	}
-	return processed, nil
+
+	return &img, nil
 }

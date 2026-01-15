@@ -2,7 +2,6 @@ package database
 
 import (
 	"bytes"
-	"database/sql"
 	"testing"
 )
 
@@ -130,52 +129,39 @@ func TestSQLite_GetImages_AllFields(t *testing.T) {
 	}
 }
 
-func TestSQLite_ProcessedLifecycle(t *testing.T) {
+func TestSQLite_GetImageByID(t *testing.T) {
 	ds := newTestDB(t)
 
-	id, err := ds.CreateImage([]byte("orig"), nil) // processed NULL initially
+	id, err := ds.CreateImage([]byte("orig"), []byte("proc"))
 	if err != nil {
 		t.Fatalf("CreateImage error: %v", err)
 	}
 
-	// Initially processed image should not be available
-	_, err = ds.GetProcessedImageByID(id)
-	if err == nil {
-		t.Fatalf("expected sql.ErrNoRows when processed_image is NULL, got nil")
-	}
-	if err != sql.ErrNoRows {
-		t.Fatalf("expected sql.ErrNoRows, got %v", err)
-	}
-
-	// Set processed image and verify retrieval
-	processed := []byte("processed_data")
-	if err := ds.SetProcessedImage(id, processed); err != nil {
-		t.Fatalf("SetProcessedImage error: %v", err)
-	}
-
-	gotProcessed, err := ds.GetProcessedImageByID(id)
+	img, err := ds.GetImageByID(id)
 	if err != nil {
-		t.Fatalf("GetProcessedImageByID error: %v", err)
+		t.Fatalf("GetImageByID error: %v", err)
 	}
-	if !bytes.Equal(gotProcessed, processed) {
-		t.Fatalf("processed image mismatch: expected %q, got %q", string(processed), string(gotProcessed))
+	if img == nil {
+		t.Fatalf("GetImageByID returned nil; expected image")
 	}
-}
+	if img.ID != id {
+		t.Errorf("expected ID %q, got %q", id, img.ID)
+	}
+	if !bytes.Equal(img.OriginalImage, []byte("orig")) {
+		t.Errorf("OriginalImage mismatch: got %q", string(img.OriginalImage))
+	}
+	if !bytes.Equal(img.ProcessedImage, []byte("proc")) {
+		t.Errorf("ProcessedImage mismatch: got %q", string(img.ProcessedImage))
+	}
 
-func TestSQLite_GetOriginalImageByID(t *testing.T) {
-	ds := newTestDB(t)
-
-	id, err := ds.CreateImage([]byte("orig_data"), []byte("proc"))
+	// Test non-existent ID
+	nonExistentID := "non-existent-id"
+	img2, err := ds.GetImageByID(nonExistentID)
 	if err != nil {
-		t.Fatalf("CreateImage error: %v", err)
+		t.Fatalf("GetImageByID(non-existent) error: %v", err)
 	}
-
-	orig, err := ds.GetOriginalImageByID(id)
-	if err != nil {
-		t.Fatalf("GetOriginalImageByID error: %v", err)
-	}
-	if !bytes.Equal(orig, []byte("orig_data")) {
-		t.Fatalf("original image mismatch: expected %q, got %q", "orig_data", string(orig))
+	if img2 != nil {
+		t.Fatalf("GetImageByID(non-existent) returned non-nil; expected nil")
 	}
 }
 
