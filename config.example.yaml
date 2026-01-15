@@ -4,6 +4,7 @@ database:
   type: "sqlite"
   connectionString: "file:goframe.db?cache=shared&mode=rwc"
 rotationTimezone: "UTC" # Timezone for daily rotation e.g. "Europe/Berlin" or "America/New_York"
+thumbnailWidth: 512 # Thumbnail width used for frontend thumbnails
 commands:
   - name: OrientationCommand
     orientation: portrait

@@ -102,6 +102,8 @@ config:
   imageTargetType: "png"
   # -- Timezone used for image rotation scheduling
   rotationTimezone: "UTC"
+  # -- Thumbnail width for thumbnails in the frontend
+  thumbnailWidth: 512
   # -- Processing pipeline configuration
   # Supported command names and parameters:
   # - OrientationCommand: orientation [portrait|landscape]

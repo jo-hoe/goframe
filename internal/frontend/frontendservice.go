@@ -16,9 +16,8 @@ import (
 )
 
 const (
-	defaultThumbnailWidth = 128
-	MainPageName          = "index.html"
-	mimePNG               = "image/png"
+	MainPageName = "index.html"
+	mimePNG      = "image/png"
 )
 
 type FrontendService struct {
@@ -152,7 +151,7 @@ func (service *FrontendService) htmxGetCurrentImageHandler(ctx echo.Context) err
 		return ctx.String(http.StatusNotFound, "Image not available")
 	}
 
-	thumbnail, err := toThumbnail(image.OriginalImage)
+	thumbnail, err := service.toThumbnail(image.OriginalImage)
 	if err != nil || len(thumbnail) == 0 {
 		slog.Warn("htmxGetCurrentImageHandler: thumbnail not available",
 			"status", http.StatusNotFound,
@@ -205,7 +204,7 @@ func (service *FrontendService) htmxGetOriginalThumbnailByIDHandler(ctx echo.Con
 			"status", http.StatusNotFound, "image_id", id, "error", err)
 		return ctx.String(http.StatusNotFound, "Image not available")
 	}
-	thumbnail, err := toThumbnail(image.OriginalImage)
+	thumbnail, err := service.toThumbnail(image.OriginalImage)
 	if err != nil || len(thumbnail) == 0 {
 		slog.Warn("htmxGetOriginalThumbnailByIDHandler: thumbnail not available",
 			"status", http.StatusNotFound, "image_id", id, "error", err)
@@ -252,8 +251,9 @@ func (service *FrontendService) htmxDeleteImageHandler(ctx echo.Context) error {
 	return ctx.HTML(http.StatusOK, listHTML+currentImageOOB)
 }
 
-func toThumbnail(image []byte) ([]byte, error) {
-	command, err := commands.NewPixelScaleCommand(map[string]any{"width": defaultThumbnailWidth})
+func (service *FrontendService) toThumbnail(image []byte) ([]byte, error) {
+	width := service.config.ThumbnailWidth
+	command, err := commands.NewPixelScaleCommand(map[string]any{"width": width})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create thumbnail command: %w", err)
 	}

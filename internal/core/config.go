@@ -23,6 +23,7 @@ type ServiceConfig struct {
 	Database         Database        `yaml:"database"`
 	Commands         []CommandConfig `yaml:"commands"`
 	RotationTimezone string          `yaml:"rotationTimezone"`
+	ThumbnailWidth   int             `yaml:"thumbnailWidth"`
 }
 
 // LoadConfig loads configuration from the specified YAML file
@@ -48,6 +49,9 @@ func LoadConfig(configPath string) (*ServiceConfig, error) {
 	// Defaults
 	if config.RotationTimezone == "" {
 		config.RotationTimezone = "UTC"
+	}
+	if config.ThumbnailWidth == 0 {
+		config.ThumbnailWidth = 512
 	}
 
 	return &config, nil
