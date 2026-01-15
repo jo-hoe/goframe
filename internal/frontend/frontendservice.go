@@ -66,6 +66,14 @@ func (service *FrontendService) htmxGetCurrentImageHandler(ctx echo.Context) err
 			"error", err)
 		return ctx.String(http.StatusNotFound, "No image available")
 	}
+	thumbnail, err := toThumbnail(image)
+	if err != nil || len(thumbnail) == 0 {
+		slog.Warn("htmxGetCurrentImageHandler: thumbnail not available",
+			"status", http.StatusNotFound,
+			"route", "/htmx/image",
+			"error", err)
+		return ctx.String(http.StatusNotFound, "Thumbnail not available")
+	}
 
 	// Prevent caching so the latest uploaded image is always shown
 	ctx.Response().Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
@@ -73,7 +81,7 @@ func (service *FrontendService) htmxGetCurrentImageHandler(ctx echo.Context) err
 	ctx.Response().Header().Set("Expires", "0")
 
 	// Return the image data
-	return ctx.Blob(http.StatusOK, "image/png", image)
+	return ctx.Blob(http.StatusOK, "image/png", thumbnail)
 }
 
 func (service *FrontendService) indexHandler(ctx echo.Context) error {
