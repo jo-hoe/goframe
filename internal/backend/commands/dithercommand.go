@@ -128,6 +128,12 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 		return nil, err
 	}
 
+	// If the image already uses only palette colors (after alpha compositing over white), skip dithering
+	if !needsDithering(img, palette) {
+		slog.Debug("DitherCommand: image already matches palette; skipping dithering")
+		return imageData, nil
+	}
+
 	// dither
 	outImg, err := ditherImageFS(img, palette)
 	if err != nil {
@@ -171,6 +177,53 @@ func (c *DitherCommand) selectedPaletteRGBA() ([]color.RGBA, error) {
 		return nil, fmt.Errorf("no valid colors in palette")
 	}
 	return out, nil
+}
+
+// needsDithering checks if, after alpha compositing over white, all pixels already match a palette color exactly.
+// If so, dithering can be skipped.
+func needsDithering(img image.Image, fixedPalette []color.RGBA) bool {
+	bounds := img.Bounds()
+	w := bounds.Dx()
+	h := bounds.Dy()
+
+	// Build a set of palette colors for O(1) membership checks
+	paletteSet := make(map[[3]uint8]struct{}, len(fixedPalette))
+	for _, p := range fixedPalette {
+		paletteSet[[3]uint8{p.R, p.G, p.B}] = struct{}{}
+	}
+
+	clamp8 := func(v int) int {
+		if v < 0 {
+			return 0
+		}
+		if v > 255 {
+			return 255
+		}
+		return v
+	}
+
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			xx := bounds.Min.X + x
+			yy := bounds.Min.Y + y
+
+			r16, g16, b16, a16 := img.At(xx, yy).RGBA()
+			r8 := int(uint8(r16 >> 8))
+			g8 := int(uint8(g16 >> 8))
+			b8 := int(uint8(b16 >> 8))
+			a8 := int(uint8(a16 >> 8))
+
+			// Composite over white background (same formula used in dithering)
+			r0 := clamp8((r8*a8 + 255*(255-a8) + 127) / 255)
+			g0 := clamp8((g8*a8 + 255*(255-a8) + 127) / 255)
+			b0 := clamp8((b8*a8 + 255*(255-a8) + 127) / 255)
+
+			if _, ok := paletteSet[[3]uint8{uint8(r0), uint8(g0), uint8(b0)}]; !ok {
+				return true // needs dithering
+			}
+		}
+	}
+	return false // all pixels already in palette
 }
 
 // ditherImageFS applies integer-based Floyd–Steinberg error diffusion (non-serpentine)
