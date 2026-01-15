@@ -21,11 +21,12 @@ config:
     - name: OrientationCommand
       orientation: portrait
     - name: ScaleCommand
-      height: 1920
-      width: 1080
+      height: 1600
+      width: 1200
     - name: CropCommand
       height: 1600
       width: 1200
+    - name: DitherCommand
 
 # Ingress disabled by default for k3d; direct access available at http://localhost:8080/
 ingress:

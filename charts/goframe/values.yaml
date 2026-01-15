@@ -97,13 +97,39 @@ config:
     # -- Database driver (e.g., sqlite)
     type: sqlite
     # -- Connection string (':memory:' for in-memory SQLite)
-    connectionString: "data.db"
+    connectionString: "file:goframe.db?cache=shared&mode=rwc"
   # -- Output image format for the /api/image endpoint
   imageTargetType: "png"
+  # -- Timezone used for image rotation scheduling
+  rotationTimezone: "UTC"
   # -- Processing pipeline configuration
+  # Supported command names and parameters:
+  # - OrientationCommand: orientation [portrait|landscape]
+  # - ScaleCommand: height (int), width (int)
+  # - PixelScaleCommand: height (int, optional), width (int, optional) - at least one must be provided
+  # - CropCommand: height (int), width (int)
+  # - PngConverterCommand: no parameters; enforces PNG output
+  # - DitherCommand: palette (list of RGB triplets), e.g. [[0,0,0],[255,255,255],...]
+  # Examples (uncomment to use):
+  # - name: ScaleCommand
+  #   height: 1920
+  #   width: 1080
+  # - name: PixelScaleCommand
+  #   width: 1080
+  # - name: CropCommand
+  #   height: 1600
+  #   width: 1200
+  # - name: PngConverterCommand
+  # - name: DitherCommand
+  #   palette:
+  #     - [0, 0, 0]
+  #     - [255, 255, 255]
   commands:
     - name: OrientationCommand
       orientation: portrait
+      # -- If no palette is provided, a default palette will be used
+      # designed for spectra 6 displays
+    - name: DitherCommand
 
 # -- Extra environment variables to inject into the container
 extraEnv: []

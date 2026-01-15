@@ -13,13 +13,14 @@ Helm chart for the goframe image processing web service
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` | Affinity rules for Pod scheduling |
-| config | object | `{"commands":[{"name":"OrientationCommand","orientation":"portrait"}],"database":{"connectionString":"data.db","type":"sqlite"},"imageTargetType":"png","port":8080}` | Application configuration rendered into config.yaml and mounted into the container |
-| config.commands | list | `[{"name":"OrientationCommand","orientation":"portrait"}]` | Processing pipeline configuration |
-| config.database | object | `{"connectionString":"data.db","type":"sqlite"}` | Database configuration |
-| config.database.connectionString | string | `"data.db"` | Connection string (':memory:' for in-memory SQLite) |
+| config | object | `{"commands":[{"name":"OrientationCommand","orientation":"portrait"},{"name":"DitherCommand"}],"database":{"connectionString":"file:goframe.db?cache=shared&mode=rwc","type":"sqlite"},"imageTargetType":"png","port":8080,"rotationTimezone":"UTC"}` | Application configuration rendered into config.yaml and mounted into the container |
+| config.commands | list | `[{"name":"OrientationCommand","orientation":"portrait"},{"name":"DitherCommand"}]` | Processing pipeline configuration Supported command names and parameters: - OrientationCommand: orientation [portrait|landscape] - ScaleCommand: height (int), width (int) - PixelScaleCommand: height (int, optional), width (int, optional) - at least one must be provided - CropCommand: height (int), width (int) - PngConverterCommand: no parameters; enforces PNG output - DitherCommand: palette (list of RGB triplets), e.g. [[0,0,0],[255,255,255],...] Examples (uncomment to use): - name: ScaleCommand   height: 1920   width: 1080 - name: PixelScaleCommand   width: 1080 - name: CropCommand   height: 1600   width: 1200 - name: PngConverterCommand - name: DitherCommand   palette:     - [0, 0, 0]     - [255, 255, 255] |
+| config.database | object | `{"connectionString":"file:goframe.db?cache=shared&mode=rwc","type":"sqlite"}` | Database configuration |
+| config.database.connectionString | string | `"file:goframe.db?cache=shared&mode=rwc"` | Connection string (':memory:' for in-memory SQLite) |
 | config.database.type | string | `"sqlite"` | Database driver (e.g., sqlite) |
 | config.imageTargetType | string | `"png"` | Output image format for the /api/image endpoint |
 | config.port | int | `8080` | Port of the application |
+| config.rotationTimezone | string | `"UTC"` | Timezone used for image rotation scheduling |
 | extraEnv | list | `[]` | Extra environment variables to inject into the container |
 | extraEnvFrom | list | `[]` | Extra environment sources (e.g., ConfigMaps or Secrets) |
 | fullnameOverride | string | `""` | Fully override the release name |

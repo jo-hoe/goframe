@@ -13,8 +13,8 @@ Accessing the service:
   Path: {{ (default (list (dict "path" "/" "pathType" "Prefix")) (index .Values.ingress.hosts 0).paths) | toYaml }}
 
 Probes:
-- Liveness:  GET /
-- Readiness: GET /
+- Liveness:  GET /probe
+- Readiness: GET /probe
 
 Config:
 - Config is provided via a ConfigMap and mounted at /config/config.yaml

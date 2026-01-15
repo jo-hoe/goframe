@@ -1,6 +1,9 @@
 port: 8080
-connectionString: "someconnectionstring"
 imageTargetType: "png"
+database:
+  type: "sqlite"
+  connectionString: "file:goframe.db?cache=shared&mode=rwc"
+rotationTimezone: "UTC"
 commands:
   - name: OrientationCommand
     orientation: portrait
@@ -10,7 +13,7 @@ commands:
   - name: CropCommand
     height: 1600
     width: 1200
-  - name: DitherCommand
+  - name: DitherCommand # Floyd-Steinberg dithering algorithm
     # Custom color palette as RGB values
     palette:
       - [0, 0, 0]         # Black
@@ -19,5 +22,11 @@ commands:
       - [0, 0, 255]       # Blue
       - [255, 0, 0]       # Red
       - [0, 255, 0]       # Green
-    # Optional: Dithering strength between 0.0 and 1.0 (default is 1.0)
-    # strength: 0.8
+    # if palette is not defined the following default palette will be used
+    # which is designed for spectra 6 displays
+    #	- [25, 30, 33]    # Black
+    # - [232, 232, 232] # White
+    # - [239, 222, 68]  # Yellow
+    # - [178, 19, 24]   # Red
+    # - [33, 87, 186]   # Blue
+    # - [18, 95, 32]    # Green
