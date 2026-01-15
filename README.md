@@ -3,13 +3,9 @@
 [![Lint](https://github.com/jo-hoe/goframe/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/jo-hoe/goframe/actions/workflows/lint.yml)
 [![Test](https://github.com/jo-hoe/goframe/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/jo-hoe/goframe/actions/workflows/test.yml)
 
-Image processing web service written in Go. Provides:
+Image processing web service written in Go. The services is used for e-ink photo frames that display a different image each day from a curated set.
 
-- A minimal web UI to upload, preview, schedule, and delete images
-- A simple API endpoint that serves the currently scheduled processed image as PNG
-- A configurable processing pipeline (commands) applied to uploaded images
-- SQLite-based storage for originals and processed outputs
-- Optional Kubernetes deployment via Helm (chart included)
+The service provides a web UI to upload and manage images, applies a configurable processing pipeline to each image, and serves the currently scheduled image via an API endpoint. Images are rotated daily based on a timezone-aware schedule.
 
 ## How it works
 
