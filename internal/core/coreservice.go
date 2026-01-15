@@ -47,7 +47,7 @@ func (service *CoreService) AddImage(image []byte) (*common.ApiImage, error) {
 	}
 
 	// Insert atomically with processed image to avoid NULL windows
-	databaseImageID, err := service.databaseService.CreateImage(image, processedImage)
+	databaseImageID, err := service.databaseService.CreateImage(convertedImageData, processedImage)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create database image: %w", err)
 	}
