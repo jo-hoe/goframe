@@ -1,45 +1,28 @@
 package database
 
 import (
+	"regexp"
 	"testing"
 )
 
-func Test_generateID(t *testing.T) {
-	tests := []struct {
-		name string // description of this test case
-		// Named input parameters for target function.
-		data    []byte
-		want    string
-		wantErr bool
-	}{
-		{
-			name:    "Test Basic Input",
-			data:    []byte("test"),
-			want:    "cd240807-1c12-5705-9123-e53533b6f6fa",
-			wantErr: false,
-		},
-		{
-			name:    "Test Different Input",
-			data:    []byte("different"),
-			want:    "b555c8d6-0e33-59ee-8d8d-b1d6dab352d6",
-			wantErr: false,
-		},
-		{
-			name:    "Test Nil Input",
-			data:    nil,
-			want:    "",
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := generateID(tt.data)
-			if got != tt.want {
-				t.Errorf("generateID() = %v, want %v", got, tt.want)
-			}
-			if (err != nil) != tt.wantErr {
-				t.Errorf("generateID() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
+func Test_generateID_FormatAndUniqueness(t *testing.T) {
+	// UUID v4 pattern: 8-4-4-4-12 hex, version 4 and variant 10xx
+	uuidV4Pattern := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+
+	const n = 256
+	seen := make(map[string]struct{}, n)
+
+	for i := 0; i < n; i++ {
+		got, err := generateID()
+		if err != nil {
+			t.Fatalf("generateID() returned error: %v", err)
+		}
+		if !uuidV4Pattern.MatchString(got) {
+			t.Fatalf("generateID() returned invalid UUID v4 format: %q", got)
+		}
+		if _, dup := seen[got]; dup {
+			t.Fatalf("generateID() returned duplicate UUID: %q", got)
+		}
+		seen[got] = struct{}{}
 	}
 }
