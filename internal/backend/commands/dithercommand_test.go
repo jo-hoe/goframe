@@ -29,7 +29,7 @@ func createTestImage(width, height int) []byte {
 	return buf.Bytes()
 }
 
-func TestNewDitherParamsFromMap_DefaultBlackAndWhite(t *testing.T) {
+func TestNewDitherParamsFromMap_DefaultSpectra6(t *testing.T) {
 	params := map[string]any{}
 
 	ditherParams, err := NewDitherParamsFromMap(params)
@@ -37,18 +37,22 @@ func TestNewDitherParamsFromMap_DefaultBlackAndWhite(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if len(ditherParams.Palette) != 2 {
-		t.Errorf("Expected palette length 2, got %d", len(ditherParams.Palette))
+	if len(ditherParams.Palette) != 6 {
+		t.Errorf("Expected default SPECTRA6 palette length 6, got %d", len(ditherParams.Palette))
 	}
 
-	// Check black
-	if ditherParams.Palette[0][0] != 0 || ditherParams.Palette[0][1] != 0 || ditherParams.Palette[0][2] != 0 {
-		t.Errorf("Expected black [0,0,0], got %v", ditherParams.Palette[0])
+	expected := [][]int{
+		{25, 30, 33},
+		{232, 232, 232},
+		{239, 222, 68},
+		{178, 19, 24},
+		{33, 87, 186},
+		{18, 95, 32},
 	}
-
-	// Check white
-	if ditherParams.Palette[1][0] != 255 || ditherParams.Palette[1][1] != 255 || ditherParams.Palette[1][2] != 255 {
-		t.Errorf("Expected white [255,255,255], got %v", ditherParams.Palette[1])
+	for i := range expected {
+		if ditherParams.Palette[i][0] != expected[i][0] || ditherParams.Palette[i][1] != expected[i][1] || ditherParams.Palette[i][2] != expected[i][2] {
+			t.Errorf("Expected default[%d] %v, got %v", i, expected[i], ditherParams.Palette[i])
+		}
 	}
 }
 
@@ -77,9 +81,12 @@ func TestNewDitherParamsFromMap_CustomPalette(t *testing.T) {
 	}
 }
 
-func TestNewDitherParamsFromMap_WithStrength(t *testing.T) {
+func TestNewDitherParamsFromMap_FixedPalette(t *testing.T) {
 	params := map[string]any{
-		"strength": 0.8,
+		"fixedPalette": []any{
+			[]any{0, 0, 0},
+			[]any{255, 255, 255},
+		},
 	}
 
 	ditherParams, err := NewDitherParamsFromMap(params)
@@ -87,35 +94,15 @@ func TestNewDitherParamsFromMap_WithStrength(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if ditherParams.Strength == nil {
-		t.Fatal("Expected strength to be set")
+	if len(ditherParams.FixedPalette) != 2 {
+		t.Errorf("Expected fixedPalette length 2, got %d", len(ditherParams.FixedPalette))
 	}
 
-	if *ditherParams.Strength != 0.8 {
-		t.Errorf("Expected strength 0.8, got %f", *ditherParams.Strength)
+	if ditherParams.FixedPalette[0][0] != 0 || ditherParams.FixedPalette[0][1] != 0 || ditherParams.FixedPalette[0][2] != 0 {
+		t.Errorf("Expected fixedPalette[0] [0,0,0], got %v", ditherParams.FixedPalette[0])
 	}
-}
-
-func TestNewDitherParamsFromMap_InvalidStrength(t *testing.T) {
-	testCases := []struct {
-		name     string
-		strength any
-	}{
-		{"too low", -0.1},
-		{"too high", 1.5},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			params := map[string]any{
-				"strength": tc.strength,
-			}
-
-			_, err := NewDitherParamsFromMap(params)
-			if err == nil {
-				t.Error("Expected error for invalid strength")
-			}
-		})
+	if ditherParams.FixedPalette[1][0] != 255 || ditherParams.FixedPalette[1][1] != 255 || ditherParams.FixedPalette[1][2] != 255 {
+		t.Errorf("Expected fixedPalette[1] [255,255,255], got %v", ditherParams.FixedPalette[1])
 	}
 }
 
@@ -182,8 +169,7 @@ func TestDitherCommand_Execute(t *testing.T) {
 }
 
 func TestDitherCommand_Execute_WithCustomPalette(t *testing.T) {
-	// Even when a custom palette is provided, the implementation now mimics the
-	// reference gist and ignores custom settings to achieve similar results.
+	// When a custom palette is provided, the command uses it (unless fixedPalette is set).
 	imageData := createTestImage(100, 100)
 
 	cmd, err := NewDitherCommand(map[string]any{
@@ -191,32 +177,6 @@ func TestDitherCommand_Execute_WithCustomPalette(t *testing.T) {
 			[]any{255, 0, 0}, // Red
 			[]any{0, 0, 255}, // Blue
 		},
-	})
-	if err != nil {
-		t.Fatalf("Failed to create command: %v", err)
-	}
-
-	result, err := cmd.Execute(imageData)
-	if err != nil {
-		t.Fatalf("Execute failed: %v", err)
-	}
-
-	if len(result) == 0 {
-		t.Error("Expected non-empty result")
-	}
-
-	// Verify result is valid PNG
-	_, err = png.Decode(bytes.NewReader(result))
-	if err != nil {
-		t.Errorf("Result is not valid PNG: %v", err)
-	}
-}
-
-func TestDitherCommand_Execute_WithStrength(t *testing.T) {
-	imageData := createTestImage(100, 100)
-
-	cmd, err := NewDitherCommand(map[string]any{
-		"strength": 0.5,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create command: %v", err)

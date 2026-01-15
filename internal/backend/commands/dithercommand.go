@@ -13,15 +13,27 @@ import (
 
 // DitherParams represents typed parameters for dither command
 type DitherParams struct {
-	Palette  [][]int  // RGB color palette, e.g. [[0,0,0], [255,255,255]]
-	Strength *float32 // Optional strength for error diffusion (0.0-1.0)
+	// Palette used for dithering (defaults to SPECTRA6 real-world)
+	Palette [][]int
+	// Optional override palette; if set, this overrides Palette for dithering
+	FixedPalette [][]int
 }
 
 // NewDitherParamsFromMap creates DitherParams from a generic map
 func NewDitherParamsFromMap(params map[string]any) (*DitherParams, error) {
 	ditherParams := &DitherParams{}
 
-	// Parse palette (optional, defaults to black and white)
+	// Default SPECTRA6 real-world palette (also used if fixedPalette not provided)
+	defaultSpectra6 := [][]int{
+		{25, 30, 33},
+		{232, 232, 232},
+		{239, 222, 68},
+		{178, 19, 24},
+		{33, 87, 186},
+		{18, 95, 32},
+	}
+
+	// Parse palette (optional, defaults to SPECTRA6 real-world)
 	if paletteParam, ok := params["palette"]; ok {
 		palette, err := parsePalette(paletteParam)
 		if err != nil {
@@ -29,31 +41,18 @@ func NewDitherParamsFromMap(params map[string]any) (*DitherParams, error) {
 		}
 		ditherParams.Palette = palette
 	} else {
-		// Default to black and white palette
-		ditherParams.Palette = [][]int{
-			{0, 0, 0},       // Black
-			{255, 255, 255}, // White
-		}
+		ditherParams.Palette = defaultSpectra6
 	}
 
-	// Parse strength (optional)
-	if strengthParam, ok := params["strength"]; ok {
-		if strength, ok := strengthParam.(float64); ok {
-			if strength < 0 || strength > 1 {
-				return nil, fmt.Errorf("strength must be between 0 and 1, got %f", strength)
-			}
-			strength32 := float32(strength)
-			ditherParams.Strength = &strength32
-		} else if strengthInt, ok := strengthParam.(int); ok {
-			strength := float64(strengthInt)
-			if strength < 0 || strength > 1 {
-				return nil, fmt.Errorf("strength must be between 0 and 1, got %f", strength)
-			}
-			strength32 := float32(strength)
-			ditherParams.Strength = &strength32
-		} else {
-			return nil, fmt.Errorf("strength must be a number")
+	// Parse fixedPalette (optional, defaults to SPECTRA6 real-world)
+	if fpParam, ok := params["fixedPalette"]; ok {
+		fp, err := parsePalette(fpParam)
+		if err != nil {
+			return nil, fmt.Errorf("invalid fixedPalette: %w", err)
 		}
+		ditherParams.FixedPalette = fp
+	} else {
+		ditherParams.FixedPalette = defaultSpectra6
 	}
 
 	return ditherParams, nil
@@ -126,28 +125,77 @@ func (c *DitherCommand) Name() string {
 	return c.name
 }
 
-// Execute applies dithering to the image (Go-only, mimic Python gist behavior)
+// Execute applies dithering to the image
 func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
-	slog.Debug("DitherCommand: Go-only dithering (gist-like settings)",
+	slog.Debug("DitherCommand: dithering",
 		"input_size_bytes", len(imageData))
 
-	// Decode the PNG image
-	img, err := png.Decode(bytes.NewReader(imageData))
+	// decode
+	img, err := decodePNGData(imageData)
 	if err != nil {
 		slog.Error("DitherCommand: failed to decode PNG image", "error", err)
 		return nil, fmt.Errorf("failed to decode PNG image: %w", err)
 	}
 
-	// Use fixed SPECTRA6 real-world RGB palette to match the Python gist
-	fixedPalette := []color.RGBA{
-		{R: 25, G: 30, B: 33, A: 255},
-		{R: 232, G: 232, B: 232, A: 255},
-		{R: 239, G: 222, B: 68, A: 255},
-		{R: 178, G: 19, B: 24, A: 255},
-		{R: 33, G: 87, B: 186, A: 255},
-		{R: 18, G: 95, B: 32, A: 255},
+	// select palette
+	palette, err := c.selectedPaletteRGBA()
+	if err != nil {
+		return nil, err
 	}
 
+	// dither
+	outImg, err := ditherImageFS(img, palette)
+	if err != nil {
+		return nil, err
+	}
+
+	// encode
+	outBytes, err := encodePNGImage(outImg)
+	if err != nil {
+		slog.Error("DitherCommand: failed to encode dithered image", "error", err)
+		return nil, fmt.Errorf("failed to encode dithered PNG image: %w", err)
+	}
+
+	slog.Debug("DitherCommand: dithering complete", "output_size_bytes", len(outBytes))
+	return outBytes, nil
+}
+
+// decodePNGData decodes PNG bytes into an image.Image
+func decodePNGData(data []byte) (image.Image, error) {
+	return png.Decode(bytes.NewReader(data))
+}
+
+// selectedPaletteRGBA returns the palette to use as []color.RGBA
+// If FixedPalette is provided, it takes precedence over Palette.
+func (c *DitherCommand) selectedPaletteRGBA() ([]color.RGBA, error) {
+	var chosen [][]int
+	if len(c.params.FixedPalette) > 0 {
+		chosen = c.params.FixedPalette
+	} else {
+		chosen = c.params.Palette
+	}
+	// Convert to []color.RGBA
+	out := make([]color.RGBA, 0, len(chosen))
+	for _, rgb := range chosen {
+		if len(rgb) != 3 {
+			continue
+		}
+		out = append(out, color.RGBA{
+			R: uint8(rgb[0]),
+			G: uint8(rgb[1]),
+			B: uint8(rgb[2]),
+			A: 255,
+		})
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("no valid colors in palette")
+	}
+	return out, nil
+}
+
+// ditherImageFS applies integer-based Floyd–Steinberg error diffusion (non-serpentine)
+// with nearest-color mapping in 8-bit sRGB and alpha compositing over white.
+func ditherImageFS(img image.Image, fixedPalette []color.RGBA) (image.Image, error) {
 	bounds := img.Bounds()
 	w := bounds.Dx()
 	h := bounds.Dy()
@@ -155,11 +203,8 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 	// Output image
 	out := image.NewRGBA(bounds)
 
-	// Implement integer-based Floyd-Steinberg error diffusion (non-serpentine)
-	// to more closely match Pillow's internal dithering (uses integer weights).
-	// We maintain error buffers as integers scaled by 16.
+	// Integer FS diffusion with weights: right=7, down-left=3, down=5, down-right=1 (sum 16)
 	const fsScale = 16
-	// Weights numerator for FS kernel (sum = 16): right=7, down-left=3, down=5, down-right=1
 	const wRight = 7
 	const wDownLeft = 3
 	const wDown = 5
@@ -181,8 +226,6 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 		}
 		return v
 	}
-
-	// Round-to-nearest when de-scaling accumulated error (scaled by 16)
 	roundDiv16 := func(e int) int {
 		if e >= 0 {
 			return (e + fsScale/2) / fsScale
@@ -207,7 +250,7 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 			g0 := clamp8((g8*a8 + 255*(255-a8) + 127) / 255)
 			b0 := clamp8((b8*a8 + 255*(255-a8) + 127) / 255)
 
-			// Apply accumulated error with rounding to nearest (errors are scaled by 16)
+			// Apply accumulated error (scaled by 16) with rounding to nearest
 			rAdj := clamp8(r0 + roundDiv16(errCurrR[x]))
 			gAdj := clamp8(g0 + roundDiv16(errCurrG[x]))
 			bAdj := clamp8(b0 + roundDiv16(errCurrB[x]))
@@ -232,7 +275,7 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 			chosen := fixedPalette[bestIdx]
 			out.Set(xx, yy, chosen)
 
-			// Error (unscaled)
+			// Error (unscaled) between adjusted source and chosen
 			er := rAdj - int(chosen.R)
 			eg := gAdj - int(chosen.G)
 			eb := bAdj - int(chosen.B)
@@ -271,16 +314,15 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 		}
 	}
 
-	// Encode the dithered image to PNG bytes
+	return out, nil
+}
+
+// encodePNGImage encodes an image.Image to PNG bytes
+func encodePNGImage(img image.Image) ([]byte, error) {
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, out); err != nil {
-		slog.Error("DitherCommand: failed to encode dithered image", "error", err)
-		return nil, fmt.Errorf("failed to encode dithered PNG image: %w", err)
+	if err := png.Encode(&buf, img); err != nil {
+		return nil, err
 	}
-
-	slog.Debug("DitherCommand: dithering complete",
-		"output_size_bytes", buf.Len())
-
 	return buf.Bytes(), nil
 }
 
