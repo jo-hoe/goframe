@@ -1,4 +1,4 @@
-package fontend
+package frontend
 
 import (
 	"embed"
