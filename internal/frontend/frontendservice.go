@@ -264,8 +264,6 @@ func toThumbnail(image []byte) ([]byte, error) {
 	return thumbnail, nil
 }
 
-// Helpers
-
 func (service *FrontendService) setNoCache(ctx echo.Context) {
 	ctx.Response().Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
 	ctx.Response().Header().Set("Pragma", "no-cache")
