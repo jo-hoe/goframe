@@ -10,6 +10,19 @@
     <script src="https://unpkg.com/htmx.org/dist/htmx.min.js"></script>
     <style>
       #current-image { max-width: 100%; height: auto; }
+      .htmx-indicator { display: none; }
+      .htmx-request .htmx-indicator { display: inline-block; margin-left: 0.5rem; }
+      .loading-spinner {
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        display: inline-block;
+        animation: spin 0.6s linear infinite;
+        vertical-align: text-bottom;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 
@@ -27,6 +40,7 @@
                 enctype="multipart/form-data">
                 <input type="file" name="image" accept="image/*" required>
                 <button type="submit">Upload</button>
+                <span class="htmx-indicator"><span class="loading-spinner" aria-hidden="true"></span> Uploading...</span>
             </form>
             <div id="upload-result"></div>
         </section>
