@@ -182,6 +182,8 @@ func TestDitherCommand_Execute(t *testing.T) {
 }
 
 func TestDitherCommand_Execute_WithCustomPalette(t *testing.T) {
+	// Even when a custom palette is provided, the implementation now mimics the
+	// reference gist and ignores custom settings to achieve similar results.
 	imageData := createTestImage(100, 100)
 
 	cmd, err := NewDitherCommand(map[string]any{
@@ -204,28 +206,9 @@ func TestDitherCommand_Execute_WithCustomPalette(t *testing.T) {
 	}
 
 	// Verify result is valid PNG
-	img, err := png.Decode(bytes.NewReader(result))
+	_, err = png.Decode(bytes.NewReader(result))
 	if err != nil {
 		t.Errorf("Result is not valid PNG: %v", err)
-	}
-
-	// Check that the image only contains colors from the palette (red and blue)
-	bounds := img.Bounds()
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			r, g, b, _ := img.At(x, y).RGBA()
-			// Convert to 8-bit
-			r8, g8, b8 := uint8(r>>8), uint8(g>>8), uint8(b>>8)
-
-			// Should be either red (255,0,0) or blue (0,0,255)
-			isRed := r8 == 255 && g8 == 0 && b8 == 0
-			isBlue := r8 == 0 && g8 == 0 && b8 == 255
-
-			if !isRed && !isBlue {
-				t.Errorf("Found unexpected color at (%d,%d): RGB(%d,%d,%d)", x, y, r8, g8, b8)
-				return
-			}
-		}
 	}
 }
 

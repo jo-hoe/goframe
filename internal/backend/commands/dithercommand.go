@@ -6,6 +6,8 @@ import (
 	"image/color"
 	"image/png"
 	"log/slog"
+	"os"
+	"os/exec"
 
 	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 	"github.com/makeworld-the-better-one/dither/v2"
@@ -128,50 +130,109 @@ func (c *DitherCommand) Name() string {
 
 // Execute applies dithering to the image
 func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
-	slog.Debug("DitherCommand: decoding image",
+	slog.Debug("DitherCommand: attempting Python dithering",
 		"input_size_bytes", len(imageData))
 
-	// Decode the PNG image
-	img, err := png.Decode(bytes.NewReader(imageData))
-	if err != nil {
-		slog.Error("DitherCommand: failed to decode PNG image", "error", err)
-		return nil, fmt.Errorf("failed to decode PNG image: %w", err)
-	}
+	// Use SPECTRA6 real-world RGB palette as in the reference gist
+	paletteStr := "25,30,33;232,232,232;239,222,68;178,19,24;33,87,186;18,95,32"
 
-	// Convert palette to color.Color slice
-	palette := make([]color.Color, len(c.params.Palette))
-	for i, rgb := range c.params.Palette {
-		palette[i] = color.RGBA{
-			R: uint8(rgb[0]),
-			G: uint8(rgb[1]),
-			B: uint8(rgb[2]),
-			A: 255,
+	// Always use Floyd-Steinberg dithering like the reference gist
+	ditherMode := "fs"
+
+	// Try to locate a Python interpreter
+	pythonBins := []string{"python3", "python"}
+	var pythonPath string
+	for _, bin := range pythonBins {
+		if p, err := exec.LookPath(bin); err == nil {
+			pythonPath = p
+			break
 		}
 	}
 
-	slog.Debug("DitherCommand: creating ditherer",
-		"palette_size", len(palette))
+	// Potential script locations (container and local dev)
+	scriptCandidates := []string{
+		"/app/scripts/dither.py", // in container
+		"scripts/dither.py",      // local dev
+		"./scripts/dither.py",    // local dev explicit
+	}
+	var scriptPath string
+	for _, sp := range scriptCandidates {
+		if _, err := os.Stat(sp); err == nil {
+			scriptPath = sp
+			break
+		}
+	}
+
+	// If Python and script are available, try running Python dithering
+	if pythonPath != "" && scriptPath != "" {
+		cmd := exec.Command(pythonPath, scriptPath, "--palette", paletteStr, "--dither", ditherMode)
+
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		cmd.Stdin = bytes.NewReader(imageData)
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		if err := cmd.Run(); err == nil && stdout.Len() > 0 {
+			outBytes := stdout.Bytes()
+			slog.Debug("DitherCommand: Python dithering succeeded",
+				"output_size_bytes", len(outBytes))
+			return outBytes, nil
+		} else {
+			if err != nil {
+				slog.Warn("DitherCommand: Python dithering failed, falling back to Go implementation",
+					"error", err, "stderr", stderr.String())
+			} else {
+				slog.Warn("DitherCommand: Python dithering produced empty output, falling back")
+			}
+		}
+	} else {
+		if pythonPath == "" {
+			slog.Debug("DitherCommand: Python not found, using Go dithering fallback")
+		} else {
+			slog.Debug("DitherCommand: dithering script not found, using Go dithering fallback")
+		}
+	}
+
+	// Fallback: Go-based dithering (original implementation)
+	slog.Debug("DitherCommand: decoding image for Go fallback",
+		"input_size_bytes", len(imageData))
+
+	img, err := png.Decode(bytes.NewReader(imageData))
+	if err != nil {
+		slog.Error("DitherCommand: failed to decode PNG image in fallback", "error", err)
+		return nil, fmt.Errorf("failed to decode PNG image: %w", err)
+	}
+
+	// Use fixed SPECTRA6 real-world RGB palette for fallback as well
+	fixedPalette := []color.Color{
+		color.RGBA{R: 25, G: 30, B: 33, A: 255},
+		color.RGBA{R: 232, G: 232, B: 232, A: 255},
+		color.RGBA{R: 239, G: 222, B: 68, A: 255},
+		color.RGBA{R: 178, G: 19, B: 24, A: 255},
+		color.RGBA{R: 33, G: 87, B: 186, A: 255},
+		color.RGBA{R: 18, G: 95, B: 32, A: 255},
+	}
+
+	slog.Debug("DitherCommand: creating Go ditherer",
+		"palette_size", len(fixedPalette))
 
 	// Create ditherer
-	d := dither.NewDitherer(palette)
+	d := dither.NewDitherer(fixedPalette)
 	if d == nil {
 		return nil, fmt.Errorf("failed to create ditherer with palette")
 	}
 
-	// Use FloydSteinberg algorithm with serpentine scanning
-	if c.params.Strength != nil {
-		d.Matrix = dither.ErrorDiffusionStrength(dither.FloydSteinberg, *c.params.Strength)
-	} else {
-		d.Matrix = dither.FloydSteinberg
-	}
+	// Use Floyd-Steinberg algorithm with serpentine scanning (ignore strength for similarity with gist)
+	d.Matrix = dither.FloydSteinberg
 	d.Serpentine = true
 
-	slog.Debug("DitherCommand: applying dithering")
+	slog.Debug("DitherCommand: applying Go dithering")
 
 	// Apply dithering
 	ditheredImg := d.Dither(img)
 
-	slog.Debug("DitherCommand: encoding dithered image")
+	slog.Debug("DitherCommand: encoding Go-dithered image")
 
 	// Encode the dithered image to PNG bytes
 	var buf bytes.Buffer
@@ -181,7 +242,7 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to encode dithered PNG image: %w", err)
 	}
 
-	slog.Debug("DitherCommand: dithering complete",
+	slog.Debug("DitherCommand: dithering complete (Go fallback)",
 		"output_size_bytes", buf.Len())
 
 	return buf.Bytes(), nil
