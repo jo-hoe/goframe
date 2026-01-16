@@ -58,6 +58,14 @@ func (service *CoreService) AddImage(image []byte) (*common.ApiImage, error) {
 	return databaseImage, nil
 }
 
+func (service *CoreService) GetImageById(id string) (*database.Image, error) {
+	image, err := service.databaseService.GetImageByID(id)
+	if err != nil {
+		return nil, err
+	}
+	return image, nil
+}
+
 func (service *CoreService) applyConfiguredCommands(image []byte) (processedImage []byte, err error) {
 	if image == nil {
 		return nil, fmt.Errorf("input image is nil")
@@ -84,32 +92,6 @@ func (service *CoreService) applyConfiguredCommands(image []byte) (processedImag
 		return nil, fmt.Errorf("failed to apply configured commands: %w", execErr)
 	}
 	return out, nil
-}
-
-func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
-	cycle := service.computeDayCycle(now)
-
-	// Fetch ascending by created_at; SQLite GetImages orders by created_at ASC, rowid ASC
-	images, err := service.databaseService.GetImages("id", "processed_image")
-	if err != nil {
-		return "", fmt.Errorf("failed to fetch images: %w", err)
-	}
-	// Filter eligible (processed_image non-empty)
-	eligible := make([]database.Image, 0, len(images))
-	for _, img := range images {
-		if img != nil && len(img.ProcessedImage) > 0 {
-			eligible = append(eligible, *img)
-		}
-	}
-	n := len(eligible)
-	if n == 0 {
-		return "", fmt.Errorf("no eligible images")
-	}
-
-	// LIFO: newest first. Since eligible is ascending, pick from end.
-	idx := cycle.cyclePosition(n)
-	indexFromEnd := n - 1 - idx
-	return eligible[indexFromEnd].ID, nil
 }
 
 func getDatabaseService(DatabaseConfig *ServiceConfig) (database.DatabaseService, error) {
@@ -176,36 +158,36 @@ func (service *CoreService) computeDayCycle(t time.Time) dayCycle {
 }
 
 // cyclePosition returns the current position within a cycle of length n based on the day index.
-func (dc dayCycle) cyclePosition(n int) int {
+func (dayCycle dayCycle) cyclePosition(n int) int {
 	if n <= 0 {
 		return 0
 	}
-	m := dc.index % n
-	if m < 0 {
-		m += n
+	modIndex := dayCycle.index % n
+	if modIndex < 0 {
+		modIndex += n
 	}
-	return m
+	return modIndex
 }
 
 // forwardSteps returns the number of days to move forward from curPos to reach targetPos
-// within a cycle of length cycleLen. If already at targetPos, it returns a full cycleLen.
-func (dc dayCycle) forwardSteps(curPos, targetPos, cycleLen int) int {
-	if cycleLen <= 0 {
+// within a cycle of length cycleLength. If already at targetPos, it returns a full cycleLength.
+func (dayCycle dayCycle) forwardSteps(curPos, targetPos, cycleLength int) int {
+	if cycleLength <= 0 {
 		return 0
 	}
-	diff := (targetPos - curPos) % cycleLen
+	diff := (targetPos - curPos) % cycleLength
 	if diff < 0 {
-		diff += cycleLen
+		diff += cycleLength
 	}
 	if diff == 0 {
-		return cycleLen
+		return cycleLength
 	}
 	return diff
 }
 
 // dayStart returns the start time (00:00) in the rotation timezone for the provided day index.
-func (dc dayCycle) dayStart(idx int) time.Time {
-	return dc.anchor.Add(time.Duration(idx*24) * time.Hour).In(dc.loc)
+func (dayCycle dayCycle) dayStart(idx int) time.Time {
+	return dayCycle.anchor.Add(time.Duration(idx*24) * time.Hour).In(dayCycle.loc)
 }
 
 // ImageSchedule represents when an image will be shown next according to rotation rules.
@@ -214,12 +196,23 @@ type ImageSchedule struct {
 	NextShow time.Time
 }
 
-func (service *CoreService) GetImageById(id string) (*database.Image, error) {
-	image, err := service.databaseService.GetImageByID(id)
+func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
+	cycle := service.computeDayCycle(now)
+
+	// Fetch ascending by created_at; SQLite GetImages orders by created_at ASC, rowid ASC
+	images, err := service.databaseService.GetImages("id")
 	if err != nil {
-		return nil, err
+		return "", fmt.Errorf("failed to fetch images: %w", err)
 	}
-	return image, nil
+	n := len(images)
+	if n == 0 {
+		return "", fmt.Errorf("no eligible images")
+	}
+
+	// LIFO: newest first. Since images is ascending, pick from end.
+	idx := cycle.cyclePosition(n)
+	indexFromEnd := n - 1 - idx
+	return images[indexFromEnd].ID, nil
 }
 
 // GetImageSchedules returns, for each eligible image (processed image present), the next time
@@ -229,26 +222,19 @@ func (service *CoreService) GetImageSchedules(date time.Time) ([]ImageSchedule, 
 	cycle := service.computeDayCycle(date)
 
 	// Fetch ascending by created_at; SQLite GetImages orders by created_at ASC, rowid ASC
-	images, err := service.databaseService.GetImages("id", "processed_image")
+	images, err := service.databaseService.GetImages("id")
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch images: %w", err)
 	}
 
-	// Filter eligible (processed_image non-empty)
-	eligible := make([]database.Image, 0, len(images))
-	for _, img := range images {
-		if img != nil && len(img.ProcessedImage) > 0 {
-			eligible = append(eligible, *img)
-		}
-	}
-	n := len(eligible)
+	n := len(images)
 	if n == 0 {
 		return []ImageSchedule{}, nil
 	}
 
 	curMod := cycle.cyclePosition(n)
 	schedules := make([]ImageSchedule, 0, n)
-	for j, img := range eligible {
+	for j, img := range images {
 		// selectImageForTime picks indexFromEnd = n - 1 - idx where idx = days % n
 		// For given image position j in ascending order, it is selected when idx == n - 1 - j
 		targetIdx := n - 1 - j
