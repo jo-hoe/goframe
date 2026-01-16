@@ -141,6 +141,12 @@ func (c *PixelScaleCommand) Execute(imageData []byte) ([]byte, error) {
 			"aspect_ratio", aspectRatio)
 	}
 
+	// If target matches original dimensions, skip processing
+	if targetWidth == originalWidth && targetHeight == originalHeight {
+		slog.Debug("PixelScaleCommand: target dimensions equal original; skipping scaling")
+		return imageData, nil
+	}
+
 	slog.Debug("PixelScaleCommand: scaling image",
 		"original_width", originalWidth,
 		"original_height", originalHeight,

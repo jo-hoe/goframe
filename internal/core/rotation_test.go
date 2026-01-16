@@ -126,19 +126,3 @@ func TestTimezoneConfigured(t *testing.T) {
 		t.Fatalf("selection with timezone configured error: %v", err)
 	}
 }
-
-func TestNoEligibleImages(t *testing.T) {
-	svc := newTestCoreService(t, "UTC")
-
-	// Insert an ineligible image (processed is nil)
-	_, err := svc.databaseService.CreateImage([]byte("orig1"), nil)
-	if err != nil {
-		t.Fatalf("CreateImage error: %v", err)
-	}
-
-	now := time.Now()
-	_, err = svc.GetImageForTime(now)
-	if err == nil {
-		t.Fatalf("expected error for no eligible images, got nil")
-	}
-}

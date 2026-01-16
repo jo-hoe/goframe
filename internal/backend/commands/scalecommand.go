@@ -103,6 +103,12 @@ func (c *ScaleCommand) Execute(imageData []byte) ([]byte, error) {
 	targetWidth := c.params.Width
 	targetHeight := c.params.Height
 
+	// If target matches original dimensions, skip processing
+	if targetWidth == originalWidth && targetHeight == originalHeight {
+		slog.Debug("ScaleCommand: target dimensions equal original; skipping scaling")
+		return imageData, nil
+	}
+
 	// Calculate aspect ratios
 	originalAspect := float64(originalWidth) / float64(originalHeight)
 	targetAspect := float64(targetWidth) / float64(targetHeight)

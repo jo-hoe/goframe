@@ -61,6 +61,13 @@ func (s *SQLiteDatabase) DoesDatabaseExist() bool {
 }
 
 func (s *SQLiteDatabase) CreateImage(original []byte, processed []byte) (string, error) {
+	if original == nil {
+		return "", fmt.Errorf("original image data cannot be nil")
+	}
+	if processed == nil {
+		return "", fmt.Errorf("processed image data cannot be nil")
+	}
+
 	id, err := generateID()
 	if err != nil {
 		return "", err
