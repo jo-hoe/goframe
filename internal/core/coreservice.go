@@ -132,6 +132,32 @@ func (service *CoreService) Close() error {
 	return service.databaseService.Close()
 }
 
+// rotationAnchor determines the anchor date (00:00 in rotation timezone) to base
+// the day cycle on. It uses the smallest created_at timestamp among images.
+// If no images are present or an error occurs, it falls back to 1970-01-01 00:00 in loc.
+func (service *CoreService) rotationAnchor(loc *time.Location) time.Time {
+	// Attempt to use the earliest created_at among images. Results are ordered by created_at ASC.
+	images, err := service.databaseService.GetImages("created_at")
+	if err != nil || len(images) == 0 {
+		slog.Debug("rotationAnchor: falling back to epoch due to no images or error", "err", err)
+		return time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
+	}
+
+	// Prefer the earliest image
+	var earliest time.Time
+	for _, img := range images {
+		earliest = img.CreatedAt.In(loc)
+		break
+
+	}
+	if earliest.IsZero() {
+		earliest = images[0].CreatedAt.In(loc)
+	}
+
+	// Normalize to start of day in the rotation timezone.
+	return time.Date(earliest.Year(), earliest.Month(), earliest.Day(), 0, 0, 0, 0, loc)
+}
+
 // dayCycle encapsulates rotation timezone, anchor, and day index computations.
 type dayCycle struct {
 	loc    *time.Location
@@ -149,7 +175,11 @@ func (service *CoreService) computeDayCycle(t time.Time) dayCycle {
 		loc = time.UTC
 	}
 	tzTime := t.In(loc)
-	anchor := time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
+
+	// Anchor at the earliest image created_at (start of day in rotation tz); fallback to 1970-01-01 if none.
+	anchor := service.rotationAnchor(loc)
+
+	// Clamp to anchor to avoid negative day indices.
 	if tzTime.Before(anchor) {
 		tzTime = anchor
 	}
@@ -206,7 +236,7 @@ func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
 	}
 	n := len(images)
 	if n == 0 {
-		return "", fmt.Errorf("no eligible images")
+		return "", fmt.Errorf("no images")
 	}
 
 	// LIFO: newest first. Since images is ascending, pick from end.
@@ -215,7 +245,7 @@ func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
 	return images[indexFromEnd].ID, nil
 }
 
-// GetImageSchedules returns, for each eligible image (processed image present), the next time
+// GetImageSchedules returns, for each image, the next time
 // it will be shown according to the same rotation logic used by selectImageForTime.
 // The NextShow is aligned to 00:00 of the rotation timezone for the respective day.
 func (service *CoreService) GetImageSchedules(date time.Time) ([]ImageSchedule, error) {

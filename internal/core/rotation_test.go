@@ -33,7 +33,7 @@ func mustLocation(t *testing.T, tz string) *time.Location {
 func TestLIFOSelectionCycles(t *testing.T) {
 	svc := newTestCoreService(t, "UTC")
 
-	// Insert three eligible images (processed non-empty); insertion order defines created_at ASC position
+	// Insert three images (processed non-empty); insertion order defines created_at ASC position
 	id1, err := svc.databaseService.CreateImage([]byte("orig1"), []byte("proc1"))
 	if err != nil {
 		t.Fatalf("CreateImage #1 error: %v", err)
@@ -48,7 +48,7 @@ func TestLIFOSelectionCycles(t *testing.T) {
 	}
 
 	loc := mustLocation(t, "UTC")
-	anchor := time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
+	anchor := svc.rotationAnchor(loc)
 
 	// Expected LIFO sequence for consecutive days with 3 items: newest-first wrapping
 	expected := []string{id3, id2, id1, id3, id2, id1}
@@ -81,7 +81,7 @@ func TestDeletionMidDayAdvancesSelection(t *testing.T) {
 	}
 
 	loc := mustLocation(t, "UTC")
-	anchor := time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
+	anchor := svc.rotationAnchor(loc)
 
 	// Day 0 should pick newest (id3)
 	now := anchor
