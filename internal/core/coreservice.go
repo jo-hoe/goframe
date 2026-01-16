@@ -87,20 +87,7 @@ func (service *CoreService) applyConfiguredCommands(image []byte) (processedImag
 }
 
 func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
-	// Load configured timezone, fallback to UTC on error
-	loc, err := time.LoadLocation(service.config.RotationTimezone)
-	if err != nil || loc == nil {
-		slog.Warn("invalid rotation timezone; defaulting to UTC", "tz", service.config.RotationTimezone, "err", err)
-		loc = time.UTC
-	}
-	nowTZ := now.In(loc)
-	anchor := time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
-	if nowTZ.Before(anchor) {
-		// Should never happen in practice; clamp to anchor
-		nowTZ = anchor
-	}
-	// Day-based bucket index
-	days := int(nowTZ.Sub(anchor).Hours() / 24.0)
+	cycle := service.computeDayCycle(now)
 
 	// Fetch ascending by created_at; SQLite GetImages orders by created_at ASC, rowid ASC
 	images, err := service.databaseService.GetImages("id", "processed_image")
@@ -120,10 +107,7 @@ func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
 	}
 
 	// LIFO: newest first. Since eligible is ascending, pick from end.
-	idx := days % n
-	if idx < 0 {
-		idx += n
-	}
+	idx := cycle.cyclePosition(n)
 	indexFromEnd := n - 1 - idx
 	return eligible[indexFromEnd].ID, nil
 }
@@ -166,6 +150,64 @@ func (service *CoreService) Close() error {
 	return service.databaseService.Close()
 }
 
+// dayCycle encapsulates rotation timezone, anchor, and day index computations.
+type dayCycle struct {
+	loc    *time.Location
+	anchor time.Time
+	index  int
+}
+
+// computeDayCycle centralizes all day-related calculations for rotation logic.
+// It loads the configured timezone (fallback UTC), clamps the provided time to the anchor,
+// and computes the day index since the anchor.
+func (service *CoreService) computeDayCycle(t time.Time) dayCycle {
+	loc, err := time.LoadLocation(service.config.RotationTimezone)
+	if err != nil || loc == nil {
+		slog.Warn("invalid rotation timezone; defaulting to UTC", "tz", service.config.RotationTimezone, "err", err)
+		loc = time.UTC
+	}
+	tzTime := t.In(loc)
+	anchor := time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
+	if tzTime.Before(anchor) {
+		tzTime = anchor
+	}
+	days := int(tzTime.Sub(anchor).Hours() / 24.0)
+	return dayCycle{loc: loc, anchor: anchor, index: days}
+}
+
+// cyclePosition returns the current position within a cycle of length n based on the day index.
+func (dc dayCycle) cyclePosition(n int) int {
+	if n <= 0 {
+		return 0
+	}
+	m := dc.index % n
+	if m < 0 {
+		m += n
+	}
+	return m
+}
+
+// forwardSteps returns the number of days to move forward from curPos to reach targetPos
+// within a cycle of length cycleLen. If already at targetPos, it returns a full cycleLen.
+func (dc dayCycle) forwardSteps(curPos, targetPos, cycleLen int) int {
+	if cycleLen <= 0 {
+		return 0
+	}
+	diff := (targetPos - curPos) % cycleLen
+	if diff < 0 {
+		diff += cycleLen
+	}
+	if diff == 0 {
+		return cycleLen
+	}
+	return diff
+}
+
+// dayStart returns the start time (00:00) in the rotation timezone for the provided day index.
+func (dc dayCycle) dayStart(idx int) time.Time {
+	return dc.anchor.Add(time.Duration(idx*24) * time.Hour).In(dc.loc)
+}
+
 // ImageSchedule represents when an image will be shown next according to rotation rules.
 type ImageSchedule struct {
 	ID       string
@@ -184,18 +226,7 @@ func (service *CoreService) GetImageById(id string) (*database.Image, error) {
 // it will be shown according to the same rotation logic used by selectImageForTime.
 // The NextShow is aligned to 00:00 of the rotation timezone for the respective day.
 func (service *CoreService) GetImageSchedules(date time.Time) ([]ImageSchedule, error) {
-	// Load configured timezone, fallback to UTC on error
-	loc, err := time.LoadLocation(service.config.RotationTimezone)
-	if err != nil || loc == nil {
-		slog.Warn("invalid rotation timezone; defaulting to UTC", "tz", service.config.RotationTimezone, "err", err)
-		loc = time.UTC
-	}
-	nowTZ := date.In(loc)
-	anchor := time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
-	if nowTZ.Before(anchor) {
-		nowTZ = anchor
-	}
-	daysNow := int(nowTZ.Sub(anchor).Hours() / 24.0)
+	cycle := service.computeDayCycle(date)
 
 	// Fetch ascending by created_at; SQLite GetImages orders by created_at ASC, rowid ASC
 	images, err := service.databaseService.GetImages("id", "processed_image")
@@ -215,27 +246,15 @@ func (service *CoreService) GetImageSchedules(date time.Time) ([]ImageSchedule, 
 		return []ImageSchedule{}, nil
 	}
 
-	mod := func(a, b int) int {
-		m := a % b
-		if m < 0 {
-			m += b
-		}
-		return m
-	}
-
-	curMod := mod(daysNow, n)
+	curMod := cycle.cyclePosition(n)
 	schedules := make([]ImageSchedule, 0, n)
 	for j, img := range eligible {
 		// selectImageForTime picks indexFromEnd = n - 1 - idx where idx = days % n
 		// For given image position j in ascending order, it is selected when idx == n - 1 - j
 		targetIdx := n - 1 - j
-		delta := mod(targetIdx-curMod, n)
-		if delta == 0 {
-			// If it's selected today, "next time" is the next cycle in n days
-			delta = n
-		}
-		nextDayIndex := daysNow + delta
-		nextShow := anchor.Add(time.Duration(nextDayIndex*24) * time.Hour).In(loc)
+		delta := cycle.forwardSteps(curMod, targetIdx, n)
+		nextDayIndex := cycle.index + delta
+		nextShow := cycle.dayStart(nextDayIndex)
 		schedules = append(schedules, ImageSchedule{
 			ID:       img.ID,
 			NextShow: nextShow,
