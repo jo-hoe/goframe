@@ -67,8 +67,7 @@ spec:
             periodSeconds: 5
           volumeMounts:
             - name: config
-              mountPath: /config/config.yaml
-              subPath: config.yaml
+              mountPath: /config
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

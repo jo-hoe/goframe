@@ -20,19 +20,26 @@ const (
 	wDownRight          = 1
 )
 
-var defaultSpectra6 = [][]int{
-	{25, 30, 33},    // Black
-	{232, 232, 232}, // White
-	{239, 222, 68},  // Yellow
-	{178, 19, 24},   // Red
-	{33, 87, 186},   // Blue
-	{18, 95, 32},    // Green
+// ColorPair represents a mapping between a device output color and a dithering color.
+// - Dither: color used during quantization/error diffusion
+// - Device: actual device color to map to for output
+type ColorPair struct {
+	Device color.RGBA
+	Dither color.RGBA
 }
 
 // DitherParams represents typed parameters for dither command
 type DitherParams struct {
-	// Palette used for dithering
-	Palette [][]int
+	// PalettePairs contains ordered pairs of [Device, Dither] colors
+	PalettePairs []ColorPair
+}
+
+// Defaults to black/white with identical device and dithering colors
+func defaultBWPalettePairs() []ColorPair {
+	return []ColorPair{
+		{Device: color.RGBA{R: 0, G: 0, B: 0, A: 255}, Dither: color.RGBA{R: 0, G: 0, B: 0, A: 255}},
+		{Device: color.RGBA{R: 255, G: 255, B: 255, A: 255}, Dither: color.RGBA{R: 255, G: 255, B: 255, A: 255}},
+	}
 }
 
 // NewDitherParamsFromMap creates DitherParams from a generic map
@@ -40,63 +47,80 @@ func NewDitherParamsFromMap(params map[string]any) (*DitherParams, error) {
 	ditherParams := &DitherParams{}
 
 	if paletteParam, ok := params["palette"]; ok {
-		palette, err := parsePalette(paletteParam)
+		pairs, err := parsePalettePairs(paletteParam)
 		if err != nil {
 			return nil, fmt.Errorf("invalid palette: %w", err)
 		}
-		ditherParams.Palette = palette
+		if len(pairs) == 0 {
+			return nil, fmt.Errorf("palette must not be empty")
+		}
+		ditherParams.PalettePairs = pairs
 	} else {
-		ditherParams.Palette = defaultSpectra6
+		ditherParams.PalettePairs = defaultBWPalettePairs()
 	}
 
 	return ditherParams, nil
 }
 
-// parsePalette converts various palette formats to [][]int with reduced cyclomatic complexity
-func parsePalette(paletteParam any) ([][]int, error) {
-	switch p := paletteParam.(type) {
-	case []any:
-		return convertAnyPalette(p)
-	case [][]int:
-		// Already in correct format
-		return p, nil
-	default:
-		return nil, fmt.Errorf("palette must be an array of RGB arrays")
-	}
-}
-
-// convertAnyPalette converts a []any palette where each entry is an RGB triple to [][]int
-func convertAnyPalette(p []any) ([][]int, error) {
-	palette := make([][]int, len(p))
-	for i, colorParam := range p {
-		rgb, err := toRGB(colorParam, i)
-		if err != nil {
-			return nil, err
-		}
-		palette[i] = rgb
-	}
-	return palette, nil
-}
-
-// toRGB validates and converts a single palette entry to an RGB triple ([]int{R,G,B})
-func toRGB(colorParam any, idx int) ([]int, error) {
-	colorSlice, ok := colorParam.([]any)
+// parsePalettePairs converts the palette configuration into []ColorPair.
+// Required format:
+//
+//	palette:
+//	  - [[devR,devG,devB],[dithR,dithG,dithB]]
+//	  - ...
+func parsePalettePairs(paletteParam any) ([]ColorPair, error) {
+	top, ok := paletteParam.([]any)
 	if !ok {
-		return nil, fmt.Errorf("color at index %d must be an array", idx)
-	}
-	if len(colorSlice) != 3 {
-		return nil, fmt.Errorf("color at index %d must have exactly 3 values (RGB)", idx)
+		return nil, fmt.Errorf("palette must be an array")
 	}
 
-	rgb := make([]int, 3)
-	for j, val := range colorSlice {
-		n, err := numberToByte(val, idx, j)
-		if err != nil {
-			return nil, err
+	out := make([]ColorPair, 0, len(top))
+	for i, entry := range top {
+		switch e := entry.(type) {
+		case []any:
+			switch len(e) {
+			case 2:
+				dev, err := toRGBTriple(e[0], i, "device")
+				if err != nil {
+					return nil, err
+				}
+				dith, err := toRGBTriple(e[1], i, "dither")
+				if err != nil {
+					return nil, err
+				}
+				out = append(out, ColorPair{
+					Device: color.RGBA{R: uint8(dev[0]), G: uint8(dev[1]), B: uint8(dev[2]), A: 255},
+					Dither: color.RGBA{R: uint8(dith[0]), G: uint8(dith[1]), B: uint8(dith[2]), A: 255},
+				})
+			default:
+				return nil, fmt.Errorf("palette entry at index %d must be a pair [[dev],[dith]]", i)
+			}
+		default:
+			return nil, fmt.Errorf("palette entry at index %d must be an array", i)
 		}
-		rgb[j] = n
 	}
-	return rgb, nil
+
+	return out, nil
+}
+
+// toRGBTriple validates and converts an any into a 3-int RGB triple
+func toRGBTriple(val any, parentIdx int, role string) ([3]int, error) {
+	arr, ok := val.([]any)
+	if !ok {
+		return [3]int{}, fmt.Errorf("%s color at index %d must be an array", role, parentIdx)
+	}
+	if len(arr) != 3 {
+		return [3]int{}, fmt.Errorf("%s color at index %d must have exactly 3 values (RGB)", role, parentIdx)
+	}
+	res := [3]int{}
+	for j, v := range arr {
+		n, err := numberToByte(v, parentIdx, j)
+		if err != nil {
+			return [3]int{}, err
+		}
+		res[j] = n
+	}
+	return res, nil
 }
 
 // numberToByte coerces a numeric value to an int in [0,255], with helpful error messages
@@ -107,6 +131,60 @@ func numberToByte(val any, colorIdx, compIdx int) (int, error) {
 			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, v)
 		}
 		return v, nil
+	case int8:
+		iv := int(v)
+		if iv < 0 || iv > 255 {
+			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, iv)
+		}
+		return iv, nil
+	case int16:
+		iv := int(v)
+		if iv < 0 || iv > 255 {
+			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, iv)
+		}
+		return iv, nil
+	case int32:
+		iv := int(v)
+		if iv < 0 || iv > 255 {
+			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, iv)
+		}
+		return iv, nil
+	case int64:
+		iv := int(v)
+		if iv < 0 || iv > 255 {
+			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, iv)
+		}
+		return iv, nil
+	case uint:
+		iv := int(v)
+		if iv < 0 || iv > 255 {
+			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, iv)
+		}
+		return iv, nil
+	case uint8:
+		iv := int(v)
+		if iv < 0 || iv > 255 {
+			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, iv)
+		}
+		return iv, nil
+	case uint16:
+		iv := int(v)
+		if iv < 0 || iv > 255 {
+			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, iv)
+		}
+		return iv, nil
+	case uint32:
+		iv := int(v)
+		if iv < 0 || iv > 255 {
+			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, iv)
+		}
+		return iv, nil
+	case uint64:
+		iv := int(v)
+		if iv < 0 || iv > 255 {
+			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, iv)
+		}
+		return iv, nil
 	case float64:
 		intVal := int(v)
 		if intVal < 0 || intVal > 255 {
@@ -118,7 +196,7 @@ func numberToByte(val any, colorIdx, compIdx int) (int, error) {
 	}
 }
 
-// DitherCommand handles image dithering
+// DitherCommand handles image dithering and maps to device colors
 type DitherCommand struct {
 	name   string
 	params *DitherParams
@@ -142,9 +220,9 @@ func (c *DitherCommand) Name() string {
 	return c.name
 }
 
-// Execute applies dithering to the image
+// Execute applies dithering using the dithering palette and outputs the image mapped to device colors
 func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
-	slog.Debug("DitherCommand: dithering",
+	slog.Debug("DitherCommand: dither and map",
 		"input_size_bytes", len(imageData))
 
 	// decode
@@ -154,20 +232,30 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to decode PNG image: %w", err)
 	}
 
-	// select palette
-	palette, err := c.selectedPaletteRGBA()
-	if err != nil {
-		return nil, err
+	// extract palettes
+	devicePalette, ditherPalette := palettesFromPairs(c.params.PalettePairs)
+	if len(devicePalette) == 0 || len(ditherPalette) == 0 || len(devicePalette) != len(ditherPalette) {
+		return nil, fmt.Errorf("invalid palettes: device %d, dither %d", len(devicePalette), len(ditherPalette))
+	}
+	if len(devicePalette) > 0 && len(ditherPalette) > 0 {
+		// Log palette sizes and the first pair to verify config ingestion at runtime
+		slog.Info("DitherCommand: using configured palettes",
+			"device_count", len(devicePalette),
+			"dither_count", len(ditherPalette),
+			"first_device", devicePalette[0],
+			"first_dither", ditherPalette[0],
+		)
 	}
 
-	// If the image already uses only palette colors (after alpha compositing over white), skip dithering
-	if !needsDithering(img, palette) {
-		slog.Info("DitherCommand: image already matches palette; skipping dithering")
+	// Optimization: if the image already contains only exact device colors (after alpha compositing over white),
+	// skip dithering and mapping entirely and return the original bytes.
+	if !needsDitheringAgainst(img, devicePalette) {
+		slog.Info("DitherCommand: image already matches device palette; skipping dithering")
 		return imageData, nil
 	}
 
-	// dither
-	outImg, err := ditherImageFloydSteinberg(img, palette)
+	// perform dithering with quantization against ditherPalette, write devicePalette colors
+	outImg, err := ditherAndMapFloydSteinberg(img, ditherPalette, devicePalette)
 	if err != nil {
 		return nil, err
 	}
@@ -175,11 +263,11 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 	// encode
 	outBytes, err := encodePNGImage(outImg)
 	if err != nil {
-		slog.Error("DitherCommand: failed to encode dithered image", "error", err)
-		return nil, fmt.Errorf("failed to encode dithered PNG image: %w", err)
+		slog.Error("DitherCommand: failed to encode mapped image", "error", err)
+		return nil, fmt.Errorf("failed to encode PNG image: %w", err)
 	}
 
-	slog.Debug("DitherCommand: dithering complete", "output_size_bytes", len(outBytes))
+	slog.Debug("DitherCommand: complete", "output_size_bytes", len(outBytes))
 	return outBytes, nil
 }
 
@@ -188,22 +276,55 @@ func decodePNGData(data []byte) (image.Image, error) {
 	return png.Decode(bytes.NewReader(data))
 }
 
-// selectedPaletteRGBA returns the configured palette as []color.RGBA with simplified control flow
-func (c *DitherCommand) selectedPaletteRGBA() ([]color.RGBA, error) {
-	palette := c.params.Palette
-	out := make([]color.RGBA, len(palette))
-	for i, rgb := range palette {
-		if len(rgb) != 3 {
-			return nil, fmt.Errorf("palette color at index %d must have exactly 3 values (RGB)", i)
-		}
-		out[i] = color.RGBA{
-			R: uint8(rgb[0]),
-			G: uint8(rgb[1]),
-			B: uint8(rgb[2]),
-			A: 255,
+// palettesFromPairs extracts device and dither palettes from ColorPair slice
+func palettesFromPairs(pairs []ColorPair) ([]color.RGBA, []color.RGBA) {
+	device := make([]color.RGBA, len(pairs))
+	dither := make([]color.RGBA, len(pairs))
+	for i, p := range pairs {
+		device[i] = p.Device
+		dither[i] = p.Dither
+	}
+	return device, dither
+}
+
+// buildPaletteSet constructs a fast lookup set for palette RGB triples
+func buildPaletteSet(palette []color.RGBA) map[[3]uint8]struct{} {
+	set := make(map[[3]uint8]struct{}, len(palette))
+	for _, p := range palette {
+		set[[3]uint8{p.R, p.G, p.B}] = struct{}{}
+	}
+	return set
+}
+
+// needsDitheringAgainst checks if, after alpha compositing over white, all pixels already match
+// a given palette color exactly. If so, dithering can be skipped.
+func needsDitheringAgainst(img image.Image, palette []color.RGBA) bool {
+	bounds := img.Bounds()
+	w := bounds.Dx()
+	h := bounds.Dy()
+
+	paletteSet := buildPaletteSet(palette)
+
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			xx := bounds.Min.X + x
+			yy := bounds.Min.Y + y
+
+			r16, g16, b16, a16 := img.At(xx, yy).RGBA()
+			r8 := int(uint8(r16 >> 8))
+			g8 := int(uint8(g16 >> 8))
+			b8 := int(uint8(b16 >> 8))
+			a8 := int(uint8(a16 >> 8))
+
+			// Composite over white background (same formula used in dithering path)
+			r0, g0, b0 := compositeOverWhite(r8, g8, b8, a8)
+
+			if _, ok := paletteSet[[3]uint8{uint8(r0), uint8(g0), uint8(b0)}]; !ok {
+				return true // needs dithering
+			}
 		}
 	}
-	return out, nil
+	return false // all pixels already in palette
 }
 
 // clamp8Int ensures an int is within 0..255
@@ -223,15 +344,6 @@ func compositeOverWhite(r8, g8, b8, a8 int) (int, int, int) {
 	g0 := clamp8Int((g8*a8 + 255*(255-a8) + 127) / 255)
 	b0 := clamp8Int((b8*a8 + 255*(255-a8) + 127) / 255)
 	return r0, g0, b0
-}
-
-// buildPaletteSet constructs a fast lookup set for palette RGB triples
-func buildPaletteSet(palette []color.RGBA) map[[3]uint8]struct{} {
-	set := make(map[[3]uint8]struct{}, len(palette))
-	for _, p := range palette {
-		set[[3]uint8{p.R, p.G, p.B}] = struct{}{}
-	}
-	return set
 }
 
 // nearestPaletteIndex returns index of the nearest palette color by Euclidean distance in sRGB
@@ -284,40 +396,10 @@ func distributeFloydSteinbergError(x, y, w, h int, er, eg, eb int,
 	}
 }
 
-// needsDithering checks if, after alpha compositing over white, all pixels already match a palette color exactly.
-// If so, dithering can be skipped.
-func needsDithering(img image.Image, fixedPalette []color.RGBA) bool {
-	bounds := img.Bounds()
-	w := bounds.Dx()
-	h := bounds.Dy()
-
-	paletteSet := buildPaletteSet(fixedPalette)
-
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			xx := bounds.Min.X + x
-			yy := bounds.Min.Y + y
-
-			r16, g16, b16, a16 := img.At(xx, yy).RGBA()
-			r8 := int(uint8(r16 >> 8))
-			g8 := int(uint8(g16 >> 8))
-			b8 := int(uint8(b16 >> 8))
-			a8 := int(uint8(a16 >> 8))
-
-			// Composite over white background (same formula used in dithering)
-			r0, g0, b0 := compositeOverWhite(r8, g8, b8, a8)
-
-			if _, ok := paletteSet[[3]uint8{uint8(r0), uint8(g0), uint8(b0)}]; !ok {
-				return true // needs dithering
-			}
-		}
-	}
-	return false // all pixels already in palette
-}
-
-// ditherImageFloydSteinberg applies integer-based Floyd–Steinberg error diffusion (non-serpentine)
+// ditherAndMapFloydSteinberg applies integer-based Floyd–Steinberg error diffusion (non-serpentine)
 // with nearest-color mapping in 8-bit sRGB and alpha compositing over white.
-func ditherImageFloydSteinberg(img image.Image, fixedPalette []color.RGBA) (image.Image, error) {
+// Quantization (error target) uses ditherPalette; output pixel is written using devicePalette at the chosen index.
+func ditherAndMapFloydSteinberg(img image.Image, ditherPalette, devicePalette []color.RGBA) (image.Image, error) {
 	bounds := img.Bounds()
 	w := bounds.Dx()
 	h := bounds.Dy()
@@ -332,7 +414,7 @@ func ditherImageFloydSteinberg(img image.Image, fixedPalette []color.RGBA) (imag
 	errNextG := make([]int, w)
 	errNextB := make([]int, w)
 
-	// Iterate rows top-to-bottom, left-to-right (no serpentine) to align with Pillow quantize dithering
+	// Iterate rows top-to-bottom, left-to-right (no serpentine)
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			xx := bounds.Min.X + x
@@ -352,15 +434,18 @@ func ditherImageFloydSteinberg(img image.Image, fixedPalette []color.RGBA) (imag
 			gAdj := clamp8Int(g0 + roundDiv16FloydSteinberg(errCurrG[x]))
 			bAdj := clamp8Int(b0 + roundDiv16FloydSteinberg(errCurrB[x]))
 
-			// Nearest palette color (Euclidean in sRGB)
-			bestIdx := nearestPaletteIndex(rAdj, gAdj, bAdj, fixedPalette)
-			chosen := fixedPalette[bestIdx]
-			out.Set(xx, yy, chosen)
+			// Nearest palette index against dithering palette (Euclidean in sRGB)
+			bestIdx := nearestPaletteIndex(rAdj, gAdj, bAdj, ditherPalette)
+			quant := ditherPalette[bestIdx]
 
-			// Error (unscaled) between adjusted source and chosen
-			er := rAdj - int(chosen.R)
-			eg := gAdj - int(chosen.G)
-			eb := bAdj - int(chosen.B)
+			// Error (unscaled) between adjusted source and quantized dither color
+			er := rAdj - int(quant.R)
+			eg := gAdj - int(quant.G)
+			eb := bAdj - int(quant.B)
+
+			// Set output pixel to the corresponding device color at same index
+			deviceColor := devicePalette[bestIdx]
+			out.Set(xx, yy, deviceColor)
 
 			// Distribute Floyd-Steinberg error to neighbors (L->R)
 			distributeFloydSteinbergError(x, y, w, h, er, eg, eb, errCurrR, errCurrG, errCurrB, errNextR, errNextG, errNextB)

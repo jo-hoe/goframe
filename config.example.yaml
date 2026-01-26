@@ -15,19 +15,17 @@ commands:
     height: 1600
     width: 1200
   - name: DitherCommand # Floyd-Steinberg dithering algorithm
-    # Custom color palette as RGB values
+    # Palette of device/dither color pairs.
+    # Each entry is [[devR,devG,devB],[dithR,dithG,dithB]]
+    # Example palette for Spectra 6 displays
+    # credit for this palette example goes to https://github.com/Utzel-Butzel/epdoptimize
     palette:
-      - [0, 0, 0]         # Black
-      - [255, 255, 255]   # White
-      - [255, 255, 0]     # Yellow
-      - [0, 0, 255]       # Blue
-      - [255, 0, 0]       # Red
-      - [0, 255, 0]       # Green
-    # if palette is not defined the following default palette will be used
-    # which is designed for spectra 6 displays
-    #	- [25, 30, 33]    # Black
-    # - [232, 232, 232] # White
-    # - [239, 222, 68]  # Yellow
-    # - [178, 19, 24]   # Red
-    # - [33, 87, 186]   # Blue
-    # - [18, 95, 32]    # Green
+      - [[0, 0, 0],[25, 30, 33]]            # Black device, dark gray dither
+      - [[255, 255, 255],[232, 232, 232]]   # White device, off-white dither
+      - [[255, 255, 0],[239, 222, 68]]      # Yellow device/dither
+      - [[0, 0, 255],[33, 87, 186]]         # Blue device/dither
+      - [[255, 0, 0],[178, 19, 24]]         # Red device/dither
+      - [[0, 255, 0],[18, 95, 32]]          # Green device/dither
+    # If palette is not defined, default is black/white with identical device and dither:
+    #   - [[0,0,0],[0,0,0]]
+    #   - [[255,255,255],[255,255,255]]

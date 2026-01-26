@@ -29,7 +29,7 @@ func createTestImage(width, height int) []byte {
 	return buf.Bytes()
 }
 
-func TestNewDitherParamsFromMap_DefaultSpectra6(t *testing.T) {
+func TestNewDitherParamsFromMap_DefaultBW(t *testing.T) {
 	params := map[string]any{}
 
 	ditherParams, err := NewDitherParamsFromMap(params)
@@ -37,32 +37,35 @@ func TestNewDitherParamsFromMap_DefaultSpectra6(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if len(ditherParams.Palette) != 6 {
-		t.Errorf("Expected default SPECTRA6 palette length 6, got %d", len(ditherParams.Palette))
+	if len(ditherParams.PalettePairs) != 2 {
+		t.Errorf("Expected default BW palette length 2, got %d", len(ditherParams.PalettePairs))
 	}
 
-	expected := [][]int{
-		{25, 30, 33},
-		{232, 232, 232},
-		{239, 222, 68},
-		{178, 19, 24},
-		{33, 87, 186},
-		{18, 95, 32},
+	// Expect device and dither both Black and White
+	blackPair := ditherParams.PalettePairs[0]
+	if blackPair.Device.R != 0 || blackPair.Device.G != 0 || blackPair.Device.B != 0 {
+		t.Errorf("Expected device black [0,0,0], got %v", blackPair.Device)
 	}
-	for i := range expected {
-		if ditherParams.Palette[i][0] != expected[i][0] || ditherParams.Palette[i][1] != expected[i][1] || ditherParams.Palette[i][2] != expected[i][2] {
-			t.Errorf("Expected default[%d] %v, got %v", i, expected[i], ditherParams.Palette[i])
-		}
+	if blackPair.Dither.R != 0 || blackPair.Dither.G != 0 || blackPair.Dither.B != 0 {
+		t.Errorf("Expected dither black [0,0,0], got %v", blackPair.Dither)
+	}
+
+	whitePair := ditherParams.PalettePairs[1]
+	if whitePair.Device.R != 255 || whitePair.Device.G != 255 || whitePair.Device.B != 255 {
+		t.Errorf("Expected device white [255,255,255], got %v", whitePair.Device)
+	}
+	if whitePair.Dither.R != 255 || whitePair.Dither.G != 255 || whitePair.Dither.B != 255 {
+		t.Errorf("Expected dither white [255,255,255], got %v", whitePair.Dither)
 	}
 }
 
 func TestNewDitherParamsFromMap_CustomPalette(t *testing.T) {
 	params := map[string]any{
 		"palette": []any{
-			[]any{255, 0, 0},   // Red
-			[]any{0, 255, 0},   // Green
-			[]any{0, 0, 255},   // Blue
-			[]any{255, 255, 0}, // Yellow
+			[]any{[]any{255, 0, 0}, []any{255, 0, 0}},     // Red (device==dither)
+			[]any{[]any{0, 255, 0}, []any{0, 255, 0}},     // Green (device==dither)
+			[]any{[]any{0, 0, 255}, []any{0, 0, 255}},     // Blue (device==dither)
+			[]any{[]any{255, 255, 0}, []any{255, 255, 0}}, // Yellow (device==dither)
 		},
 	}
 
@@ -71,13 +74,17 @@ func TestNewDitherParamsFromMap_CustomPalette(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if len(ditherParams.Palette) != 4 {
-		t.Errorf("Expected palette length 4, got %d", len(ditherParams.Palette))
+	if len(ditherParams.PalettePairs) != 4 {
+		t.Errorf("Expected palette length 4, got %d", len(ditherParams.PalettePairs))
 	}
 
-	// Check red
-	if ditherParams.Palette[0][0] != 255 || ditherParams.Palette[0][1] != 0 || ditherParams.Palette[0][2] != 0 {
-		t.Errorf("Expected red [255,0,0], got %v", ditherParams.Palette[0])
+	// Check red device and dither
+	first := ditherParams.PalettePairs[0]
+	if first.Device.R != 255 || first.Device.G != 0 || first.Device.B != 0 {
+		t.Errorf("Expected device red [255,0,0], got %v", first.Device)
+	}
+	if first.Dither.R != 255 || first.Dither.G != 0 || first.Dither.B != 0 {
+		t.Errorf("Expected dither red [255,0,0], got %v", first.Dither)
 	}
 }
 
@@ -149,8 +156,8 @@ func TestDitherCommand_Execute_WithCustomPalette(t *testing.T) {
 
 	cmd, err := NewDitherCommand(map[string]any{
 		"palette": []any{
-			[]any{255, 0, 0}, // Red
-			[]any{0, 0, 255}, // Blue
+			[]any{[]any{255, 0, 0}, []any{255, 0, 0}}, // Red (device==dither)
+			[]any{[]any{0, 0, 255}, []any{0, 0, 255}}, // Blue (device==dither)
 		},
 	})
 	if err != nil {
@@ -188,8 +195,8 @@ func TestDitherCommand_Execute_InvalidImageData(t *testing.T) {
 func TestDitherCommand_GetParams(t *testing.T) {
 	params := map[string]any{
 		"palette": []any{
-			[]any{255, 0, 0},
-			[]any{0, 255, 0},
+			[]any{[]any{255, 0, 0}, []any{255, 0, 0}},
+			[]any{[]any{0, 255, 0}, []any{0, 255, 0}},
 		},
 	}
 
@@ -201,8 +208,8 @@ func TestDitherCommand_GetParams(t *testing.T) {
 	ditherCmd := cmd.(*DitherCommand)
 	retrievedParams := ditherCmd.GetParams()
 
-	if len(retrievedParams.Palette) != 2 {
-		t.Errorf("Expected palette length 2, got %d", len(retrievedParams.Palette))
+	if len(retrievedParams.PalettePairs) != 2 {
+		t.Errorf("Expected palette length 2, got %d", len(retrievedParams.PalettePairs))
 	}
 }
 
@@ -231,5 +238,97 @@ func TestDitherCommand_WithRealImage(t *testing.T) {
 	_, err = png.Decode(bytes.NewReader(result))
 	if err != nil {
 		t.Errorf("Result is not valid PNG: %v", err)
+	}
+}
+
+// Ensures the output image contains only device colors defined by the palette pairs,
+// even when dithering uses different colors for quantization.
+func TestDitherCommand_OutputContainsOnlyDeviceColors(t *testing.T) {
+	// Simple grayscale gradient input
+	imageData := createTestImage(64, 64)
+
+	// Configure palette pairs with distinct device and dither colors
+	params := map[string]any{
+		"palette": []any{
+			[]any{[]any{0, 0, 0}, []any{25, 30, 33}},          // Device black, dither dark gray
+			[]any{[]any{255, 255, 255}, []any{232, 232, 232}}, // Device white, dither off-white
+			[]any{[]any{255, 255, 0}, []any{239, 222, 68}},    // Device yellow, dither yellow-ish
+			[]any{[]any{0, 0, 255}, []any{33, 87, 186}},       // Device blue, dither blue-ish
+			[]any{[]any{255, 0, 0}, []any{178, 19, 24}},       // Device red, dither red-ish
+			[]any{[]any{0, 255, 0}, []any{18, 95, 32}},        // Device green, dither green-ish
+		},
+	}
+
+	cmd, err := NewDitherCommand(params)
+	if err != nil {
+		t.Fatalf("Failed to create command: %v", err)
+	}
+
+	result, err := cmd.Execute(imageData)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	outImg, err := png.Decode(bytes.NewReader(result))
+	if err != nil {
+		t.Fatalf("Failed to decode output png: %v", err)
+	}
+
+	// Build set of allowed device colors
+	deviceSet := map[[3]uint8]struct{}{
+		{0, 0, 0}:       {},
+		{255, 255, 255}: {},
+		{255, 255, 0}:   {},
+		{0, 0, 255}:     {},
+		{255, 0, 0}:     {},
+		{0, 255, 0}:     {},
+	}
+
+	b := outImg.Bounds()
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			r16, g16, b16, _ := outImg.At(x, y).RGBA()
+			key := [3]uint8{uint8(r16 >> 8), uint8(g16 >> 8), uint8(b16 >> 8)}
+			if _, ok := deviceSet[key]; !ok {
+				t.Fatalf("Found non-device color at (%d,%d): %v", x, y, key)
+			}
+		}
+	}
+}
+
+// If the image already contains only exact device colors (after alpha-over-white),
+// dithering is skipped and the original bytes are returned unchanged.
+func TestDitherCommand_SkipWhenAlreadyDeviceColors(t *testing.T) {
+	// Create an image that uses only the default device palette (black and white)
+	w, h := 16, 16
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if (x+y)%2 == 0 {
+				img.Set(x, y, color.RGBA{0, 0, 0, 255})
+			} else {
+				img.Set(x, y, color.RGBA{255, 255, 255, 255})
+			}
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("failed to encode device-only test image: %v", err)
+	}
+	imageData := buf.Bytes()
+
+	// Use default BW palette pairs
+	cmd, err := NewDitherCommand(map[string]any{})
+	if err != nil {
+		t.Fatalf("Failed to create command: %v", err)
+	}
+
+	result, err := cmd.Execute(imageData)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if !bytes.Equal(result, imageData) {
+		t.Fatalf("Expected command to skip processing and return the original bytes unchanged")
 	}
 }

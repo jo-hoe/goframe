@@ -34,7 +34,10 @@ Configure the processing pipeline via the `commands` section in `config.yaml`. S
   - height: int
   - width: int
 - DitherCommand
-  - palette: list of RGB triplets, e.g. [[0,0,0],[255,255,255],...]
+  - palette: list of device/dither color pairs. Each entry is [[devR,devG,devB],[dithR,dithG,dithB]].
+    - Example:
+      - [[0, 0, 0],[25, 30, 33]]
+      - [[255, 255, 255],[232, 232, 232]]
 
 Refer to `config.example.yaml` for a full example including a custom palette for dithering.
 
