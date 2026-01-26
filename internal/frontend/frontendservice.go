@@ -50,7 +50,6 @@ func (service *FrontendService) SetRoutes(e *echo.Echo) {
 
 	// Routes for listing, fetching by ID, and deleting images
 	e.GET("/htmx/images", service.htmxListImagesHandler)
-	e.GET("/htmx/image/:id", service.htmxGetImageByIDHandler)
 	e.GET("/htmx/image/original-thumb/:id", service.htmxGetOriginalThumbnailByIDHandler)
 	e.DELETE("/htmx/image/:id", service.htmxDeleteImageHandler)
 }
@@ -165,28 +164,6 @@ func (service *FrontendService) htmxGetCurrentImageHandler(ctx echo.Context) err
 
 	// Return the image data
 	return ctx.Blob(http.StatusOK, mimePNG, thumbnail)
-}
-
-func (service *FrontendService) htmxGetImageByIDHandler(ctx echo.Context) error {
-	id := ctx.Param("id")
-	if id == "" {
-		slog.Warn("htmxGetImageByIDHandler: missing image id",
-			"status", http.StatusBadRequest,
-			"route", "/htmx/image/:id")
-		return ctx.String(http.StatusBadRequest, "Missing image ID")
-	}
-
-	image, err := service.coreService.GetImageById(id)
-	if err != nil || len(image.OriginalImage) == 0 {
-		slog.Warn("htmxGetImageByIDHandler: image not found",
-			"status", http.StatusNotFound, "image_id", id, "error", err)
-		return ctx.String(http.StatusNotFound, "Image not found")
-	}
-
-	// Prevent caching
-	service.setNoCache(ctx)
-
-	return ctx.Blob(http.StatusOK, mimePNG, image.OriginalImage)
 }
 
 func (service *FrontendService) htmxGetOriginalThumbnailByIDHandler(ctx echo.Context) error {
