@@ -1,6 +1,6 @@
 # goframe
 
-![Version: 1.0.2](https://img.shields.io/badge/Version-1.0.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.2](https://img.shields.io/badge/AppVersion-1.0.2-informational?style=flat-square)
+![Version: 2.0.0](https://img.shields.io/badge/Version-2.0.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.0.0](https://img.shields.io/badge/AppVersion-2.0.0-informational?style=flat-square)
 
 Helm chart for the goframe image processing web service
 
@@ -14,7 +14,7 @@ Helm chart for the goframe image processing web service
 |-----|------|---------|-------------|
 | affinity | object | `{}` | Affinity rules for Pod scheduling |
 | config | object | `{"commands":[{"name":"OrientationCommand","orientation":"portrait"},{"name":"DitherCommand"}],"database":{"connectionString":"file:goframe.db?cache=shared&mode=rwc","type":"sqlite"},"imageTargetType":"png","port":8080,"rotationTimezone":"UTC","thumbnailWidth":512}` | Application configuration rendered into config.yaml and mounted into the container |
-| config.commands | list | `[{"name":"OrientationCommand","orientation":"portrait"},{"name":"DitherCommand"}]` | Processing pipeline configuration Supported command names and parameters: - OrientationCommand: orientation [portrait|landscape] - ScaleCommand: height (int), width (int) - PixelScaleCommand: height (int, optional), width (int, optional) - at least one must be provided - CropCommand: height (int), width (int) - PngConverterCommand: no parameters; enforces PNG output - DitherCommand: palette (list of RGB triplets), e.g. [[0,0,0],[255,255,255],...] Examples (uncomment to use): - name: ScaleCommand   height: 1920   width: 1080 - name: PixelScaleCommand   width: 1080 - name: CropCommand   height: 1600   width: 1200 - name: PngConverterCommand - name: DitherCommand   palette:     - [0, 0, 0]     - [255, 255, 255] |
+| config.commands | list | `[{"name":"OrientationCommand","orientation":"portrait"},{"name":"DitherCommand"}]` | Processing pipeline configuration Supported command names and parameters: - OrientationCommand: orientation [portrait|landscape] - ScaleCommand: height (int), width (int) - PixelScaleCommand: height (int, optional), width (int, optional) - at least one must be provided - CropCommand: height (int), width (int) - PngConverterCommand: no parameters; enforces PNG output - DitherCommand: palette (list of device/dither pairs), e.g. [[[0,0,0],[25,30,33]], [[255,255,255],[232,232,232]]] Examples (uncomment to use): - name: ScaleCommand   height: 1920   width: 1080 - name: PixelScaleCommand   width: 1080 - name: CropCommand   height: 1600   width: 1200 - name: PngConverterCommand - name: DitherCommand   palette:     - [[0, 0, 0],[25, 30, 33]]     - [[255, 255, 255],[232, 232, 232]] |
 | config.database | object | `{"connectionString":"file:goframe.db?cache=shared&mode=rwc","type":"sqlite"}` | Database configuration |
 | config.database.connectionString | string | `"file:goframe.db?cache=shared&mode=rwc"` | Connection string (':memory:' for in-memory SQLite) |
 | config.database.type | string | `"sqlite"` | Database driver (e.g., sqlite) |
