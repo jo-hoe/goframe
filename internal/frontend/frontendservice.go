@@ -52,6 +52,9 @@ func (service *FrontendService) SetRoutes(e *echo.Echo) {
 	e.GET("/htmx/images", service.htmxListImagesHandler)
 	e.GET("/htmx/image/original-thumb/:id", service.htmxGetOriginalThumbnailByIDHandler)
 	e.DELETE("/htmx/image/:id", service.htmxDeleteImageHandler)
+
+	// Favicon (SVG) route
+	e.GET("/icon.svg", service.iconHandler)
 }
 
 func (service *FrontendService) indexHandler(ctx echo.Context) error {
@@ -323,4 +326,15 @@ func (service *FrontendService) buildImageListHTML(ts string) (string, error) {
 	}
 	b.WriteString(`</div>`)
 	return b.String(), nil
+}
+
+func (service *FrontendService) iconHandler(ctx echo.Context) error {
+	data, err := assetsFS.ReadFile("views/icon.svg")
+	if err != nil {
+		slog.Error("iconHandler: failed to read icon.svg", "status", http.StatusInternalServerError, "error", err)
+		return ctx.String(http.StatusInternalServerError, "Failed to load icon")
+	}
+	// Cache for 7 days
+	ctx.Response().Header().Set("Cache-Control", "public, max-age=604800, immutable")
+	return ctx.Blob(http.StatusOK, "image/svg+xml", data)
 }

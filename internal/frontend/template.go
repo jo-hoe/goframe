@@ -13,6 +13,9 @@ const viewsPattern = "views/*.html"
 var (
 	//go:embed views/*.html
 	templateFS embed.FS
+
+	//go:embed views/icon.svg
+	assetsFS embed.FS
 )
 
 type Template struct {
