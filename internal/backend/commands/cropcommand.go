@@ -3,10 +3,11 @@ package commands
 import (
 	"bytes"
 	"fmt"
-	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 	"image"
 	"image/png"
 	"log/slog"
+
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
 // CropParams represents typed parameters for crop command
@@ -140,11 +141,11 @@ func (c *CropCommand) Execute(imageData []byte) ([]byte, error) {
 
 	// Create a new image with the cropped region
 	croppedImg := image.NewRGBA(image.Rect(0, 0, cropWidth, cropHeight))
-	for y := 0; y < cropHeight; y++ {
+	parallelFor(cropHeight, func(y int) {
 		for x := 0; x < cropWidth; x++ {
 			croppedImg.Set(x, y, img.At(x0+x, y0+y))
 		}
-	}
+	})
 
 	slog.Debug("CropCommand: encoding cropped image")
 

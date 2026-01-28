@@ -305,10 +305,11 @@ func needsDitheringAgainst(img image.Image, palette []color.RGBA) bool {
 
 	paletteSet := buildPaletteSet(palette)
 
-	for y := 0; y < h; y++ {
+	// Parallel row scan with early exit as soon as a non-palette pixel is found
+	found := parallelForStop(h, func(y int) bool {
+		yy := bounds.Min.Y + y
 		for x := 0; x < w; x++ {
 			xx := bounds.Min.X + x
-			yy := bounds.Min.Y + y
 
 			r16, g16, b16, a16 := img.At(xx, yy).RGBA()
 			r8 := int(uint8(r16 >> 8))
@@ -323,8 +324,9 @@ func needsDitheringAgainst(img image.Image, palette []color.RGBA) bool {
 				return true // needs dithering
 			}
 		}
-	}
-	return false // all pixels already in palette
+		return false
+	})
+	return found
 }
 
 // clamp8Int ensures an int is within 0..255

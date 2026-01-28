@@ -154,7 +154,7 @@ func (c *ScaleCommand) Execute(imageData []byte) ([]byte, error) {
 
 	// Scale and draw the image
 	// Simple nearest-neighbor scaling
-	for y := 0; y < scaledHeight; y++ {
+	parallelFor(scaledHeight, func(y int) {
 		for x := 0; x < scaledWidth; x++ {
 			// Map scaled coordinates back to original image coordinates
 			srcX := int(float64(x) * float64(originalWidth) / float64(scaledWidth))
@@ -170,7 +170,7 @@ func (c *ScaleCommand) Execute(imageData []byte) ([]byte, error) {
 
 			targetImg.Set(offsetX+x, offsetY+y, img.At(srcX, srcY))
 		}
-	}
+	})
 
 	slog.Debug("ScaleCommand: encoding scaled image")
 

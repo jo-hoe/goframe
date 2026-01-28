@@ -157,7 +157,7 @@ func (c *PixelScaleCommand) Execute(imageData []byte) ([]byte, error) {
 	targetImg := image.NewRGBA(image.Rect(0, 0, targetWidth, targetHeight))
 
 	// Scale using nearest-neighbor interpolation
-	for y := 0; y < targetHeight; y++ {
+	parallelFor(targetHeight, func(y int) {
 		for x := 0; x < targetWidth; x++ {
 			// Map target coordinates back to original image coordinates
 			srcX := int(float64(x) * float64(originalWidth) / float64(targetWidth))
@@ -173,7 +173,7 @@ func (c *PixelScaleCommand) Execute(imageData []byte) ([]byte, error) {
 
 			targetImg.Set(x, y, img.At(srcX, srcY))
 		}
-	}
+	})
 
 	slog.Debug("PixelScaleCommand: encoding scaled image")
 
