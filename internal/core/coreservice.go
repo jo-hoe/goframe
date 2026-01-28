@@ -135,23 +135,6 @@ func (service *CoreService) applyPipeline(image []byte) (converted []byte, proce
 	return convertedImageData, out, nil
 }
 
-func (service *CoreService) GetAllImageIDs() ([]string, error) {
-	images, err := service.databaseService.GetImages("id", "processed_image")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get all images: %w", err)
-	}
-
-	// Only include images that have a processed image available
-	ids := make([]string, 0, len(images))
-	for _, img := range images {
-		if len(img.ProcessedImage) > 0 {
-			ids = append(ids, img.ID)
-		}
-	}
-	slog.Info("CoreService.GetAllImageIDs: fetched image IDs", "count", len(ids))
-	return ids, nil
-}
-
 func (service *CoreService) DeleteImage(id string) error {
 	slog.Info("CoreService.DeleteImage: deleting image", "id", id)
 	return service.databaseService.DeleteImage(id)
@@ -239,12 +222,6 @@ func (service *CoreService) GetCurrentImageID() (string, error) {
 	return ids[0], nil
 }
 
-// ImageSchedule represents when an image will be shown next according to rotation rules.
-type ImageSchedule struct {
-	ID       string
-	NextShow time.Time
-}
-
 func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
 	ids, err := service.getOrderedImageIDs()
 	if err != nil {
@@ -265,67 +242,6 @@ func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
 
 	indexFromEnd := n - 1 - idx
 	return ids[indexFromEnd], nil
-}
-
-// GetImageSchedules returns, for each image, the next time
-// it will be shown according to the same rotation logic used by selectImageForTime.
-// The NextShow is aligned to 00:00 of the rotation timezone for the respective day.
-func (service *CoreService) GetImageSchedules(date time.Time) ([]ImageSchedule, error) {
-	ids, err := service.getOrderedImageIDs()
-	if err != nil {
-		return nil, err
-	}
-
-	n := len(ids)
-	if n == 0 {
-		return []ImageSchedule{}, nil
-	}
-
-	loc := service.loadRotationLocation()
-	dateMid := service.dayStart(date, loc)
-
-	// Snapshot baseline state
-	service.mu.Lock()
-	basePointer := service.pointer
-	baseDay := service.lastDay
-	service.mu.Unlock()
-
-	// If not initialized yet, assume baseline is the provided date
-	if baseDay.IsZero() {
-		baseDay = dateMid
-	}
-
-	// Compute forward days from baseline to the requested date
-	daysForward := 0
-	if !dateMid.Before(baseDay) {
-		daysForward = int(dateMid.Sub(baseDay).Hours() / 24.0)
-	}
-
-	// Pointer position on the requested date
-	pointerAtDate := basePointer
-	if n > 0 && daysForward > 0 {
-		pointerAtDate = (basePointer + daysForward) % n
-	}
-
-	schedules := make([]ImageSchedule, 0, n)
-	for j := range ids {
-		// Newest-first index selection
-		targetIdx := n - 1 - j
-		daysUntil := (targetIdx - pointerAtDate) % n
-		if daysUntil < 0 {
-			daysUntil += n
-		}
-		// If already selected on the requested date, schedule for the next cycle
-		if daysUntil == 0 {
-			daysUntil = n
-		}
-		nextShow := dateMid.Add(time.Duration(daysUntil) * 24 * time.Hour)
-		schedules = append(schedules, ImageSchedule{
-			ID:       ids[j],
-			NextShow: nextShow,
-		})
-	}
-	return schedules, nil
 }
 
 // UpdateImageOrder updates the persistent order (LexoRanks) to match the given list of IDs,

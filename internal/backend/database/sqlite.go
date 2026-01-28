@@ -16,10 +16,9 @@ type SQLiteDatabase struct {
 	connectionString string
 
 	// Prepared statements for common operations
-	insertStmt          *sql.Stmt
-	updateProcessedStmt *sql.Stmt
-	deleteStmt          *sql.Stmt
-	getByIDStmt         *sql.Stmt
+	insertStmt  *sql.Stmt
+	deleteStmt  *sql.Stmt
+	getByIDStmt *sql.Stmt
 }
 
 func NewSQLiteDatabase(connectionString string) (DatabaseService, error) {
@@ -69,9 +68,6 @@ func (s *SQLiteDatabase) CreateDatabase() (*sql.DB, error) {
 	if s.insertStmt, err = s.db.Prepare(`INSERT INTO images (id, original_image, processed_image, rank) VALUES (?, ?, ?, ?)`); err != nil {
 		return nil, err
 	}
-	if s.updateProcessedStmt, err = s.db.Prepare(`UPDATE images SET processed_image = ? WHERE id = ?`); err != nil {
-		return nil, err
-	}
 	if s.deleteStmt, err = s.db.Prepare(`DELETE FROM images WHERE id = ?`); err != nil {
 		return nil, err
 	}
@@ -88,11 +84,6 @@ func (s *SQLiteDatabase) Close() error {
 	// Close prepared statements, collect all errors
 	if s.insertStmt != nil {
 		if err := s.insertStmt.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	if s.updateProcessedStmt != nil {
-		if err := s.updateProcessedStmt.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -116,13 +107,6 @@ func (s *SQLiteDatabase) Close() error {
 
 	// Join all errors (returns nil if slice is empty)
 	return errors.Join(errs...)
-}
-
-func (s *SQLiteDatabase) DoesDatabaseExist() bool {
-	// In SQLite, the database file is created when you connect to it.
-	// So we can assume it exists if we can successfully ping the database.
-	err := s.db.Ping()
-	return err == nil
 }
 
 func (s *SQLiteDatabase) CreateImage(original []byte, processed []byte) (string, error) {
@@ -159,15 +143,6 @@ func (s *SQLiteDatabase) CreateImage(original []byte, processed []byte) (string,
 		return "", err
 	}
 	return id, nil
-}
-
-func (s *SQLiteDatabase) SetProcessedImage(id string, processedImage []byte) error {
-	if s.updateProcessedStmt != nil {
-		_, err := s.updateProcessedStmt.Exec(processedImage, id)
-		return err
-	}
-	_, err := s.db.Exec("UPDATE images SET processed_image = ? WHERE id = ?", processedImage, id)
-	return err
 }
 
 func (s *SQLiteDatabase) GetImages(fields ...string) ([]*Image, error) {

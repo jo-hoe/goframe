@@ -20,13 +20,6 @@ func newTestDB(t *testing.T) DatabaseService {
 	return ds
 }
 
-func TestSQLite_DoesDatabaseExist(t *testing.T) {
-	ds := newTestDB(t)
-	if !ds.DoesDatabaseExist() {
-		t.Fatalf("expected DoesDatabaseExist to return true")
-	}
-}
-
 func TestSQLite_GetImages_Projection(t *testing.T) {
 	ds := newTestDB(t)
 
