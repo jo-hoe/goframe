@@ -114,12 +114,12 @@ func (c *OrientationCommand) Execute(imageData []byte) ([]byte, error) {
 
 	// Rotate 90 degrees clockwise to switch between portrait and landscape
 	rotatedImg := image.NewRGBA(image.Rect(0, 0, height, width))
-	parallelFor(height, func(y int) {
+	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			// Rotate 90 degrees clockwise: (x,y) -> (height-1-y, x)
 			rotatedImg.Set(height-1-y, x, img.At(x, y))
 		}
-	})
+	}
 
 	slog.Debug("OrientationCommand: encoding rotated image")
 
