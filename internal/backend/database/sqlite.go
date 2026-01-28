@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -82,35 +83,39 @@ func (s *SQLiteDatabase) CreateDatabase() (*sql.DB, error) {
 }
 
 func (s *SQLiteDatabase) Close() error {
-	var firstErr error
-	// Close prepared statements
+	var errs []error
+
+	// Close prepared statements, collect all errors
 	if s.insertStmt != nil {
-		if err := s.insertStmt.Close(); err != nil && firstErr == nil {
-			firstErr = err
+		if err := s.insertStmt.Close(); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	if s.updateProcessedStmt != nil {
-		if err := s.updateProcessedStmt.Close(); err != nil && firstErr == nil {
-			firstErr = err
+		if err := s.updateProcessedStmt.Close(); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	if s.deleteStmt != nil {
-		if err := s.deleteStmt.Close(); err != nil && firstErr == nil {
-			firstErr = err
+		if err := s.deleteStmt.Close(); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	if s.getByIDStmt != nil {
-		if err := s.getByIDStmt.Close(); err != nil && firstErr == nil {
-			firstErr = err
+		if err := s.getByIDStmt.Close(); err != nil {
+			errs = append(errs, err)
 		}
 	}
 
+	// Close DB connection last
 	if s.db != nil {
-		if err := s.db.Close(); err != nil && firstErr == nil {
-			firstErr = err
+		if err := s.db.Close(); err != nil {
+			errs = append(errs, err)
 		}
 	}
-	return firstErr
+
+	// Join all errors (returns nil if slice is empty)
+	return errors.Join(errs...)
 }
 
 func (s *SQLiteDatabase) DoesDatabaseExist() bool {
@@ -299,23 +304,17 @@ func (s *SQLiteDatabase) UpdateRanks(order []string) error {
 	if err != nil {
 		return err
 	}
-	// Ensure rollback on error
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
+	// Always rollback; if Commit succeeds later this will return sql.ErrTxDone and be ignored
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.Prepare("UPDATE images SET rank = ? WHERE id = ?")
 	if err != nil {
-		_ = tx.Rollback()
 		return err
 	}
 	defer func() { _ = stmt.Close() }()
 
 	for id, newRank := range updates {
 		if _, err = stmt.Exec(newRank, id); err != nil {
-			_ = tx.Rollback()
 			return err
 		}
 	}
