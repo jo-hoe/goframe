@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
-	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -208,44 +207,16 @@ func (s *SQLiteDatabase) GetImages(fields ...string) ([]*Image, error) {
 		var img Image
 		v := reflect.ValueOf(&img).Elem()
 
-		// For fields of type time.Time, scan into temporary strings and parse after Scan
-		stringHolders := make([]string, len(selected))
-
 		// Build scan destinations to the requested struct field pointers
 		dest := make([]any, 0, len(selected))
-		for i, tag := range selected {
+		for _, tag := range selected {
 			idx := tagToIndex[tag]
 			field := v.Field(idx)
-			if field.Type() == reflect.TypeOf(time.Time{}) {
-				// Scan TEXT into a temporary string, then parse into time.Time after Scan
-				dest = append(dest, &stringHolders[i])
-			} else {
-				dest = append(dest, field.Addr().Interface())
-			}
+			dest = append(dest, field.Addr().Interface())
 		}
 
 		if err := rows.Scan(dest...); err != nil {
 			return nil, err
-		}
-
-		// Parse any time fields from their temporary string holders
-		for i, tag := range selected {
-			idx := tagToIndex[tag]
-			field := v.Field(idx)
-			if field.Type() == reflect.TypeOf(time.Time{}) {
-				val := stringHolders[i]
-				if val != "" {
-					// created_at format: strftime('%Y-%m-%dT%H:%M:%fZ','now'); parse using RFC3339Nano to handle variable fractional seconds
-					tm, parseErr := time.Parse(time.RFC3339Nano, val)
-					if parseErr != nil {
-						return nil, fmt.Errorf("failed to parse time for field %q: %w", tag, parseErr)
-					}
-					field.Set(reflect.ValueOf(tm))
-				} else {
-					// zero value if empty
-					field.Set(reflect.ValueOf(time.Time{}))
-				}
-			}
 		}
 
 		images = append(images, &img)

@@ -15,6 +15,8 @@ import (
 type CoreService struct {
 	config          *ServiceConfig
 	databaseService database.DatabaseService
+	commandConfigs  []commandstructure.CommandConfig
+	tzLoc           *time.Location
 
 	mu      sync.Mutex
 	pointer int
@@ -22,13 +24,32 @@ type CoreService struct {
 }
 
 func NewCoreService(config *ServiceConfig) *CoreService {
-	databaseService, err := getDatabaseService(config)
+	db, err := database.NewDatabase(config.Database.Type, config.Database.ConnectionString)
 	if err != nil {
 		panic(err)
 	}
+
+	// Precompute command configs
+	cmdCfgs := make([]commandstructure.CommandConfig, 0, len(config.Commands))
+	for _, cfg := range config.Commands {
+		cmdCfgs = append(cmdCfgs, commandstructure.CommandConfig{
+			Name:   cfg.Name,
+			Params: cfg.Params,
+		})
+	}
+
+	// Cache rotation timezone location
+	loc, err := time.LoadLocation(config.RotationTimezone)
+	if err != nil || loc == nil {
+		slog.Warn("invalid rotation timezone; defaulting to UTC", "tz", config.RotationTimezone, "err", err)
+		loc = time.UTC
+	}
+
 	return &CoreService{
 		config:          config,
-		databaseService: databaseService,
+		databaseService: db,
+		commandConfigs:  cmdCfgs,
+		tzLoc:           loc,
 		pointer:         0,
 		lastDay:         time.Time{},
 	}
@@ -37,20 +58,9 @@ func NewCoreService(config *ServiceConfig) *CoreService {
 func (service *CoreService) AddImage(image []byte) (*common.ApiImage, error) {
 	slog.Info("CoreService.AddImage: start", "bytes", len(image))
 
-	command, err := commands.NewPngConverterCommand(map[string]any{})
+	convertedImageData, processedImage, err := service.applyPipeline(image)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create PNG converter command: %w", err)
-	}
-
-	// default PNG conversion
-	convertedImageData, err := command.Execute(image)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert image to PNG: %w", err)
-	}
-	// apply all configured commands
-	processedImage, err := service.applyConfiguredCommands(convertedImageData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to apply configured commands: %w", err)
+		return nil, err
 	}
 
 	// Insert atomically with processed image to avoid NULL windows
@@ -78,46 +88,37 @@ func (service *CoreService) GetImageById(id string) (*database.Image, error) {
 	return image, nil
 }
 
-func (service *CoreService) applyConfiguredCommands(image []byte) (processedImage []byte, err error) {
+func (service *CoreService) applyPipeline(image []byte) (converted []byte, processed []byte, err error) {
 	if image == nil {
-		return nil, fmt.Errorf("input image is nil")
+		return nil, nil, fmt.Errorf("input image is nil")
 	}
 
-	// If no commands are configured, return the original image unchanged
-	if service == nil || service.config == nil || len(service.config.Commands) == 0 {
-		slog.Debug("CoreService.applyConfiguredCommands: no commands configured, returning original image", "bytes", len(image))
-		return image, nil
-	}
-
-	// Map core.CommandConfig to commandstructure.CommandConfig
-	commandConfigs := make([]commandstructure.CommandConfig, 0, len(service.config.Commands))
-	for _, cfg := range service.config.Commands {
-		commandConfigs = append(commandConfigs, commandstructure.CommandConfig{
-			Name:   cfg.Name,
-			Params: cfg.Params,
-		})
-	}
-
-	slog.Info("CoreService.applyConfiguredCommands: executing configured commands", "count", len(commandConfigs), "input_size_bytes", len(image))
-	out, execErr := commandstructure.ExecuteCommands(image, commandConfigs)
-	if execErr != nil {
-		return nil, fmt.Errorf("failed to apply configured commands: %w", execErr)
-	}
-	return out, nil
-}
-
-func getDatabaseService(DatabaseConfig *ServiceConfig) (database.DatabaseService, error) {
-	databaseService, err := database.NewDatabase(DatabaseConfig.Database.Type, DatabaseConfig.Database.ConnectionString)
+	// Always convert to PNG first
+	pngCmd, err := commands.NewPngConverterCommand(map[string]any{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize database: %w", err)
+		return nil, nil, fmt.Errorf("failed to create PNG converter command: %w", err)
 	}
-	slog.Info("database initialized successfully", "type", DatabaseConfig.Database.Type)
-	// Additional core service startup logic can be added here
-	return databaseService, nil
+	convertedImageData, err := pngCmd.Execute(image)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to convert image to PNG: %w", err)
+	}
+
+	// Apply configured commands (if any)
+	if len(service.commandConfigs) == 0 {
+		slog.Debug("CoreService.applyPipeline: no commands configured, returning converted image", "bytes", len(convertedImageData))
+		return convertedImageData, convertedImageData, nil
+	}
+
+	slog.Info("CoreService.applyPipeline: executing configured commands", "count", len(service.commandConfigs), "input_size_bytes", len(convertedImageData))
+	out, execErr := commandstructure.ExecuteCommands(convertedImageData, service.commandConfigs)
+	if execErr != nil {
+		return nil, nil, fmt.Errorf("failed to apply configured commands: %w", execErr)
+	}
+	return convertedImageData, out, nil
 }
 
 func (service *CoreService) GetAllImageIDs() ([]string, error) {
-	images, err := service.databaseService.GetImages()
+	images, err := service.databaseService.GetImages("id", "processed_image")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all images: %w", err)
 	}
@@ -146,11 +147,16 @@ func (service *CoreService) Close() error {
 
 // loadRotationLocation loads the configured timezone or falls back to UTC.
 func (service *CoreService) loadRotationLocation() *time.Location {
+	// Use cached location if available
+	if service.tzLoc != nil {
+		return service.tzLoc
+	}
 	loc, err := time.LoadLocation(service.config.RotationTimezone)
 	if err != nil || loc == nil {
 		slog.Warn("invalid rotation timezone; defaulting to UTC", "tz", service.config.RotationTimezone, "err", err)
 		loc = time.UTC
 	}
+	service.tzLoc = loc
 	return loc
 }
 
@@ -190,12 +196,12 @@ func (service *CoreService) advancePointer(now time.Time, n int) {
 // By advancing the pointer by one modulo the new list size, we keep the current day's
 // selection stable and position the new image to be shown after the current one.
 func (service *CoreService) onImageInserted() {
-	images, err := service.databaseService.GetImages("id")
+	ids, err := service.getOrderedImageIDs()
 	if err != nil {
 		slog.Warn("CoreService.onImageInserted: failed to fetch images for pointer adjustment", "err", err)
 		return
 	}
-	n := len(images)
+	n := len(ids)
 	if n == 0 {
 		return
 	}
@@ -205,6 +211,18 @@ func (service *CoreService) onImageInserted() {
 	service.mu.Unlock()
 }
 
+func (service *CoreService) getOrderedImageIDs() ([]string, error) {
+	images, err := service.databaseService.GetImages("id")
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch images: %w", err)
+	}
+	ids := make([]string, 0, len(images))
+	for _, img := range images {
+		ids = append(ids, img.ID)
+	}
+	return ids, nil
+}
+
 // ImageSchedule represents when an image will be shown next according to rotation rules.
 type ImageSchedule struct {
 	ID       string
@@ -212,12 +230,11 @@ type ImageSchedule struct {
 }
 
 func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
-	// Fetch ascending by rank; SQLite GetImages orders by rank ASC, rowid ASC
-	images, err := service.databaseService.GetImages("id")
+	ids, err := service.getOrderedImageIDs()
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch images: %w", err)
+		return "", err
 	}
-	n := len(images)
+	n := len(ids)
 	if n == 0 {
 		return "", fmt.Errorf("no images")
 	}
@@ -225,26 +242,25 @@ func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
 	// Advance the in-memory pointer if a new day started
 	service.advancePointer(now, n)
 
-	// LIFO: newest first. Since images is ascending, pick from end.
+	// LIFO: newest first. Since ids is ascending, pick from end.
 	service.mu.Lock()
 	idx := service.pointer % n
 	service.mu.Unlock()
 
 	indexFromEnd := n - 1 - idx
-	return images[indexFromEnd].ID, nil
+	return ids[indexFromEnd], nil
 }
 
 // GetImageSchedules returns, for each image, the next time
 // it will be shown according to the same rotation logic used by selectImageForTime.
 // The NextShow is aligned to 00:00 of the rotation timezone for the respective day.
 func (service *CoreService) GetImageSchedules(date time.Time) ([]ImageSchedule, error) {
-	// Fetch ascending by rank; SQLite GetImages orders by rank ASC, rowid ASC
-	images, err := service.databaseService.GetImages("id")
+	ids, err := service.getOrderedImageIDs()
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch images: %w", err)
+		return nil, err
 	}
 
-	n := len(images)
+	n := len(ids)
 	if n == 0 {
 		return []ImageSchedule{}, nil
 	}
@@ -276,7 +292,7 @@ func (service *CoreService) GetImageSchedules(date time.Time) ([]ImageSchedule, 
 	}
 
 	schedules := make([]ImageSchedule, 0, n)
-	for j, img := range images {
+	for j := range ids {
 		// Newest-first index selection
 		targetIdx := n - 1 - j
 		daysUntil := (targetIdx - pointerAtDate) % n
@@ -289,7 +305,7 @@ func (service *CoreService) GetImageSchedules(date time.Time) ([]ImageSchedule, 
 		}
 		nextShow := dateMid.Add(time.Duration(daysUntil) * 24 * time.Hour)
 		schedules = append(schedules, ImageSchedule{
-			ID:       img.ID,
+			ID:       ids[j],
 			NextShow: nextShow,
 		})
 	}
