@@ -228,6 +228,19 @@ func (service *CoreService) GetOrderedImageIDs() ([]string, error) {
 	return service.getOrderedImageIDs()
 }
 
+// GetCurrentImageID returns the current image as the first item in the persisted order.
+// This aligns the API/Frontend semantics so that reordering the list changes the current image.
+func (service *CoreService) GetCurrentImageID() (string, error) {
+	ids, err := service.getOrderedImageIDs()
+	if err != nil {
+		return "", err
+	}
+	if len(ids) == 0 {
+		return "", fmt.Errorf("no images")
+	}
+	return ids[0], nil
+}
+
 // ImageSchedule represents when an image will be shown next according to rotation rules.
 type ImageSchedule struct {
 	ID       string
