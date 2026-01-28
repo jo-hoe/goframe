@@ -153,20 +153,27 @@ func (c *ScaleCommand) Execute(imageData []byte) ([]byte, error) {
 		"offset_y", offsetY)
 
 	// Scale and draw the image
-	// Simple nearest-neighbor scaling
+	// Simple nearest-neighbor scaling with precomputed index maps
+	xMap := make([]int, scaledWidth)
+	yMap := make([]int, scaledHeight)
+	for x := 0; x < scaledWidth; x++ {
+		xMap[x] = int(float64(x) * float64(originalWidth) / float64(scaledWidth))
+		if xMap[x] >= originalWidth {
+			xMap[x] = originalWidth - 1
+		}
+	}
+	for y := 0; y < scaledHeight; y++ {
+		yMap[y] = int(float64(y) * float64(originalHeight) / float64(scaledHeight))
+		if yMap[y] >= originalHeight {
+			yMap[y] = originalHeight - 1
+		}
+	}
+
 	parallelFor(scaledHeight, func(y int) {
 		for x := 0; x < scaledWidth; x++ {
-			// Map scaled coordinates back to original image coordinates
-			srcX := int(float64(x) * float64(originalWidth) / float64(scaledWidth))
-			srcY := int(float64(y) * float64(originalHeight) / float64(scaledHeight))
-
-			// Ensure we don't go out of bounds
-			if srcX >= originalWidth {
-				srcX = originalWidth - 1
-			}
-			if srcY >= originalHeight {
-				srcY = originalHeight - 1
-			}
+			// Map scaled coordinates back to original image coordinates using precomputed maps
+			srcX := xMap[x]
+			srcY := yMap[y]
 
 			targetImg.Set(offsetX+x, offsetY+y, img.At(srcX, srcY))
 		}
@@ -176,6 +183,9 @@ func (c *ScaleCommand) Execute(imageData []byte) ([]byte, error) {
 
 	// Encode the scaled image to PNG bytes
 	var buf bytes.Buffer
+	bb := targetImg.Bounds()
+	// Pre-grow buffer to reduce re-allocations; rough heuristic: 1 byte per pixel
+	buf.Grow(bb.Dx() * bb.Dy())
 	err = png.Encode(&buf, targetImg)
 	if err != nil {
 		slog.Error("ScaleCommand: failed to encode scaled image", "error", err)

@@ -3,10 +3,13 @@ package commands
 import (
 	"bytes"
 	"fmt"
-	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 	"image"
 	"image/png"
 	"log/slog"
+
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
+
+	xdraw "golang.org/x/image/draw"
 )
 
 // PixelScaleParams represents typed parameters for pixel scale command
@@ -156,29 +159,16 @@ func (c *PixelScaleCommand) Execute(imageData []byte) ([]byte, error) {
 	// Create target image
 	targetImg := image.NewRGBA(image.Rect(0, 0, targetWidth, targetHeight))
 
-	// Scale using nearest-neighbor interpolation
-	parallelFor(targetHeight, func(y int) {
-		for x := 0; x < targetWidth; x++ {
-			// Map target coordinates back to original image coordinates
-			srcX := int(float64(x) * float64(originalWidth) / float64(targetWidth))
-			srcY := int(float64(y) * float64(originalHeight) / float64(targetHeight))
-
-			// Ensure we don't go out of bounds
-			if srcX >= originalWidth {
-				srcX = originalWidth - 1
-			}
-			if srcY >= originalHeight {
-				srcY = originalHeight - 1
-			}
-
-			targetImg.Set(x, y, img.At(srcX, srcY))
-		}
-	})
+	// Use optimized scaler from golang.org/x/image/draw (NearestNeighbor)
+	xdraw.NearestNeighbor.Scale(targetImg, targetImg.Bounds(), img, bounds, xdraw.Src, nil)
 
 	slog.Debug("PixelScaleCommand: encoding scaled image")
 
 	// Encode the scaled image to PNG bytes
 	var buf bytes.Buffer
+	bb := targetImg.Bounds()
+	// Pre-grow buffer to reduce reallocations; rough heuristic ~1 byte per pixel
+	buf.Grow(bb.Dx() * bb.Dy())
 	err = png.Encode(&buf, targetImg)
 	if err != nil {
 		slog.Error("PixelScaleCommand: failed to encode scaled image", "error", err)

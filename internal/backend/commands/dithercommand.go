@@ -239,7 +239,7 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 	}
 	if len(devicePalette) > 0 && len(ditherPalette) > 0 {
 		// Log palette sizes and the first pair to verify config ingestion at runtime
-		slog.Info("DitherCommand: using configured palettes",
+		slog.Debug("DitherCommand: using configured palettes",
 			"device_count", len(devicePalette),
 			"dither_count", len(ditherPalette),
 			"first_device", devicePalette[0],
@@ -250,7 +250,7 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 	// Optimization: if the image already contains only exact device colors (after alpha compositing over white),
 	// skip dithering and mapping entirely and return the original bytes.
 	if !needsDitheringAgainst(img, devicePalette) {
-		slog.Info("DitherCommand: image already matches device palette; skipping dithering")
+		slog.Debug("DitherCommand: image already matches device palette; skipping dithering")
 		return imageData, nil
 	}
 
@@ -294,6 +294,15 @@ func buildPaletteSet(palette []color.RGBA) map[[3]uint8]struct{} {
 		set[[3]uint8{p.R, p.G, p.B}] = struct{}{}
 	}
 	return set
+}
+
+// toColorPalette converts []color.RGBA to a color.Palette for paletted images
+func toColorPalette(src []color.RGBA) color.Palette {
+	pal := make(color.Palette, len(src))
+	for i := range src {
+		pal[i] = src[i]
+	}
+	return pal
 }
 
 // needsDitheringAgainst checks if, after alpha compositing over white, all pixels already match
@@ -406,8 +415,8 @@ func ditherAndMapFloydSteinberg(img image.Image, ditherPalette, devicePalette []
 	w := bounds.Dx()
 	h := bounds.Dy()
 
-	// Output image
-	out := image.NewRGBA(bounds)
+	// Output image as paletted with device palette for faster encoding and reduced memory
+	out := image.NewPaletted(bounds, toColorPalette(devicePalette))
 
 	errCurrR := make([]int, w)
 	errCurrG := make([]int, w)
@@ -445,9 +454,8 @@ func ditherAndMapFloydSteinberg(img image.Image, ditherPalette, devicePalette []
 			eg := gAdj - int(quant.G)
 			eb := bAdj - int(quant.B)
 
-			// Set output pixel to the corresponding device color at same index
-			deviceColor := devicePalette[bestIdx]
-			out.Set(xx, yy, deviceColor)
+			// Set output pixel to the corresponding device color index (paletted image)
+			out.SetColorIndex(xx, yy, uint8(bestIdx))
 
 			// Distribute Floyd-Steinberg error to neighbors (L->R)
 			distributeFloydSteinbergError(x, y, w, h, er, eg, eb, errCurrR, errCurrG, errCurrB, errNextR, errNextG, errNextB)

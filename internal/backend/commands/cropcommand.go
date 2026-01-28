@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"image/draw"
 	"image/png"
 	"log/slog"
 
@@ -141,16 +142,15 @@ func (c *CropCommand) Execute(imageData []byte) ([]byte, error) {
 
 	// Create a new image with the cropped region
 	croppedImg := image.NewRGBA(image.Rect(0, 0, cropWidth, cropHeight))
-	parallelFor(cropHeight, func(y int) {
-		for x := 0; x < cropWidth; x++ {
-			croppedImg.Set(x, y, img.At(x0+x, y0+y))
-		}
-	})
+	// Use draw.Draw with a source offset for a faster crop than per-pixel loops
+	draw.Draw(croppedImg, croppedImg.Bounds(), img, image.Point{X: x0, Y: y0}, draw.Src)
 
 	slog.Debug("CropCommand: encoding cropped image")
 
 	// Encode the cropped image back to PNG bytes
 	var buf bytes.Buffer
+	bb := croppedImg.Bounds()
+	buf.Grow(bb.Dx() * bb.Dy())
 	err = png.Encode(&buf, croppedImg)
 	if err != nil {
 		slog.Error("CropCommand: failed to encode cropped image", "error", err)
