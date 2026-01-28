@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/jo-hoe/goframe/internal/backend/commands"
@@ -14,6 +15,10 @@ import (
 type CoreService struct {
 	config          *ServiceConfig
 	databaseService database.DatabaseService
+
+	mu      sync.Mutex
+	pointer int
+	lastDay time.Time
 }
 
 func NewCoreService(config *ServiceConfig) *CoreService {
@@ -24,6 +29,8 @@ func NewCoreService(config *ServiceConfig) *CoreService {
 	return &CoreService{
 		config:          config,
 		databaseService: databaseService,
+		pointer:         0,
+		lastDay:         time.Time{},
 	}
 }
 
@@ -132,72 +139,45 @@ func (service *CoreService) Close() error {
 	return service.databaseService.Close()
 }
 
-// rotationAnchor determines the anchor date (00:00 in rotation timezone) to base
-// the day cycle on. Without timestamps, use a fixed epoch anchor in the configured timezone.
-func (service *CoreService) rotationAnchor(loc *time.Location) time.Time {
-	return time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
-}
-
-// dayCycle encapsulates rotation timezone, anchor, and day index computations.
-type dayCycle struct {
-	loc    *time.Location
-	anchor time.Time
-	index  int
-}
-
-// computeDayCycle centralizes all day-related calculations for rotation logic.
-// It loads the configured timezone (fallback UTC), clamps the provided time to the anchor,
-// and computes the day index since the anchor.
-func (service *CoreService) computeDayCycle(t time.Time) dayCycle {
+// loadRotationLocation loads the configured timezone or falls back to UTC.
+func (service *CoreService) loadRotationLocation() *time.Location {
 	loc, err := time.LoadLocation(service.config.RotationTimezone)
 	if err != nil || loc == nil {
 		slog.Warn("invalid rotation timezone; defaulting to UTC", "tz", service.config.RotationTimezone, "err", err)
 		loc = time.UTC
 	}
-	tzTime := t.In(loc)
-
-	// Anchor at a fixed epoch (start of day) in the rotation timezone.
-	anchor := service.rotationAnchor(loc)
-
-	// Clamp to anchor to avoid negative day indices.
-	if tzTime.Before(anchor) {
-		tzTime = anchor
-	}
-	days := int(tzTime.Sub(anchor).Hours() / 24.0)
-	return dayCycle{loc: loc, anchor: anchor, index: days}
+	return loc
 }
 
-// cyclePosition returns the current position within a cycle of length n based on the day index.
-func (dayCycle dayCycle) cyclePosition(n int) int {
-	if n <= 0 {
-		return 0
-	}
-	modIndex := dayCycle.index % n
-	if modIndex < 0 {
-		modIndex += n
-	}
-	return modIndex
+// dayStart returns 00:00 in the rotation timezone for the given time's calendar day.
+func (service *CoreService) dayStart(t time.Time, loc *time.Location) time.Time {
+	tt := t.In(loc)
+	return time.Date(tt.Year(), tt.Month(), tt.Day(), 0, 0, 0, 0, loc)
 }
 
-// forwardSteps returns the number of days to move forward from curPos to reach targetPos
-// within a cycle of length cycleLength. If already at targetPos, it returns a full cycleLength.
-func (dayCycle dayCycle) forwardSteps(curPos, targetPos, cycleLength int) int {
-	if cycleLength <= 0 {
-		return 0
-	}
-	diff := (targetPos - curPos) % cycleLength
-	if diff < 0 {
-		diff += cycleLength
-	}
-	if diff == 0 {
-		return cycleLength
-	}
-	return diff
-}
+// advancePointer moves the in-memory pointer forward by the number of days
+// elapsed since the last recorded day in the rotation timezone. It does not move backwards.
+func (service *CoreService) advancePointer(now time.Time, n int) {
+	loc := service.loadRotationLocation()
+	todayMid := service.dayStart(now, loc)
 
-// dayStart returns the start time (00:00) in the rotation timezone for the provided day index.
-func (dayCycle dayCycle) dayStart(idx int) time.Time {
-	return dayCycle.anchor.Add(time.Duration(idx*24) * time.Hour).In(dayCycle.loc)
+	service.mu.Lock()
+	defer service.mu.Unlock()
+
+	// Initialize baseline day on first use
+	if service.lastDay.IsZero() {
+		service.lastDay = todayMid
+		return
+	}
+
+	// Advance only when a new day has begun in the rotation timezone
+	if todayMid.After(service.lastDay) {
+		days := int(todayMid.Sub(service.lastDay).Hours() / 24.0)
+		if days > 0 && n > 0 {
+			service.pointer = (service.pointer + days) % n
+		}
+		service.lastDay = todayMid
+	}
 }
 
 // ImageSchedule represents when an image will be shown next according to rotation rules.
@@ -207,8 +187,6 @@ type ImageSchedule struct {
 }
 
 func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
-	cycle := service.computeDayCycle(now)
-
 	// Fetch ascending by rank; SQLite GetImages orders by rank ASC, rowid ASC
 	images, err := service.databaseService.GetImages("id")
 	if err != nil {
@@ -219,8 +197,14 @@ func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
 		return "", fmt.Errorf("no images")
 	}
 
+	// Advance the in-memory pointer if a new day started
+	service.advancePointer(now, n)
+
 	// LIFO: newest first. Since images is ascending, pick from end.
-	idx := cycle.cyclePosition(n)
+	service.mu.Lock()
+	idx := service.pointer % n
+	service.mu.Unlock()
+
 	indexFromEnd := n - 1 - idx
 	return images[indexFromEnd].ID, nil
 }
@@ -229,8 +213,6 @@ func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
 // it will be shown according to the same rotation logic used by selectImageForTime.
 // The NextShow is aligned to 00:00 of the rotation timezone for the respective day.
 func (service *CoreService) GetImageSchedules(date time.Time) ([]ImageSchedule, error) {
-	cycle := service.computeDayCycle(date)
-
 	// Fetch ascending by rank; SQLite GetImages orders by rank ASC, rowid ASC
 	images, err := service.databaseService.GetImages("id")
 	if err != nil {
@@ -242,15 +224,45 @@ func (service *CoreService) GetImageSchedules(date time.Time) ([]ImageSchedule, 
 		return []ImageSchedule{}, nil
 	}
 
-	curMod := cycle.cyclePosition(n)
+	loc := service.loadRotationLocation()
+	dateMid := service.dayStart(date, loc)
+
+	// Snapshot baseline state
+	service.mu.Lock()
+	basePointer := service.pointer
+	baseDay := service.lastDay
+	service.mu.Unlock()
+
+	// If not initialized yet, assume baseline is the provided date
+	if baseDay.IsZero() {
+		baseDay = dateMid
+	}
+
+	// Compute forward days from baseline to the requested date
+	daysForward := 0
+	if !dateMid.Before(baseDay) {
+		daysForward = int(dateMid.Sub(baseDay).Hours() / 24.0)
+	}
+
+	// Pointer position on the requested date
+	pointerAtDate := basePointer
+	if n > 0 && daysForward > 0 {
+		pointerAtDate = (basePointer + daysForward) % n
+	}
+
 	schedules := make([]ImageSchedule, 0, n)
 	for j, img := range images {
-		// selectImageForTime picks indexFromEnd = n - 1 - idx where idx = days % n
-		// For given image position j in ascending order, it is selected when idx == n - 1 - j
+		// Newest-first index selection
 		targetIdx := n - 1 - j
-		delta := cycle.forwardSteps(curMod, targetIdx, n)
-		nextDayIndex := cycle.index + delta
-		nextShow := cycle.dayStart(nextDayIndex)
+		daysUntil := (targetIdx - pointerAtDate) % n
+		if daysUntil < 0 {
+			daysUntil += n
+		}
+		// If already selected on the requested date, schedule for the next cycle
+		if daysUntil == 0 {
+			daysUntil = n
+		}
+		nextShow := dateMid.Add(time.Duration(daysUntil) * 24 * time.Hour)
 		schedules = append(schedules, ImageSchedule{
 			ID:       img.ID,
 			NextShow: nextShow,

@@ -48,7 +48,7 @@ func TestLIFOSelectionCycles(t *testing.T) {
 	}
 
 	loc := mustLocation(t, "UTC")
-	anchor := svc.rotationAnchor(loc)
+	anchor := time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
 
 	// Expected LIFO sequence for consecutive days with 3 items: newest-first wrapping
 	expected := []string{id3, id2, id1, id3, id2, id1}
@@ -81,7 +81,7 @@ func TestDeletionMidDayAdvancesSelection(t *testing.T) {
 	}
 
 	loc := mustLocation(t, "UTC")
-	anchor := svc.rotationAnchor(loc)
+	anchor := time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
 
 	// Day 0 should pick newest (id3)
 	now := anchor
