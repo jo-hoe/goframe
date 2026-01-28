@@ -73,9 +73,27 @@ func (service *CoreService) AddImage(image []byte) (*common.ApiImage, error) {
 		ID: databaseImageID,
 	}
 
-	// Place the newly inserted image after the current image in the rotation by advancing the pointer.
-	// This keeps today's selected image unchanged and ensures the new image is visited in a future step.
-	service.onImageInserted()
+	// Re-rank the newly inserted image directly after the current image (image of the day)
+	// in the persisted order so it will be shown next.
+	order, err := service.getOrderedImageIDs()
+	if err != nil {
+		slog.Warn("CoreService.AddImage: failed to fetch order after insert", "err", err)
+		return databaseImage, nil
+	}
+	// If there was at least one image before this insert, place the new one right after the current (index 0)
+	if len(order) >= 2 {
+		currentID := order[0]
+		newOrder := make([]string, 0, len(order))
+		newOrder = append(newOrder, currentID, databaseImageID)
+		for _, id := range order {
+			if id != currentID && id != databaseImageID {
+				newOrder = append(newOrder, id)
+			}
+		}
+		if err := service.UpdateImageOrder(newOrder); err != nil {
+			slog.Warn("CoreService.AddImage: failed to position new image after current", "err", err)
+		}
+	}
 
 	return databaseImage, nil
 }
