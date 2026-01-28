@@ -59,14 +59,14 @@ func (s *SQLiteDatabase) CreateDatabase() (*sql.DB, error) {
 		id TEXT PRIMARY KEY,
 		original_image BLOB,
 		processed_image BLOB,
-		created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+		rank TEXT NOT NULL
 	)`)
 	if err != nil {
 		return nil, err
 	}
 
 	// Prepare common statements for reuse under load
-	if s.insertStmt, err = s.db.Prepare(`INSERT INTO images (id, original_image, processed_image) VALUES (?, ?, ?)`); err != nil {
+	if s.insertStmt, err = s.db.Prepare(`INSERT INTO images (id, original_image, processed_image, rank) VALUES (?, ?, ?, ?)`); err != nil {
 		return nil, err
 	}
 	if s.updateProcessedStmt, err = s.db.Prepare(`UPDATE images SET processed_image = ? WHERE id = ?`); err != nil {
@@ -75,7 +75,7 @@ func (s *SQLiteDatabase) CreateDatabase() (*sql.DB, error) {
 	if s.deleteStmt, err = s.db.Prepare(`DELETE FROM images WHERE id = ?`); err != nil {
 		return nil, err
 	}
-	if s.getByIDStmt, err = s.db.Prepare(`SELECT id, original_image, processed_image, created_at FROM images WHERE id = ?`); err != nil {
+	if s.getByIDStmt, err = s.db.Prepare(`SELECT id, original_image, processed_image, rank FROM images WHERE id = ?`); err != nil {
 		return nil, err
 	}
 
@@ -134,11 +134,21 @@ func (s *SQLiteDatabase) CreateImage(original []byte, processed []byte) (string,
 		return "", err
 	}
 
-	// Insert both original and processed image atomically to avoid NULL race windows
+	// Determine next LexoRank at end of list
+	var lastRank sql.NullString
+	if err := s.db.QueryRow("SELECT rank FROM images ORDER BY rank DESC, rowid DESC LIMIT 1").Scan(&lastRank); err != nil && err != sql.ErrNoRows {
+		return "", err
+	}
+	newRank := nextRank("")
+	if lastRank.Valid {
+		newRank = nextRank(lastRank.String)
+	}
+
+	// Insert both original and processed image atomically to avoid NULL race windows, with computed rank
 	if s.insertStmt != nil {
-		_, err = s.insertStmt.Exec(id, original, processed)
+		_, err = s.insertStmt.Exec(id, original, processed, newRank)
 	} else {
-		_, err = s.db.Exec("INSERT INTO images (id, original_image, processed_image) VALUES (?, ?, ?)", id, original, processed)
+		_, err = s.db.Exec("INSERT INTO images (id, original_image, processed_image, rank) VALUES (?, ?, ?, ?)", id, original, processed, newRank)
 	}
 	if err != nil {
 		return "", err
@@ -183,7 +193,7 @@ func (s *SQLiteDatabase) GetImages(fields ...string) ([]*Image, error) {
 	}
 
 	selectClause := strings.Join(selected, ", ")
-	query := fmt.Sprintf("SELECT %s FROM images ORDER BY created_at ASC, rowid ASC", selectClause)
+	query := fmt.Sprintf("SELECT %s FROM images ORDER BY rank ASC, rowid ASC", selectClause)
 
 	rows, err := s.db.Query(query)
 	if err != nil {
@@ -257,25 +267,20 @@ func (s *SQLiteDatabase) GetImageByID(id string) (*Image, error) {
 	if s.getByIDStmt != nil {
 		row = s.getByIDStmt.QueryRow(id)
 	} else {
-		row = s.db.QueryRow("SELECT id, original_image, processed_image, created_at FROM images WHERE id = ?", id)
+		row = s.db.QueryRow("SELECT id, original_image, processed_image, rank FROM images WHERE id = ?", id)
 	}
 
 	var img Image
-	var createdAtStr string
-	if err := row.Scan(&img.ID, &img.OriginalImage, &img.ProcessedImage, &createdAtStr); err != nil {
+	var rankStr string
+	if err := row.Scan(&img.ID, &img.OriginalImage, &img.ProcessedImage, &rankStr); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // Not found
 		}
 		return nil, err
 	}
 
-	// Parse created_at time
-	if createdAtStr != "" {
-		tm, parseErr := time.Parse(time.RFC3339Nano, createdAtStr)
-		if parseErr != nil {
-			return nil, fmt.Errorf("failed to parse created_at time: %w", parseErr)
-		}
-		img.CreatedAt = tm
+	if rankStr != "" {
+		img.Rank = rankStr
 	}
 
 	return &img, nil

@@ -58,8 +58,8 @@ func TestSQLite_GetImages_Projection(t *testing.T) {
 		if img.ProcessedImage != nil {
 			t.Errorf("image[%d].ProcessedImage is not nil; expected nil when not selected", i)
 		}
-		if !img.CreatedAt.IsZero() {
-			t.Errorf("image[%d].CreatedAt is not zero; expected zero when not selected", i)
+		if img.Rank != "" {
+			t.Errorf("image[%d].Rank is not empty; expected empty when not selected", i)
 		}
 		seen[img.ID] = true
 	}
@@ -67,10 +67,10 @@ func TestSQLite_GetImages_Projection(t *testing.T) {
 		t.Fatalf("expected IDs %q and %q to be present in results, got %v", id1, id2, seen)
 	}
 
-	// Request ID and created_at
-	images2, err := ds.GetImages("id", "created_at")
+	// Request ID and rank
+	images2, err := ds.GetImages("id", "rank")
 	if err != nil {
-		t.Fatalf("GetImages(id, created_at) error: %v", err)
+		t.Fatalf("GetImages(id, rank) error: %v", err)
 	}
 	if len(images2) != 2 {
 		t.Fatalf("expected 2 images, got %d", len(images2))
@@ -79,8 +79,8 @@ func TestSQLite_GetImages_Projection(t *testing.T) {
 		if img.ID == "" {
 			t.Errorf("image2[%d].ID is empty; expected non-empty", i)
 		}
-		if img.CreatedAt.IsZero() {
-			t.Errorf("image2[%d].CreatedAt is zero; expected non-zero", i)
+		if img.Rank == "" {
+			t.Errorf("image2[%d].Rank is empty; expected non-empty", i)
 		}
 		if img.OriginalImage != nil || img.ProcessedImage != nil {
 			t.Errorf("image2[%d] binary fields should be nil when not selected", i)
@@ -118,8 +118,8 @@ func TestSQLite_GetImages_AllFields(t *testing.T) {
 	if img.ID != id {
 		t.Errorf("expected ID %q, got %q", id, img.ID)
 	}
-	if img.CreatedAt.IsZero() {
-		t.Errorf("CreatedAt is zero; expected non-zero")
+	if img.Rank == "" {
+		t.Errorf("Rank is empty; expected non-empty")
 	}
 	if !bytes.Equal(img.OriginalImage, []byte("original")) {
 		t.Errorf("OriginalImage mismatch: got %q", string(img.OriginalImage))

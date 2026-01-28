@@ -133,29 +133,9 @@ func (service *CoreService) Close() error {
 }
 
 // rotationAnchor determines the anchor date (00:00 in rotation timezone) to base
-// the day cycle on. It uses the smallest created_at timestamp among images.
-// If no images are present or an error occurs, it falls back to 1970-01-01 00:00 in loc.
+// the day cycle on. Without timestamps, use a fixed epoch anchor in the configured timezone.
 func (service *CoreService) rotationAnchor(loc *time.Location) time.Time {
-	// Attempt to use the earliest created_at among images. Results are ordered by created_at ASC.
-	images, err := service.databaseService.GetImages("created_at")
-	if err != nil || len(images) == 0 {
-		slog.Debug("rotationAnchor: falling back to epoch due to no images or error", "err", err)
-		return time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
-	}
-
-	// Prefer the earliest image
-	var earliest time.Time
-	for _, img := range images {
-		earliest = img.CreatedAt.In(loc)
-		break
-
-	}
-	if earliest.IsZero() {
-		earliest = images[0].CreatedAt.In(loc)
-	}
-
-	// Normalize to start of day in the rotation timezone.
-	return time.Date(earliest.Year(), earliest.Month(), earliest.Day(), 0, 0, 0, 0, loc)
+	return time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
 }
 
 // dayCycle encapsulates rotation timezone, anchor, and day index computations.
@@ -176,7 +156,7 @@ func (service *CoreService) computeDayCycle(t time.Time) dayCycle {
 	}
 	tzTime := t.In(loc)
 
-	// Anchor at the earliest image created_at (start of day in rotation tz); fallback to 1970-01-01 if none.
+	// Anchor at a fixed epoch (start of day) in the rotation timezone.
 	anchor := service.rotationAnchor(loc)
 
 	// Clamp to anchor to avoid negative day indices.
@@ -229,7 +209,7 @@ type ImageSchedule struct {
 func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
 	cycle := service.computeDayCycle(now)
 
-	// Fetch ascending by created_at; SQLite GetImages orders by created_at ASC, rowid ASC
+	// Fetch ascending by rank; SQLite GetImages orders by rank ASC, rowid ASC
 	images, err := service.databaseService.GetImages("id")
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch images: %w", err)
@@ -251,7 +231,7 @@ func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
 func (service *CoreService) GetImageSchedules(date time.Time) ([]ImageSchedule, error) {
 	cycle := service.computeDayCycle(date)
 
-	// Fetch ascending by created_at; SQLite GetImages orders by created_at ASC, rowid ASC
+	// Fetch ascending by rank; SQLite GetImages orders by rank ASC, rowid ASC
 	images, err := service.databaseService.GetImages("id")
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch images: %w", err)
