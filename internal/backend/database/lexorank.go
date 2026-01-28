@@ -66,7 +66,7 @@ func Between(prev, next string) string {
 	i := 0
 	for {
 		// Lower bound character for this position
-		var pr rune = minChar
+		pr := minChar
 		if i < len(p) {
 			pr = p[i]
 		}

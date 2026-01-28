@@ -22,7 +22,7 @@ func TestBetweenUnboundedUpper(t *testing.T) {
 
 func TestBetweenBoundedMidpoint(t *testing.T) {
 	got := Between("A", "C")
-	if !(got > "A" && got < "C") {
+	if got <= "A" || got >= "C" {
 		t.Fatalf("Between(\"A\",\"C\") = %q, want strictly between A and C", got)
 	}
 }
@@ -81,7 +81,7 @@ func TestReorder_SwapAdjacent(t *testing.T) {
 	for id, r := range upd {
 		ranks[id] = r
 	}
-	if !(ranks["b"] < ranks["a"] && ranks["a"] < ranks["c"]) {
+	if ranks["b"] >= ranks["a"] || ranks["a"] >= ranks["c"] {
 		t.Fatalf("final ranks not ordered as b < a < c: %+v", ranks)
 	}
 }
@@ -101,7 +101,7 @@ func TestReorder_InsertAtFrontWithEmptyRank(t *testing.T) {
 	}
 	// New rank for d must be less than 'a' rank
 	newD := upd["d"]
-	if !(newD < existing["a"]) {
+	if newD >= existing["a"] {
 		t.Fatalf("new rank for 'd' = %q, want less than %q", newD, existing["a"])
 	}
 	// Ensure resulting order is strictly increasing
@@ -113,7 +113,7 @@ func TestReorder_InsertAtFrontWithEmptyRank(t *testing.T) {
 	}
 	ids := []string{"d", "a", "b", "c"}
 	for i := 0; i < len(ids)-1; i++ {
-		if !(final[ids[i]] < final[ids[i+1]]) {
+		if final[ids[i]] >= final[ids[i+1]] {
 			t.Fatalf("final ranks not strictly increasing at %s < %s: %+v", ids[i], ids[i+1], final)
 		}
 	}

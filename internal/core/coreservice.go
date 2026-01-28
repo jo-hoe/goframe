@@ -209,26 +209,6 @@ func (service *CoreService) advancePointer(now time.Time, n int) {
 	}
 }
 
-// onImageInserted adjusts the in-memory pointer so that a newly added image,
-// which is appended as the newest by the DB, does not immediately become today's image.
-// By advancing the pointer by one modulo the new list size, we keep the current day's
-// selection stable and position the new image to be shown after the current one.
-func (service *CoreService) onImageInserted() {
-	ids, err := service.getOrderedImageIDs()
-	if err != nil {
-		slog.Warn("CoreService.onImageInserted: failed to fetch images for pointer adjustment", "err", err)
-		return
-	}
-	n := len(ids)
-	if n == 0 {
-		return
-	}
-
-	service.mu.Lock()
-	service.pointer = (service.pointer + 1) % n
-	service.mu.Unlock()
-}
-
 func (service *CoreService) getOrderedImageIDs() ([]string, error) {
 	images, err := service.databaseService.GetImages("id")
 	if err != nil {
