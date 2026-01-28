@@ -15,4 +15,8 @@ type DatabaseService interface {
 	GetImages(fields ...string) ([]*Image, error)
 	DeleteImage(id string) error
 	GetImageByID(id string) (*Image, error)
+
+	// UpdateRanks applies a new ordering to images by rewriting their LexoRank values in the given order atomically.
+	// The first item gets the base rank, and each subsequent item gets nextRank of the previous.
+	UpdateRanks(order []string) error
 }

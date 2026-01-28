@@ -138,10 +138,11 @@ func (s *SQLiteDatabase) CreateImage(original []byte, processed []byte) (string,
 	if err := s.db.QueryRow("SELECT rank FROM images ORDER BY rank DESC, rowid DESC LIMIT 1").Scan(&lastRank); err != nil && err != sql.ErrNoRows {
 		return "", err
 	}
-	newRank := nextRank("")
+	prev := ""
 	if lastRank.Valid {
-		newRank = nextRank(lastRank.String)
+		prev = lastRank.String
 	}
+	newRank := Next(prev)
 
 	// Insert both original and processed image atomically to avoid NULL race windows, with computed rank
 	if s.insertStmt != nil {
@@ -255,4 +256,72 @@ func (s *SQLiteDatabase) GetImageByID(id string) (*Image, error) {
 	}
 
 	return &img, nil
+}
+
+func (s *SQLiteDatabase) UpdateRanks(order []string) error {
+	if len(order) == 0 {
+		return nil
+	}
+
+	// Load existing ranks for specified IDs
+	placeholders := strings.TrimRight(strings.Repeat("?,", len(order)), ",")
+	args := make([]any, 0, len(order))
+	for _, id := range order {
+		args = append(args, id)
+	}
+
+	rows, err := s.db.Query("SELECT id, rank FROM images WHERE id IN ("+placeholders+")", args...)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+
+	existing := make(map[string]string, len(order))
+	for rows.Next() {
+		var id string
+		var rank sql.NullString
+		if err := rows.Scan(&id, &rank); err != nil {
+			return err
+		}
+		if rank.Valid {
+			existing[id] = rank.String
+		} else {
+			existing[id] = ""
+		}
+	}
+
+	updates := Reorder(existing, order)
+	if len(updates) == 0 {
+		return nil
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	// Ensure rollback on error
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	stmt, err := tx.Prepare("UPDATE images SET rank = ? WHERE id = ?")
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	defer func() { _ = stmt.Close() }()
+
+	for id, newRank := range updates {
+		if _, err = stmt.Exec(newRank, id); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+	}
+
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	return nil
 }

@@ -223,6 +223,11 @@ func (service *CoreService) getOrderedImageIDs() ([]string, error) {
 	return ids, nil
 }
 
+// GetOrderedImageIDs exposes the persisted order of images (ascending by rank).
+func (service *CoreService) GetOrderedImageIDs() ([]string, error) {
+	return service.getOrderedImageIDs()
+}
+
 // ImageSchedule represents when an image will be shown next according to rotation rules.
 type ImageSchedule struct {
 	ID       string
@@ -310,4 +315,42 @@ func (service *CoreService) GetImageSchedules(date time.Time) ([]ImageSchedule, 
 		})
 	}
 	return schedules, nil
+}
+
+// UpdateImageOrder updates the persistent order (LexoRanks) to match the given list of IDs,
+// attempting to preserve the currently selected image by adjusting the in-memory pointer.
+func (service *CoreService) UpdateImageOrder(order []string) error {
+	if len(order) == 0 {
+		return nil
+	}
+
+	// Try to preserve the currently selected image after reordering
+	currentID, _ := service.GetImageForTime(time.Now())
+
+	if err := service.databaseService.UpdateRanks(order); err != nil {
+		return err
+	}
+
+	n := len(order)
+	if n == 0 {
+		return nil
+	}
+
+	if currentID != "" {
+		idx := -1
+		for i, id := range order {
+			if id == currentID {
+				idx = i
+				break
+			}
+		}
+		if idx >= 0 {
+			// After re-ranking, adjust the pointer so that GetImageForTime yields currentID
+			service.mu.Lock()
+			service.pointer = (n - 1) - idx
+			service.mu.Unlock()
+		}
+	}
+
+	return nil
 }

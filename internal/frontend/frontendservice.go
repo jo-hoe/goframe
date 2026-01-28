@@ -5,7 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -46,12 +45,12 @@ func (service *FrontendService) SetRoutes(e *echo.Echo) {
 	e.GET("/", service.rootRedirectHandler) // Redirect root to index.html
 	e.GET("/"+MainPageName, service.indexHandler)
 	e.POST("/htmx/uploadImage", service.htmxUploadImageHandler)
-	e.GET("/htmx/image", service.htmxGetCurrentImageHandler)
 
 	// Routes for listing, fetching by ID, and deleting images
 	e.GET("/htmx/images", service.htmxListImagesHandler)
 	e.GET("/htmx/image/original-thumb/:id", service.htmxGetOriginalThumbnailByIDHandler)
 	e.DELETE("/htmx/image/:id", service.htmxDeleteImageHandler)
+	e.POST("/htmx/image/:id/move", service.htmxMoveImageHandler)
 
 	// Favicon (SVG) route
 	e.GET("/icon.svg", service.iconHandler)
@@ -100,22 +99,19 @@ func (service *FrontendService) htmxUploadImageHandler(ctx echo.Context) error {
 	// Return an out-of-band swap to refresh the displayed image, plus a simple status message
 	ts := service.timestampNanoStr()
 
-	// Build out-of-band update for the current image
-	currentImageOOB := service.buildCurrentImageOOB(ts)
-
 	// Build out-of-band update for the image list
 	imageListHTML, listErr := service.buildImageListHTML(ts)
 	if listErr != nil {
 		// If building the list fails, still return the current image update and upload result
 		slog.Error("htmxUploadImageHandler: failed to list images for OOB update",
 			"status", http.StatusInternalServerError, "error", listErr)
-		html := fmt.Sprintf(`<div id="upload-result">Uploaded file: %s</div>%s`, file.Filename, currentImageOOB)
+		html := fmt.Sprintf(`<div id="upload-result">Uploaded file: %s</div>`, file.Filename)
 		return ctx.HTML(http.StatusOK, html)
 	}
 	imageListOOB := fmt.Sprintf(`<div id="image-list" hx-swap-oob="true">%s</div>`, imageListHTML)
 
-	// Return combined HTML with OOB swaps for current image and image list
-	html := fmt.Sprintf(`<div id="upload-result">Uploaded file: %s</div>%s%s`, file.Filename, currentImageOOB, imageListOOB)
+	// Return HTML with OOB swap for image list
+	html := fmt.Sprintf(`<div id="upload-result">Uploaded file: %s</div>%s`, file.Filename, imageListOOB)
 	return ctx.HTML(http.StatusOK, html)
 }
 
@@ -131,42 +127,6 @@ func (service *FrontendService) htmxListImagesHandler(ctx echo.Context) error {
 	service.setNoCache(ctx)
 
 	return ctx.HTML(http.StatusOK, listHTML)
-}
-
-func (service *FrontendService) htmxGetCurrentImageHandler(ctx echo.Context) error {
-	id, err := service.coreService.GetImageForTime(time.Now())
-	if err != nil {
-		slog.Warn("htmxGetCurrentImageHandler: failed to get image for current time",
-			"status", http.StatusNotFound,
-			"route", "/htmx/image",
-			"error", err)
-		return ctx.String(http.StatusNotFound, "No image available for current time")
-	}
-
-	image, err := service.coreService.GetImageById(id)
-	if err != nil || len(image.OriginalImage) == 0 {
-		slog.Warn("htmxGetCurrentImageHandler: image not available",
-			"status", http.StatusNotFound,
-			"route", "/htmx/image",
-			"image_id", id,
-			"error", err)
-		return ctx.String(http.StatusNotFound, "Image not available")
-	}
-
-	thumbnail, err := service.toThumbnail(image.OriginalImage)
-	if err != nil || len(thumbnail) == 0 {
-		slog.Warn("htmxGetCurrentImageHandler: thumbnail not available",
-			"status", http.StatusNotFound,
-			"route", "/htmx/image",
-			"error", err)
-		return ctx.String(http.StatusNotFound, "Thumbnail not available")
-	}
-
-	// Prevent caching so the latest uploaded image is always shown
-	service.setNoCache(ctx)
-
-	// Return the image data
-	return ctx.Blob(http.StatusOK, mimePNG, thumbnail)
 }
 
 func (service *FrontendService) htmxGetOriginalThumbnailByIDHandler(ctx echo.Context) error {
@@ -221,14 +181,11 @@ func (service *FrontendService) htmxDeleteImageHandler(ctx echo.Context) error {
 		return ctx.String(http.StatusInternalServerError, "Failed to list images")
 	}
 
-	// Also refresh current image via OOB swap to reflect deletion change
-	currentImageOOB := service.buildCurrentImageOOB(ts)
-
 	// Prevent caching so the latest state is shown
 	service.setNoCache(ctx)
 
-	// Return list HTML (to swap into #image-list) plus OOB update for current image
-	return ctx.HTML(http.StatusOK, listHTML+currentImageOOB)
+	// Return list HTML (to swap into #image-list)
+	return ctx.HTML(http.StatusOK, listHTML)
 }
 
 func (service *FrontendService) toThumbnail(image []byte) ([]byte, error) {
@@ -254,46 +211,6 @@ func (service *FrontendService) timestampNanoStr() string {
 	return fmt.Sprintf("%d", time.Now().UnixNano())
 }
 
-func (service *FrontendService) buildCurrentImageOOB(ts string) string {
-	return fmt.Sprintf(`<img id="current-image" src="/htmx/image?ts=%s" hx-swap-oob="true" alt="Current image" style="display:none" onload="this.style.display='block'; document.getElementById('no-image').style.display='none';" onerror="this.style.display='none'; document.getElementById('no-image').style.display='block';">`, ts)
-}
-
-type imageItem struct {
-	id   string
-	next time.Time
-}
-
-func (service *FrontendService) getSortedImageItems(now time.Time) ([]imageItem, error) {
-	ids, err := service.coreService.GetAllImageIDs()
-	if err != nil {
-		return nil, err
-	}
-
-	// Build map of next show times; non-fatal when schedules fail
-	schedules, schedErr := service.coreService.GetImageSchedules(now)
-	if schedErr != nil {
-		slog.Warn("getSortedImageItems: failed to compute schedules", "error", schedErr)
-	}
-	nextShowMap := make(map[string]time.Time, len(schedules))
-	for _, s := range schedules {
-		nextShowMap[s.ID] = s.NextShow
-	}
-
-	// sort by next show date ascending (soonest first)
-	items := make([]imageItem, 0, len(ids))
-	farFuture := time.Unix(1<<62-1, 0) // push unknowns to the end
-	for _, id := range ids {
-		t, ok := nextShowMap[id]
-		if !ok {
-			t = farFuture
-		}
-		items = append(items, imageItem{id: id, next: t})
-	}
-	sort.Slice(items, func(i, j int) bool { return items[i].next.Before(items[j].next) })
-
-	return items, nil
-}
-
 func (service *FrontendService) formatNextShow(t time.Time) string {
 	if !t.IsZero() && t.Unix() > 0 && t.Year() > 1 {
 		return t.Format("2006-01-02 15:04")
@@ -302,30 +219,118 @@ func (service *FrontendService) formatNextShow(t time.Time) string {
 }
 
 func (service *FrontendService) buildImageListHTML(ts string) (string, error) {
-	items, err := service.getSortedImageItems(time.Now())
+	// Render strictly in persisted DB order for deterministic Up/Down moves
+	ids, err := service.coreService.GetOrderedImageIDs()
 	if err != nil {
 		return "", err
 	}
 
+	// compute per-position date, with the first item shown as today's date
+	base := time.Now()
+
 	var b strings.Builder
-	if len(items) == 0 {
+	if len(ids) == 0 {
 		b.WriteString(`<p>No images uploaded yet.</p>`)
 		return b.String(), nil
 	}
 
-	b.WriteString(`<div class="vertical-list">`)
-	for _, it := range items {
-		nextStr := service.formatNextShow(it.next)
-		b.WriteString(fmt.Sprintf(`<div class="vertical-item" style="margin-bottom:1rem"><article>
+	b.WriteString(`<div class="vertical-list" id="image-sort-list">`)
+	for i, id := range ids {
+		showDate := base.AddDate(0, 0, i)
+		nextStr := service.formatNextShow(showDate)
+		// Controls: Up disabled for first, Down disabled for last
+		disableUp := ""
+		disableDown := ""
+		if i == 0 {
+			disableUp = " disabled"
+		}
+		if i == len(ids)-1 {
+			disableDown = " disabled"
+		}
+
+		b.WriteString(fmt.Sprintf(`<div class="vertical-item" data-id="%s" style="margin-bottom:1rem"><article>
 	<img src="/htmx/image/original-thumb/%s?ts=%s" alt="Original thumbnail %s" style="max-width:100%%;height:auto">
-	<footer>
-		<small>Next shown: %s</small>
-		<button hx-delete="/htmx/image/%s" hx-target="#image-list" hx-swap="innerHTML" class="secondary">Delete</button>
+	<footer style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+		<small>Date: %s</small>
+		<div style="display:flex;gap:0.5rem">
+			<button hx-post="/htmx/image/%s/move?dir=up" hx-target="#image-list" hx-swap="innerHTML"%s aria-label="Move up" title="Move up">
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+					<polygon points="12,5 19,18 5,18" />
+				</svg>
+			</button>
+			<button hx-post="/htmx/image/%s/move?dir=down" hx-target="#image-list" hx-swap="innerHTML"%s aria-label="Move down" title="Move down">
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+					<polygon points="5,6 19,6 12,19" />
+				</svg>
+			</button>
+			<button hx-delete="/htmx/image/%s" hx-target="#image-list" hx-swap="innerHTML" class="secondary">Delete</button>
+		</div>
 	</footer>
-</article></div>`, it.id, ts, it.id, nextStr, it.id))
+</article></div>`, id, id, ts, id, nextStr, id, disableUp, id, disableDown, id))
 	}
 	b.WriteString(`</div>`)
 	return b.String(), nil
+}
+
+func (service *FrontendService) htmxMoveImageHandler(ctx echo.Context) error {
+	id := ctx.Param("id")
+	dir := strings.ToLower(strings.TrimSpace(ctx.QueryParam("dir")))
+	if id == "" || (dir != "up" && dir != "down") {
+		slog.Warn("htmxMoveImageHandler: invalid params", "id", id, "dir", dir)
+		return ctx.String(http.StatusBadRequest, "Invalid parameters")
+	}
+
+	// Get current order from DB
+	order, err := service.coreService.GetOrderedImageIDs()
+	if err != nil {
+		slog.Error("htmxMoveImageHandler: failed to get order", "error", err)
+		return ctx.String(http.StatusInternalServerError, "Failed to fetch order")
+	}
+	if len(order) == 0 {
+		return ctx.String(http.StatusBadRequest, "No images")
+	}
+
+	// Find index
+	idx := -1
+	for i := range order {
+		if order[i] == id {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return ctx.String(http.StatusBadRequest, "Image not found")
+	}
+
+	// Compute target index and swap
+	switch dir {
+	case "up":
+		if idx > 0 {
+			order[idx], order[idx-1] = order[idx-1], order[idx]
+		}
+	case "down":
+		if idx < len(order)-1 {
+			order[idx], order[idx+1] = order[idx+1], order[idx]
+		}
+	}
+
+	if err := service.coreService.UpdateImageOrder(order); err != nil {
+		slog.Error("htmxMoveImageHandler: failed to update order", "error", err)
+		return ctx.String(http.StatusInternalServerError, "Failed to update order")
+	}
+
+	// Rebuild list
+	ts := service.timestampNanoStr()
+	listHTML, err := service.buildImageListHTML(ts)
+	if err != nil {
+		slog.Error("htmxMoveImageHandler: failed to rebuild image list", "error", err)
+		return ctx.String(http.StatusInternalServerError, "Failed to rebuild image list")
+	}
+
+	// Prevent caching
+	service.setNoCache(ctx)
+
+	return ctx.HTML(http.StatusOK, listHTML)
 }
 
 func (service *FrontendService) iconHandler(ctx echo.Context) error {
