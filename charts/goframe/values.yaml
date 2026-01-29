@@ -142,3 +142,7 @@ extraEnv: []
 extraEnvFrom: []
 # - secretRef:
 #     name: my-secret
+
+# Raw config.yaml content (string). Prefer to inject via Helm --set-file configRaw=path/to/config.yaml
+# If provided, charts/goframe/templates/configmap.yaml will render this verbatim and ignore .Values.config.
+configRaw: ""

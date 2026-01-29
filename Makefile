@@ -38,11 +38,11 @@ IMAGE_VERSION := latest
 
 .PHONY: start-cluster
 start-cluster: # starts k3d cluster and registry
-	@k3d cluster create --config ${ROOT_DIR}k3d/clusterconfig.yaml
+	@k3d cluster create --config ${ROOT_DIR}dev/clusterconfig.yaml
 
 .PHONY: stop-k3d
 stop-k3d: ## stop K3d
-	@k3d cluster delete --config ${ROOT_DIR}k3d/clusterconfig.yaml
+	@k3d cluster delete --config ${ROOT_DIR}dev/clusterconfig.yaml
 
 .PHONY: restart-k3d
 restart-k3d: stop-k3d start-k3d ## restarts K3d
@@ -57,7 +57,8 @@ push-k3d: ## build and push docker image to local k3d registry
 start-k3d: start-cluster push-k3d ## start k3d cluster and deploy helm chart
 	@helm upgrade --install ${IMAGE_NAME} ${ROOT_DIR}charts/${IMAGE_NAME}  \
 		-f ${ROOT_DIR}dev/values.k3d.yaml \
-		--set image.repository=registry.localhost:5000/${IMAGE_NAME} --set image.tag=${IMAGE_VERSION}
+		--set image.repository=registry.localhost:5000/${IMAGE_NAME} --set image.tag=${IMAGE_VERSION} \
+		--set-file configRaw=${ROOT_DIR}config.yaml
 
 .PHONY: generate-helm-docs
 generate-helm-docs: ## re-generates helm docs using docker

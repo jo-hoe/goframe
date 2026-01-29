@@ -10,32 +10,6 @@ service:
   port: 80
   targetPort: 8080
 
-# Optionally override app config for local runs
-config:
-  port: 8080
-  database:
-    type: sqlite
-    connectionString: ":memory:"
-  imageTargetType: "png"
-  commands:
-    - name: OrientationCommand
-      orientation: portrait
-    - name: ScaleCommand
-      height: 1600
-      width: 1200
-    - name: CropCommand
-      height: 1600
-      width: 1200
-    - name: DitherCommand
-      # Spectra 6 optimized palette
-      # credit for this palette example goes to https://github.com/Utzel-Butzel/epdoptimize
-      palette:
-        - [[0, 0, 0],[25, 30, 33]]          # Black
-        - [[255, 255, 255],[232, 232, 232]] # White
-        - [[255, 255, 0],[239, 222, 68]]    # Yellow
-        - [[0, 0, 255],[33, 87, 186]]       # Blue
-        - [[255, 0, 0],[178, 19, 24]]       # Red
-        - [[0, 255, 0],[18, 95, 32]]        # Green
 
 # Ingress disabled by default for k3d; direct access available at http://localhost:8080/
 ingress:

@@ -6,4 +6,8 @@ metadata:
     {{- include "goframe.labels" . | nindent 4 }}
 data:
   config.yaml: |
+    {{- if .Values.configRaw }}
+    {{ .Values.configRaw | nindent 4 }}
+    {{- else }}
     {{- toYaml .Values.config | nindent 4 }}
+    {{- end }}
