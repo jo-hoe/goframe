@@ -11,6 +11,8 @@ commands:
   - name: ScaleCommand
     height: 1920
     width: 1080
+    # When true, fill padding with adaptive edge gradient (fades to black/white per edge)
+    edge_gradient: false
   - name: CropCommand
     height: 1600
     width: 1200

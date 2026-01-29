@@ -2,6 +2,7 @@ package commandstructure
 
 import (
 	"fmt"
+	"strings"
 )
 
 // GetStringParam safely extracts a string parameter from the params map
@@ -24,6 +25,26 @@ func GetIntParam(params map[string]any, key string, defaultValue int) int {
 			return int(v)
 		case float64:
 			return int(v)
+		}
+	}
+	return defaultValue
+}
+
+// GetBoolParam safely extracts a bool parameter from the params map
+// Accepts common truthy/falsey representations: true/false, 1/0, yes/no, on/off (case-insensitive).
+func GetBoolParam(params map[string]any, key string, defaultValue bool) bool {
+	if val, ok := params[key]; ok {
+		switch v := val.(type) {
+		case string:
+			s := strings.ToLower(strings.TrimSpace(v))
+			switch s {
+			case "true":
+				return true
+			case "false":
+				return false
+			default:
+				return defaultValue
+			}
 		}
 	}
 	return defaultValue
