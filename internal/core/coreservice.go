@@ -170,6 +170,7 @@ func (service *CoreService) dayStart(t time.Time, loc *time.Location) time.Time 
 // advancePointer moves the in-memory pointer forward by the number of days
 // elapsed since the last recorded day in the rotation timezone. It does not move backwards.
 func (service *CoreService) advancePointer(now time.Time, n int) {
+	// Rotate persisted order forward by whole days at midnight so that index 0 is always "today".
 	loc := service.loadRotationLocation()
 	todayMid := service.dayStart(now, loc)
 
@@ -186,7 +187,16 @@ func (service *CoreService) advancePointer(now time.Time, n int) {
 	if todayMid.After(service.lastDay) {
 		days := int(todayMid.Sub(service.lastDay).Hours() / 24.0)
 		if days > 0 && n > 0 {
-			service.pointer = (service.pointer + days) % n
+			// Compute rotation by k positions (left shift): today's should become previous "tomorrow"
+			k := days % n
+
+			ids, err := service.getOrderedImageIDs()
+			if err == nil && len(ids) == n {
+				// Rotate left by k: new order = ids[k:] + ids[:k]
+				newOrder := append([]string{}, ids[k:]...)
+				newOrder = append(newOrder, ids[:k]...)
+				_ = service.databaseService.UpdateRanks(newOrder)
+			}
 		}
 		service.lastDay = todayMid
 	}
@@ -209,20 +219,9 @@ func (service *CoreService) GetOrderedImageIDs() ([]string, error) {
 	return service.getOrderedImageIDs()
 }
 
-// GetCurrentImageID returns the current image as the first item in the persisted order.
-// This aligns the API/Frontend semantics so that reordering the list changes the current image.
-func (service *CoreService) GetCurrentImageID() (string, error) {
-	ids, err := service.getOrderedImageIDs()
-	if err != nil {
-		return "", err
-	}
-	if len(ids) == 0 {
-		return "", fmt.Errorf("no images")
-	}
-	return ids[0], nil
-}
-
 func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
+	// Ensure persisted order reflects the day change so index 0 is "today"
+	// First fetch count to compute rotation
 	ids, err := service.getOrderedImageIDs()
 	if err != nil {
 		return "", err
@@ -232,16 +231,20 @@ func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
 		return "", fmt.Errorf("no images")
 	}
 
-	// Advance the in-memory pointer if a new day started
+	// Rotate persisted order if a new day started
 	service.advancePointer(now, n)
 
-	// LIFO: newest first. Since ids is ascending, pick from end.
-	service.mu.Lock()
-	idx := service.pointer % n
-	service.mu.Unlock()
+	// Re-fetch order after potential rotation
+	ids, err = service.getOrderedImageIDs()
+	if err != nil {
+		return "", err
+	}
+	if len(ids) == 0 {
+		return "", fmt.Errorf("no images")
+	}
 
-	indexFromEnd := n - 1 - idx
-	return ids[indexFromEnd], nil
+	// Index 0 is today's image
+	return ids[0], nil
 }
 
 // UpdateImageOrder updates the persistent order (LexoRanks) to match the given list of IDs,
@@ -250,9 +253,6 @@ func (service *CoreService) UpdateImageOrder(order []string) error {
 	if len(order) == 0 {
 		return nil
 	}
-
-	// Try to preserve the currently selected image after reordering
-	currentID, _ := service.GetImageForTime(time.Now())
 
 	if err := service.databaseService.UpdateRanks(order); err != nil {
 		return err
@@ -263,21 +263,11 @@ func (service *CoreService) UpdateImageOrder(order []string) error {
 		return nil
 	}
 
-	if currentID != "" {
-		idx := -1
-		for i, id := range order {
-			if id == currentID {
-				idx = i
-				break
-			}
-		}
-		if idx >= 0 {
-			// After re-ranking, adjust the pointer so that GetImageForTime yields currentID
-			service.mu.Lock()
-			service.pointer = (n - 1) - idx
-			service.mu.Unlock()
-		}
-	}
+	// After re-ranking, make the top-of-list (index 0) be today's image.
+	// This ensures moving an item to the top immediately makes it today's image as returned by /api/image.png.
+	service.mu.Lock()
+	service.pointer = 0
+	service.mu.Unlock()
 
 	return nil
 }

@@ -34,15 +34,15 @@ func TestLIFOSelectionCycles(t *testing.T) {
 	svc := newTestCoreService(t, "UTC")
 
 	// Insert three images (processed non-empty); insertion order defines created_at ASC position
-	id1, err := svc.databaseService.CreateImage([]byte("orig1"), []byte("proc1"))
+	_, err := svc.databaseService.CreateImage([]byte("orig1"), []byte("proc1"))
 	if err != nil {
 		t.Fatalf("CreateImage #1 error: %v", err)
 	}
-	id2, err := svc.databaseService.CreateImage([]byte("orig2"), []byte("proc2"))
+	_, err = svc.databaseService.CreateImage([]byte("orig2"), []byte("proc2"))
 	if err != nil {
 		t.Fatalf("CreateImage #2 error: %v", err)
 	}
-	id3, err := svc.databaseService.CreateImage([]byte("orig3"), []byte("proc3"))
+	_, err = svc.databaseService.CreateImage([]byte("orig3"), []byte("proc3"))
 	if err != nil {
 		t.Fatalf("CreateImage #3 error: %v", err)
 	}
@@ -50,8 +50,12 @@ func TestLIFOSelectionCycles(t *testing.T) {
 	loc := mustLocation(t, "UTC")
 	anchor := time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
 
-	// Expected LIFO sequence for consecutive days with 3 items: newest-first wrapping
-	expected := []string{id3, id2, id1, id3, id2, id1}
+	// Expected FIFO/top-of-list sequence for consecutive days with 3 items: first to last wrapping
+	order, err := svc.GetOrderedImageIDs()
+	if err != nil || len(order) != 3 {
+		t.Fatalf("failed to fetch order after inserts: err=%v len=%d", err, len(order))
+	}
+	expected := []string{order[0], order[1], order[2], order[0], order[1], order[2]}
 	for k := 0; k < len(expected); k++ {
 		now := anchor.Add(time.Hour * 24 * time.Duration(k))
 		got, err := svc.GetImageForTime(now)
@@ -71,7 +75,7 @@ func TestDeletionMidDayAdvancesSelection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateImage #1 error: %v", err)
 	}
-	id2, err := svc.databaseService.CreateImage([]byte("orig2"), []byte("proc2"))
+	_, err = svc.databaseService.CreateImage([]byte("orig2"), []byte("proc2"))
 	if err != nil {
 		t.Fatalf("CreateImage #2 error: %v", err)
 	}
@@ -83,17 +87,17 @@ func TestDeletionMidDayAdvancesSelection(t *testing.T) {
 	loc := mustLocation(t, "UTC")
 	anchor := time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
 
-	// Day 0 should pick newest (id3)
+	// Day 0 should pick top-of-list (id1)
 	now := anchor
 	chosen, err := svc.GetImageForTime(now)
 	if err != nil {
 		t.Fatalf("initial selection error: %v", err)
 	}
-	if chosen != id3 {
-		t.Fatalf("expected newest id %s, got %s", id3, chosen)
+	if chosen != id1 {
+		t.Fatalf("expected top-of-list id %s, got %s", id1, chosen)
 	}
 
-	// Delete the chosen image; selection should move to next LIFO (id2) for the same timestamp
+	// Delete a non-top image; today's selection should remain the top-of-list (id1) for the same timestamp
 	if err := svc.databaseService.DeleteImage(id3); err != nil {
 		t.Fatalf("DeleteImage error: %v", err)
 	}
@@ -101,8 +105,8 @@ func TestDeletionMidDayAdvancesSelection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("selection after deletion error: %v", err)
 	}
-	if chosen2 != id2 {
-		t.Fatalf("after deletion expected next id %s, got %s (id1=%s)", id2, chosen2, id1)
+	if chosen2 != id1 {
+		t.Fatalf("after deletion expected id %s to remain today, got %s", id1, chosen2)
 	}
 }
 

@@ -213,7 +213,7 @@ func (service *FrontendService) timestampNanoStr() string {
 
 func (service *FrontendService) formatNextShow(t time.Time) string {
 	if !t.IsZero() && t.Unix() > 0 && t.Year() > 1 {
-		return t.Format("2006-01-02 15:04")
+		return t.Format("2006-01-02")
 	}
 	return "unknown"
 }
@@ -225,14 +225,13 @@ func (service *FrontendService) buildImageListHTML(ts string) (string, error) {
 		return "", err
 	}
 
-	// compute per-position date, with the first item shown as today's date
-	base := time.Now()
-
 	var b strings.Builder
 	if len(ids) == 0 {
 		b.WriteString(`<p>No images uploaded yet.</p>`)
 		return b.String(), nil
 	}
+	// compute per-position dates; top of list is today's image
+	base := time.Now()
 
 	b.WriteString(`<div class="vertical-list" id="image-sort-list">`)
 	for i, id := range ids {
@@ -251,7 +250,7 @@ func (service *FrontendService) buildImageListHTML(ts string) (string, error) {
 		b.WriteString(fmt.Sprintf(`<div class="vertical-item" data-id="%s" style="margin-bottom:1rem"><article>
 	<img src="/htmx/image/original-thumb/%s?ts=%s" alt="Original thumbnail %s" style="max-width:100%%;height:auto">
 	<footer style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
-		<small>Date: %s</small>
+		<small>Scheduled date: %s</small>
 		<div style="display:flex;gap:0.5rem">
 			<button hx-post="/htmx/image/%s/move?dir=up" hx-target="#image-list" hx-swap="innerHTML"%s aria-label="Move up" title="Move up">
 				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">

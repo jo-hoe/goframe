@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/jo-hoe/goframe/internal/core"
 
@@ -36,7 +37,7 @@ func (s *APIService) SetRoutes(e *echo.Echo) {
 }
 
 func (s *APIService) handleGetCurrentImage(ctx echo.Context) error {
-	imageId, err := s.coreService.GetCurrentImageID()
+	imageId, err := s.coreService.GetImageForTime(time.Now())
 	if err != nil {
 		return ctx.String(500, "Failed to get current image")
 	}
@@ -48,6 +49,10 @@ func (s *APIService) handleGetCurrentImage(ctx echo.Context) error {
 
 	// Set Content-Length header explicitly to allow clients to know exact payload size
 	ctx.Response().Header().Set(echo.HeaderContentLength, strconv.Itoa(len(imageData.ProcessedImage)))
+	// Prevent caching so clients fetch the new image after midnight
+	ctx.Response().Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	ctx.Response().Header().Set("Pragma", "no-cache")
+	ctx.Response().Header().Set("Expires", "0")
 	return ctx.Blob(200, "image/png", imageData.ProcessedImage)
 }
 
