@@ -19,25 +19,7 @@ The service provides a web UI to upload and manage images, applies a configurabl
 
 ## Supported commands and parameters
 
-Configure the processing pipeline via the `commands` section in `config.yaml`. Supported commands:
-
-- OrientationCommand
-  - orientation: portrait | landscape
-- ScaleCommand
-  - height: int
-  - width: int
-- PixelScaleCommand
-  - height: int (optional)
-  - width: int (optional)
-  - At least one of height or width must be provided
-- CropCommand
-  - height: int
-  - width: int
-- DitherCommand
-  - palette: list of device/dither color pairs. Each entry is [[devR,devG,devB],[dithR,dithG,dithB]].
-    - Example:
-      - [[0, 0, 0],[25, 30, 33]]
-      - [[255, 255, 255],[232, 232, 232]]
+Configure the processing pipeline via the `commands` section in `config.yaml`.
 
 Refer to `config.example.yaml` for a full example including a custom palette for dithering.
 
