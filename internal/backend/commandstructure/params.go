@@ -31,7 +31,6 @@ func GetIntParam(params map[string]any, key string, defaultValue int) int {
 }
 
 // GetBoolParam safely extracts a bool parameter from the params map
-// Accepts common truthy/falsey representations: true/false, 1/0, yes/no, on/off (case-insensitive).
 func GetBoolParam(params map[string]any, key string, defaultValue bool) bool {
 	if val, ok := params[key]; ok {
 		switch v := val.(type) {
@@ -45,6 +44,8 @@ func GetBoolParam(params map[string]any, key string, defaultValue bool) bool {
 			default:
 				return defaultValue
 			}
+		case bool:
+			return v
 		}
 	}
 	return defaultValue

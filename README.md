@@ -70,7 +70,7 @@ Steps:
 2. Run the server:
    - go run ./cmd/server
    - or build first: `go build ./...` then run the built binary
-3. Open the UI: http://localhost:8080/
+3. Open the UI: <http://localhost:8080/>
    - Upload an image
    - See current image thumbnail and the schedule list
    - Delete images if needed
@@ -79,6 +79,7 @@ API test:
 
 - Health: `curl http://localhost:8080/probe`
 - Current processed image (PNG): `curl -s http://localhost:8080/api/image.png -o current.png`
+- Upload an image (multipart/form-data, field "image"): `curl -s -X POST -F "image=@/path/to/your/image.png" http://localhost:8080/api/image`
 
 ## Make
 
