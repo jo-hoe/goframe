@@ -27,7 +27,7 @@ func NewScaleParamsFromMap(params map[string]any) (*ScaleParams, error) {
 
 	height := commandstructure.GetIntParam(params, "height", 0)
 	width := commandstructure.GetIntParam(params, "width", 0)
-	edgeGradient := commandstructure.GetBoolParam(params, "edge_gradient", false)
+	edgeGradient := commandstructure.GetBoolParam(params, "edgeGradient", false)
 
 	// Validate dimensions are positive
 	if height <= 0 {
