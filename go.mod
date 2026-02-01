@@ -6,7 +6,7 @@ require (
 	github.com/labstack/echo/v4 v4.15.0
 	golang.org/x/image v0.34.0
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/sqlite v1.42.2
+	modernc.org/sqlite v1.44.3
 )
 
 require (
