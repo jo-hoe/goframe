@@ -26,7 +26,7 @@ func NewScaleParamsFromMap(params map[string]any) (*ScaleParams, error) {
 	}
 
 	height := commandstructure.GetIntParam(params, "height", 0)
-	width := commandstructure.GetIntParam(params, "width", 0)
+	width := commandstructure.GetIntPaam(params, "width", 0)
 	edgeGradient := commandstructure.GetBoolParam(params, "edgeGradient", false)
 
 	// Validate dimensions are positive
@@ -141,8 +141,9 @@ func (c *ScaleCommand) Execute(imageData []byte) ([]byte, error) {
 	xMap, yMap := buildIndexMaps(originalWidth, originalHeight, scaledWidth, scaledHeight)
 	drawScaledNearest(targetImg, img, offsetX, offsetY, scaledWidth, scaledHeight, xMap, yMap)
 
-	// Optional: Fill padding areas with gradient from image edge colors to black/white border
-	if c.params.EdgeGradient && (offsetX > 0 || offsetY > 0) {
+	// Optional: Fill padding areas with gradient from image edge colors to black/white border.
+	// Use scaled vs target size to detect any padding (including 1px on one side when centering odd differences).
+	if c.params.EdgeGradient && (scaledWidth < targetWidth || scaledHeight < targetHeight) {
 		fillEdgeGradientPadding(targetImg, offsetX, offsetY, scaledWidth, scaledHeight)
 	}
 
@@ -370,17 +371,34 @@ func blendEdgeToTarget(edge, target color.RGBA, t float64) color.RGBA {
 // to a normalized position t in [0..1] across the interval. When invert is true,
 // t=0 at end and t=1 at start (reverse fade), otherwise t=0 at start and t=1 at end.
 func computeLinearTFunc(start, end int, invert bool) func(i int) float64 {
-	denom := end - start + 1
-	if denom < 1 {
-		denom = 1
+	// Map linearly from [start..end] to [0..1], reaching exactly 1.0 at 'end' (or 'start' when invert).
+	length := end - start
+	if length <= 0 {
+		if invert {
+			return func(i int) float64 { return 1.0 }
+		}
+		return func(i int) float64 { return 0.0 }
 	}
+	invLen := float64(length)
 	if invert {
 		return func(i int) float64 {
-			return float64(end-i) / float64(denom)
+			t := float64(end-i) / invLen
+			if t < 0 {
+				t = 0
+			} else if t > 1 {
+				t = 1
+			}
+			return t
 		}
 	}
 	return func(i int) float64 {
-		return float64(i-start) / float64(denom)
+		t := float64(i-start) / invLen
+		if t < 0 {
+			t = 0
+		} else if t > 1 {
+			t = 1
+		}
+		return t
 	}
 }
 
