@@ -1,6 +1,6 @@
 # goframe
 
-![Version: 2.2.0](https://img.shields.io/badge/Version-2.2.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.2.0](https://img.shields.io/badge/AppVersion-2.2.0-informational?style=flat-square)
+![Version: 2.3.0](https://img.shields.io/badge/Version-2.3.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.3.0](https://img.shields.io/badge/AppVersion-2.3.0-informational?style=flat-square)
 
 Helm chart for the goframe image processing web service
 
@@ -13,14 +13,14 @@ Helm chart for the goframe image processing web service
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` | Affinity rules for Pod scheduling |
-| config | object | `{"commands":[{"name":"OrientationCommand","orientation":"portrait"},{"name":"DitherCommand"}],"database":{"connectionString":"file:goframe.db?cache=shared&mode=rwc","type":"sqlite"},"imageTargetType":"png","port":8080,"rotationTimezone":"UTC","thumbnailWidth":512}` | Application configuration rendered into config.yaml and mounted into the container |
+| config | object | `{"commands":[{"name":"OrientationCommand","orientation":"portrait"},{"name":"DitherCommand"}],"database":{"connectionString":"file:goframe.db?cache=shared&mode=rwc","type":"sqlite"},"port":8080,"rotationTimezone":"UTC","svgFallbackHeight":4096,"svgFallbackWidth":3072,"thumbnailWidth":512}` | Application configuration rendered into config.yaml and mounted into the container |
 | config.commands | list | `[{"name":"OrientationCommand","orientation":"portrait"},{"name":"DitherCommand"}]` | Processing pipeline configuration Supported command names and parameters: - OrientationCommand: orientation [portrait|landscape] - ScaleCommand: height (int), width (int), edgeGradient (bool, optional; default false) - PixelScaleCommand: height (int, optional), width (int, optional) - at least one must be provided - CropCommand: height (int), width (int) - PngConverterCommand: no parameters; enforces PNG output - DitherCommand: palette (list of device/dither pairs), e.g. [[[0,0,0],[25,30,33]], [[255,255,255],[232,232,232]]] Examples (uncomment to use): - name: ScaleCommand   height: 1920   width: 1080   edgeGradient: false - name: PixelScaleCommand   width: 1080 - name: CropCommand   height: 1600   width: 1200 - name: PngConverterCommand - name: DitherCommand   palette:     - [[0, 0, 0],[25, 30, 33]]     - [[255, 255, 255],[232, 232, 232]] |
 | config.database | object | `{"connectionString":"file:goframe.db?cache=shared&mode=rwc","type":"sqlite"}` | Database configuration |
 | config.database.connectionString | string | `"file:goframe.db?cache=shared&mode=rwc"` | Connection string (':memory:' for in-memory SQLite) |
 | config.database.type | string | `"sqlite"` | Database driver (e.g., sqlite) |
-| config.imageTargetType | string | `"png"` | Output image format for the /api/image endpoint |
 | config.port | int | `8080` | Port of the application |
 | config.rotationTimezone | string | `"UTC"` | Timezone used for image rotation scheduling |
+| config.svgFallbackWidth | int | `3072` | Fallback size used when rendering SVGs that lack explicit width/height is set to 4k resolution with 4:3 aspect ratio |
 | config.thumbnailWidth | int | `512` | Thumbnail width for thumbnails in the frontend |
 | configRaw | string | `""` |  |
 | extraEnv | list | `[]` | Extra environment variables to inject into the container |

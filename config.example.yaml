@@ -1,6 +1,6 @@
 port: 8080
-svgFallbackWidth: 1080 # Fallback width used when rendering SVGs that lack explicit size
-svgFallbackHeight: 1920 # Fallback height used when rendering SVGs that lack explicit size
+svgFallbackWidth: 3072 # Fallback width used when rendering SVGs that lack explicit size
+svgFallbackHeight: 4096 # Fallback height used when rendering SVGs that lack explicit size
 database:
   type: "sqlite"
   connectionString: "file:goframe.db?cache=shared&mode=rwc"

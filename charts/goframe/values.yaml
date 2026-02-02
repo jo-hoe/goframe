@@ -99,8 +99,9 @@ config:
     # -- Connection string (':memory:' for in-memory SQLite)
     connectionString: "file:goframe.db?cache=shared&mode=rwc"
   # -- Fallback size used when rendering SVGs that lack explicit width/height
-  svgFallbackWidth: 1080
-  svgFallbackHeight: 1920
+  # is set to 4k resolution with 4:3 aspect ratio
+  svgFallbackWidth: 3072
+  svgFallbackHeight:  4096
   # -- Timezone used for image rotation scheduling
   rotationTimezone: "UTC"
   # -- Thumbnail width for thumbnails in the frontend
