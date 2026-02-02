@@ -98,8 +98,9 @@ config:
     type: sqlite
     # -- Connection string (':memory:' for in-memory SQLite)
     connectionString: "file:goframe.db?cache=shared&mode=rwc"
-  # -- Output image format for the /api/image endpoint
-  imageTargetType: "png"
+  # -- Fallback size used when rendering SVGs that lack explicit width/height
+  svgFallbackWidth: 1080
+  svgFallbackHeight: 1920
   # -- Timezone used for image rotation scheduling
   rotationTimezone: "UTC"
   # -- Thumbnail width for thumbnails in the frontend

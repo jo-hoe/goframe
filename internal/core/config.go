@@ -19,11 +19,13 @@ type Database struct {
 }
 
 type ServiceConfig struct {
-	Port             int             `yaml:"port"`
-	Database         Database        `yaml:"database"`
-	Commands         []CommandConfig `yaml:"commands"`
-	RotationTimezone string          `yaml:"rotationTimezone"`
-	ThumbnailWidth   int             `yaml:"thumbnailWidth"`
+	Port              int             `yaml:"port"`
+	Database          Database        `yaml:"database"`
+	Commands          []CommandConfig `yaml:"commands"`
+	RotationTimezone  string          `yaml:"rotationTimezone"`
+	ThumbnailWidth    int             `yaml:"thumbnailWidth"`
+	SvgFallbackWidth  int             `yaml:"svgFallbackWidth"`
+	SvgFallbackHeight int             `yaml:"svgFallbackHeight"`
 }
 
 // LoadConfig loads configuration from the specified YAML file
@@ -52,6 +54,13 @@ func LoadConfig(configPath string) (*ServiceConfig, error) {
 	}
 	if config.ThumbnailWidth == 0 {
 		config.ThumbnailWidth = 512
+	}
+	// default is 4k with 4:3 aspect ratio
+	if config.SvgFallbackWidth <= 0 {
+		config.SvgFallbackWidth = 3072
+	}
+	if config.SvgFallbackHeight <= 0 {
+		config.SvgFallbackHeight = 4096
 	}
 
 	return &config, nil

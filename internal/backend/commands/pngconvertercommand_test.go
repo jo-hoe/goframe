@@ -184,3 +184,37 @@ func TestPngConverterCommand_WithRealImage(t *testing.T) {
 		t.Error("Expected result to be identical to input for PNG image")
 	}
 }
+
+// New test to verify SVG rendering and target sizing
+func TestPngConverterCommand_RenderSVG(t *testing.T) {
+	// Minimal inline SVG (red square) without explicit width/height to trigger fallback sizing
+	svgData := []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="red"/></svg>`)
+
+	// Target small size for test
+	params := map[string]any{
+		"svgFallbackWidth":  64,
+		"svgFallbackHeight": 64,
+	}
+	command, err := NewPngConverterCommand(params)
+	if err != nil {
+		t.Fatalf("Failed to create command: %v", err)
+	}
+
+	result, err := command.Execute(svgData)
+	if err != nil {
+		t.Fatalf("Execute failed for SVG: %v", err)
+	}
+	if len(result) == 0 {
+		t.Fatal("Expected non-empty PNG result for SVG input")
+	}
+
+	// Verify result is valid PNG and matches target dimensions
+	img, err := png.Decode(bytes.NewReader(result))
+	if err != nil {
+		t.Fatalf("Rendered SVG result is not valid PNG: %v", err)
+	}
+	b := img.Bounds()
+	if b.Dx() != 64 || b.Dy() != 64 {
+		t.Fatalf("Expected PNG dimensions 64x64, got %dx%d", b.Dx(), b.Dy())
+	}
+}

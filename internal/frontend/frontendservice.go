@@ -189,12 +189,23 @@ func (service *FrontendService) htmxDeleteImageHandler(ctx echo.Context) error {
 }
 
 func (service *FrontendService) toThumbnail(image []byte) ([]byte, error) {
+	// Ensure thumbnail generation starts from PNG to support non-PNG inputs (e.g., JPEG, WEBP, SVG)
+	pngConv, err := commands.NewPngConverterCommand(map[string]any{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PNG converter for thumbnail: %w", err)
+	}
+	pngData, err := pngConv.Execute(image)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert image to PNG for thumbnail: %w", err)
+	}
+
+	// Scale down to target thumbnail width
 	width := service.config.ThumbnailWidth
 	command, err := commands.NewPixelScaleCommand(map[string]any{"width": width})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create thumbnail command: %w", err)
+		return nil, fmt.Errorf("failed to create thumbnail scale command: %w", err)
 	}
-	thumbnail, err := command.Execute(image)
+	thumbnail, err := command.Execute(pngData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate thumbnail: %w", err)
 	}

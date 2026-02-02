@@ -1,5 +1,6 @@
 port: 8080
-imageTargetType: "png"
+svgFallbackWidth: 1080 # Fallback width used when rendering SVGs that lack explicit size
+svgFallbackHeight: 1920 # Fallback height used when rendering SVGs that lack explicit size
 database:
   type: "sqlite"
   connectionString: "file:goframe.db?cache=shared&mode=rwc"
