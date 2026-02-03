@@ -9,6 +9,8 @@ thumbnailWidth: 512 # Thumbnail width used for frontend thumbnails
 commands:
   - name: OrientationCommand
     orientation: portrait
+    # rotateWhenSquare: false  # When true and the image is square (width == height), rotate by 90°
+    # clockwise: true          # Rotation direction: true=clockwise, false=counterclockwise
   - name: ScaleCommand
     height: 1920
     width: 1080

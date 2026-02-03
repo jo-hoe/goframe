@@ -7,16 +7,6 @@ Image processing web service written in Go. The services is used for e-ink photo
 
 The service provides a web UI to upload and manage images, applies a configurable processing pipeline to each image, and serves the currently scheduled image via an API endpoint. Images are rotated daily based on a timezone-aware schedule.
 
-## How it works
-
-- Processing pipeline:
-  - Each uploaded image is first converted to PNG
-  - Then a configured list of commands is applied (e.g., orientation, scale, crop, dithering)
-- Rotation/scheduling:
-  - A timezone-aware day index is computed since a fixed anchor (1970-01-01 00:00 in configured timezone)
-  - The current image is selected using: index = (days % N) with newest-first semantics
-  - The UI lists images with their next scheduled time using the same logic
-
 ## Supported commands and parameters
 
 Configure the processing pipeline via the `commands` section in `config.yaml`.

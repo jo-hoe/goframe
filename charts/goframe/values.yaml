@@ -109,7 +109,7 @@ config:
   thumbnailWidth: 512
   # -- Processing pipeline configuration
   # Supported command names and parameters:
-  # - OrientationCommand: orientation [portrait|landscape]
+  # - OrientationCommand: orientation [portrait|landscape], rotateWhenSquare (bool, default false), clockwise (bool; true=clockwise, false=counterclockwise; default true)
   # - ScaleCommand: height (int), width (int), edgeGradient (bool, optional; default false)
   # - PixelScaleCommand: height (int, optional), width (int, optional) - at least one must be provided
   # - CropCommand: height (int), width (int)
@@ -133,6 +133,8 @@ config:
   commands:
     - name: OrientationCommand
       orientation: portrait
+      # rotateWhenSquare: false  # When true and the image is square (width == height), rotate by 90°
+      # clockwise: true          # Rotation direction: true=clockwise, false=counterclockwise
     - name: DitherCommand
       # -- If no palette is provided, DitherCommand defaults to black/white (device==dither)
       # To target multi-color EPDs, provide device/dither color pairs as shown in the examples above

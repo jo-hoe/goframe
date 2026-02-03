@@ -11,12 +11,16 @@ import (
 
 // OrientationParams represents typed parameters for orientation command
 type OrientationParams struct {
-	Orientation string
+	Orientation      string
+	RotateWhenSquare bool
+	Clockwise        bool
 }
 
 // NewOrientationParamsFromMap creates OrientationParams from a generic map
 func NewOrientationParamsFromMap(params map[string]any) (*OrientationParams, error) {
 	orientation := commandstructure.GetStringParam(params, "orientation", "portrait")
+	rotateWhenSquare := commandstructure.GetBoolParam(params, "rotateWhenSquare", false)
+	clockwise := commandstructure.GetBoolParam(params, "clockwise", true)
 
 	// Validate orientation value
 	validOrientations := map[string]bool{
@@ -29,7 +33,9 @@ func NewOrientationParamsFromMap(params map[string]any) (*OrientationParams, err
 	}
 
 	return &OrientationParams{
-		Orientation: orientation,
+		Orientation:      orientation,
+		RotateWhenSquare: rotateWhenSquare,
+		Clockwise:        clockwise,
 	}, nil
 }
 
@@ -66,7 +72,9 @@ func NewOrientationCommandWithParams(orientation string) (*OrientationCommand, e
 	return &OrientationCommand{
 		name: "OrientationCommand",
 		params: &OrientationParams{
-			Orientation: orientation,
+			Orientation:      orientation,
+			RotateWhenSquare: false, // default: do nothing for square
+			Clockwise:        true,  // default: rotate clockwise
 		},
 	}, nil
 }
@@ -80,7 +88,9 @@ func (c *OrientationCommand) Name() string {
 func (c *OrientationCommand) Execute(imageData []byte) ([]byte, error) {
 	slog.Debug("OrientationCommand: decoding image",
 		"input_size_bytes", len(imageData),
-		"target_orientation", c.params.Orientation)
+		"target_orientation", c.params.Orientation,
+		"rotate_when_square", c.params.RotateWhenSquare,
+		"clockwise", c.params.Clockwise)
 
 	// Decode the PNG image
 	img, err := png.Decode(bytes.NewReader(imageData))
@@ -94,11 +104,41 @@ func (c *OrientationCommand) Execute(imageData []byte) ([]byte, error) {
 	width := bounds.Dx()
 	height := bounds.Dy()
 
-	// Determine if rotation is needed
-	isCurrentlyPortrait := height >= width
+	// Handle square images according to configuration
+	if width == height {
+		if !c.params.RotateWhenSquare {
+			slog.Info("OrientationCommand: image is square and rotateWhenSquare=false; no rotation performed")
+			return imageData, nil
+		}
+		// Rotate 90 degrees using configured direction (default clockwise)
+		slog.Info("OrientationCommand: image is square; rotating 90 degrees", "clockwise", c.params.Clockwise)
+		rotatedImg := image.NewRGBA(image.Rect(0, 0, height, width))
+		for y := 0; y < height; y++ {
+			for x := 0; x < width; x++ {
+				if c.params.Clockwise {
+					// 90° clockwise: (x,y) -> (height-1-y, x)
+					rotatedImg.Set(height-1-y, x, img.At(x, y))
+				} else {
+					// 90° counterclockwise: (x,y) -> (y, width-1-x)
+					rotatedImg.Set(y, width-1-x, img.At(x, y))
+				}
+			}
+		}
+
+		var buf bytes.Buffer
+		if err := png.Encode(&buf, rotatedImg); err != nil {
+			slog.Error("OrientationCommand: failed to encode rotated image", "error", err)
+			return nil, fmt.Errorf("failed to encode rotated PNG image: %w", err)
+		}
+		slog.Debug("OrientationCommand: rotation complete (square case)", "output_size_bytes", buf.Len())
+		return buf.Bytes(), nil
+	}
+
+	// Non-square: Determine if rotation is needed to match target orientation
+	isCurrentlyPortrait := height > width // strict (square handled above)
 	needsPortrait := c.params.Orientation == "portrait"
 
-	slog.Debug("OrientationCommand: analyzing orientation",
+	slog.Info("OrientationCommand: analyzing orientation",
 		"width", width,
 		"height", height,
 		"currently_portrait", isCurrentlyPortrait,
@@ -106,18 +146,22 @@ func (c *OrientationCommand) Execute(imageData []byte) ([]byte, error) {
 
 	// If already in correct orientation, return original
 	if isCurrentlyPortrait == needsPortrait {
-		slog.Debug("OrientationCommand: already in correct orientation, no rotation needed")
+		slog.Info("OrientationCommand: already in correct orientation, no rotation needed")
 		return imageData, nil
 	}
 
-	slog.Debug("OrientationCommand: rotating image 90 degrees clockwise")
-
-	// Rotate 90 degrees clockwise to switch between portrait and landscape
+	// Rotate 90 degrees in configured direction to switch between portrait and landscape
+	slog.Info("OrientationCommand: rotating image 90 degrees", "clockwise", c.params.Clockwise)
 	rotatedImg := image.NewRGBA(image.Rect(0, 0, height, width))
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
-			// Rotate 90 degrees clockwise: (x,y) -> (height-1-y, x)
-			rotatedImg.Set(height-1-y, x, img.At(x, y))
+			if c.params.Clockwise {
+				// 90° clockwise: (x,y) -> (height-1-y, x)
+				rotatedImg.Set(height-1-y, x, img.At(x, y))
+			} else {
+				// 90° counterclockwise: (x,y) -> (y, width-1-x)
+				rotatedImg.Set(y, width-1-x, img.At(x, y))
+			}
 		}
 	}
 
@@ -125,8 +169,7 @@ func (c *OrientationCommand) Execute(imageData []byte) ([]byte, error) {
 
 	// Encode the rotated image back to PNG bytes
 	var buf bytes.Buffer
-	err = png.Encode(&buf, rotatedImg)
-	if err != nil {
+	if err := png.Encode(&buf, rotatedImg); err != nil {
 		slog.Error("OrientationCommand: failed to encode rotated image", "error", err)
 		return nil, fmt.Errorf("failed to encode rotated PNG image: %w", err)
 	}
