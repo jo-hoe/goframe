@@ -111,11 +111,10 @@ func (service *CoreService) applyPipeline(image []byte) (converted []byte, proce
 		return nil, nil, fmt.Errorf("input image is nil")
 	}
 
-	// Always convert to PNG first. Provide SVG fallback size only for SVGs without declared size.
+	// Always convert to PNG first. Provide SVG fallback long-side size only for SVGs without declared size.
 	params := map[string]any{}
-	if service.config.SvgFallbackWidth > 0 && service.config.SvgFallbackHeight > 0 {
-		params["svgFallbackWidth"] = service.config.SvgFallbackWidth
-		params["svgFallbackHeight"] = service.config.SvgFallbackHeight
+	if service.config.SvgFallbackLongSidePixelCount > 0 {
+		params["svgFallbackLongSidePixelCount"] = service.config.SvgFallbackLongSidePixelCount
 	}
 	pngCmd, err := commands.NewPngConverterCommand(params)
 	if err != nil {

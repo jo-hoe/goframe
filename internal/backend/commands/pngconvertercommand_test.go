@@ -192,8 +192,7 @@ func TestPngConverterCommand_RenderSVG(t *testing.T) {
 
 	// Target small size for test
 	params := map[string]any{
-		"svgFallbackWidth":  64,
-		"svgFallbackHeight": 64,
+		"svgFallbackLongSidePixelCount": 64,
 	}
 	command, err := NewPngConverterCommand(params)
 	if err != nil {

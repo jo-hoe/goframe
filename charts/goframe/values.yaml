@@ -98,12 +98,13 @@ config:
     type: sqlite
     # -- Connection string (':memory:' for in-memory SQLite)
     connectionString: "file:goframe.db?cache=shared&mode=rwc"
-  # -- Fallback size used when rendering SVGs that lack explicit width/height
-  # is set to 4k resolution with 4:3 aspect ratio
-  svgFallbackWidth: 3072
-  svgFallbackHeight:  4096
+  # -- Fallback long-side pixel count used when rendering SVGs without explicit width/height
+  # Aspect ratio is retained using viewBox when available; falls back to square otherwise
+  svgFallbackLongSidePixelCount: 4096
   # -- Timezone used for image rotation scheduling
   rotationTimezone: "UTC"
+  # -- Log level for application (debug, info, warn, error)
+  logLevel: "info"
   # -- Thumbnail width for thumbnails in the frontend
   thumbnailWidth: 512
   # -- Processing pipeline configuration

@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -33,6 +35,21 @@ func getConfigPath() string {
 	return filepath.Join(cwd, "config.yaml")
 }
 
+func parseLogLevel(s string) slog.Level {
+	switch strings.ToLower(s) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	case "info":
+		fallthrough
+	default:
+		return slog.LevelInfo
+	}
+}
+
 func main() {
 	// Load configuration
 	configPath := getConfigPath()
@@ -41,6 +58,12 @@ func main() {
 		log.Printf("failed to load config from %s: %v", configPath, err)
 		panic(err)
 	}
+
+	// Initialize global slog handler based on configured log level
+	level := parseLogLevel(config.LogLevel)
+	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+	slog.SetDefault(slog.New(handler))
+	slog.Info("logging initialized", "level", config.LogLevel)
 
 	coreService := core.NewCoreService(config)
 	server := defineServer()

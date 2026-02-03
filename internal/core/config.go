@@ -19,13 +19,13 @@ type Database struct {
 }
 
 type ServiceConfig struct {
-	Port              int             `yaml:"port"`
-	Database          Database        `yaml:"database"`
-	Commands          []CommandConfig `yaml:"commands"`
-	RotationTimezone  string          `yaml:"rotationTimezone"`
-	ThumbnailWidth    int             `yaml:"thumbnailWidth"`
-	SvgFallbackWidth  int             `yaml:"svgFallbackWidth"`
-	SvgFallbackHeight int             `yaml:"svgFallbackHeight"`
+	Port                          int             `yaml:"port"`
+	Database                      Database        `yaml:"database"`
+	Commands                      []CommandConfig `yaml:"commands"`
+	RotationTimezone              string          `yaml:"rotationTimezone"`
+	ThumbnailWidth                int             `yaml:"thumbnailWidth"`
+	LogLevel                      string          `yaml:"logLevel"`
+	SvgFallbackLongSidePixelCount int             `yaml:"svgFallbackLongSidePixelCount"`
 }
 
 // LoadConfig loads configuration from the specified YAML file
@@ -55,12 +55,13 @@ func LoadConfig(configPath string) (*ServiceConfig, error) {
 	if config.ThumbnailWidth == 0 {
 		config.ThumbnailWidth = 512
 	}
-	// default is 4k with 4:3 aspect ratio
-	if config.SvgFallbackWidth <= 0 {
-		config.SvgFallbackWidth = 3072
+	// Default long-side pixel count for SVGs without explicit size
+	if config.SvgFallbackLongSidePixelCount <= 0 {
+		config.SvgFallbackLongSidePixelCount = 4096
 	}
-	if config.SvgFallbackHeight <= 0 {
-		config.SvgFallbackHeight = 4096
+	// Default log level
+	if config.LogLevel == "" {
+		config.LogLevel = "info"
 	}
 
 	return &config, nil

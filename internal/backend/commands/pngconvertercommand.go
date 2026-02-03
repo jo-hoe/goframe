@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"image/png"
 	"log/slog"
+	"math"
 	"strings"
 
 	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
@@ -33,30 +34,26 @@ func hasCorrectPngSignature(data []byte) bool {
 
 // PngConverterCommand handles image format conversion to PNG
 type PngConverterCommand struct {
-	name              string
-	svgFallbackWidth  int
-	svgFallbackHeight int
+	name                          string
+	svgFallbackLongSidePixelCount int
 }
 
 // NewPngConverterCommand creates a new PNG converter command
 func NewPngConverterCommand(params map[string]any) (commandstructure.Command, error) {
-	// Read optional SVG fallback dimensions (used only when SVG lacks explicit size)
-	w := commandstructure.GetIntParam(params, "svgFallbackWidth", 0)
-	h := commandstructure.GetIntParam(params, "svgFallbackHeight", 0)
+	// Read optional SVG fallback long-side pixel count (used only when SVG lacks explicit size)
+	ls := commandstructure.GetIntParam(params, "svgFallbackLongSidePixelCount", 0)
 
 	return &PngConverterCommand{
-		name:              "PngConverterCommand",
-		svgFallbackWidth:  w,
-		svgFallbackHeight: h,
+		name:                          "PngConverterCommand",
+		svgFallbackLongSidePixelCount: ls,
 	}, nil
 }
 
 // NewPngConverterCommandDirect creates a new PNG converter command directly (no parameters needed)
 func NewPngConverterCommandDirect() *PngConverterCommand {
 	return &PngConverterCommand{
-		name:              "PngConverterCommand",
-		svgFallbackWidth:  0,
-		svgFallbackHeight: 0,
+		name:                          "PngConverterCommand",
+		svgFallbackLongSidePixelCount: 0,
 	}
 }
 
@@ -68,8 +65,7 @@ func (c *PngConverterCommand) Name() string {
 func (c *PngConverterCommand) Execute(imageData []byte) ([]byte, error) {
 	slog.Debug("PngConverterCommand: start",
 		"input_size_bytes", len(imageData),
-		"svg_fallback_width", c.svgFallbackWidth,
-		"svg_fallback_height", c.svgFallbackHeight)
+		"svg_fallback_long_side", c.svgFallbackLongSidePixelCount)
 
 	// If input is already PNG, return original bytes (no scaling for raster formats here)
 	if hasCorrectPngSignature(imageData) {
@@ -107,7 +103,7 @@ func (c *PngConverterCommand) Execute(imageData []byte) ([]byte, error) {
 func (c *PngConverterCommand) convertSVG(imageData []byte) ([]byte, error) {
 	slog.Debug("PngConverterCommand: detected SVG input; determining render size")
 
-	// Try to extract explicit width/height from SVG; if missing, use fallback
+	// Try to extract explicit width/height from SVG; if missing, use AR-derived fallback.
 	if w, h, ok := parseSvgExplicitSize(imageData); ok {
 		slog.Debug("PngConverterCommand: SVG has explicit size", "width", w, "height", h)
 		out, err := renderSVGToPNG(imageData, w, h)
@@ -119,14 +115,40 @@ func (c *PngConverterCommand) convertSVG(imageData []byte) ([]byte, error) {
 		return out, nil
 	}
 
-	fw := c.svgFallbackWidth
-	fh := c.svgFallbackHeight
-	if fw <= 0 || fh <= 0 {
-		slog.Error("PngConverterCommand: SVG fallback size not set; cannot render SVG without explicit size")
-		return nil, fmt.Errorf("SVG fallback size not set; cannot render SVG without explicit size")
+	longSide := c.svgFallbackLongSidePixelCount
+	if longSide <= 0 {
+		slog.Error("PngConverterCommand: SVG fallback long side not set; cannot render SVG without explicit size")
+		return nil, fmt.Errorf("SVG fallback long side not set; cannot render SVG without explicit size")
 	}
-	slog.Debug("PngConverterCommand: SVG lacks explicit size; using fallback", "width", fw, "height", fh)
-	out, err := renderSVGToPNG(imageData, fw, fh)
+
+	vw, vh, ok := parseSvgViewBox(imageData)
+	var targetW, targetH int
+	if ok && vw > 0 && vh > 0 {
+		ar := vw / vh
+		if ar >= 1.0 {
+			targetW = longSide
+			targetH = int(math.Round(float64(longSide) / ar))
+		} else {
+			targetH = longSide
+			targetW = int(math.Round(float64(longSide) * ar))
+		}
+		if targetW <= 0 {
+			targetW = 1
+		}
+		if targetH <= 0 {
+			targetH = 1
+		}
+		slog.Debug("PngConverterCommand: SVG lacks explicit size; computed from viewBox",
+			"viewbox_w", vw, "viewbox_h", vh, "target_w", targetW, "target_h", targetH)
+	} else {
+		// No viewBox; fallback to square using long side
+		targetW = longSide
+		targetH = longSide
+		slog.Debug("PngConverterCommand: SVG lacks explicit size and viewBox; using square fallback",
+			"target_w", targetW, "target_h", targetH)
+	}
+
+	out, err := renderSVGToPNG(imageData, targetW, targetH)
 	if err != nil {
 		slog.Error("PngConverterCommand: failed to render SVG (fallback size)", "error", err)
 		return nil, fmt.Errorf("failed to render SVG to PNG: %w", err)
@@ -171,6 +193,80 @@ func parseSvgExplicitSize(data []byte) (int, int, bool) {
 	}
 	// If no explicit width/height, do not treat viewBox as pixel size; use fallback.
 	return 0, 0, false
+}
+
+// parseSvgViewBox attempts to extract the viewBox's width and height (min/max delta) as floats.
+// Returns w, h, and ok=true if found and parseable.
+func parseSvgViewBox(data []byte) (float64, float64, bool) {
+	n := len(data)
+	if n > 8192 {
+		n = 8192
+	}
+	s := strings.ToLower(string(data[:n]))
+	// Find <svg ...> start
+	i := strings.Index(s, "<svg")
+	if i < 0 {
+		return 0, 0, false
+	}
+	// Limit to the start tag portion up to '>'
+	j := strings.Index(s[i:], ">")
+	if j < 0 {
+		j = len(s)
+	} else {
+		j = i + j
+	}
+	tag := s[i:j]
+
+	// Extract viewBox attr value
+	key := "viewbox="
+	pos := strings.Index(tag, key)
+	if pos < 0 {
+		pos = strings.Index(tag, "viewbox")
+		if pos < 0 {
+			return 0, 0, false
+		}
+	}
+	// Find quote after attr
+	q := strings.Index(tag[pos:], "\"")
+	single := strings.Index(tag[pos:], "'")
+	start := -1
+	quoteChar := byte(0)
+	if q >= 0 && (single < 0 || q < single) {
+		start = pos + q + 1
+		quoteChar = '"'
+	} else if single >= 0 {
+		start = pos + single + 1
+		quoteChar = '\''
+	}
+	if start < 0 || start >= len(tag) {
+		return 0, 0, false
+	}
+	end := strings.IndexByte(tag[start:], quoteChar)
+	val := tag[start:]
+	if end >= 0 {
+		val = tag[start : start+end]
+	}
+	// viewBox has 4 numbers: minX minY width height
+	fields := strings.Fields(val)
+	if len(fields) < 4 {
+		return 0, 0, false
+	}
+
+	var nums [4]float64
+	for idx := 0; idx < 4; idx++ {
+		fstr := strings.TrimSpace(strings.Trim(fields[idx], ","))
+		var fv float64
+		if _, err := fmt.Sscan(fstr, &fv); err != nil {
+			return 0, 0, false
+		}
+		nums[idx] = fv
+	}
+	width := nums[2]
+	height := nums[3]
+	if width <= 0 || height <= 0 {
+		return 0, 0, false
+	}
+	return width, height, true
 }
 
 // parseNumericAttr extracts the leading numeric value of an attribute (e.g., width="123px").

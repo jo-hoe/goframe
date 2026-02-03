@@ -1,10 +1,10 @@
 port: 8080
-svgFallbackWidth: 3072 # Fallback width used when rendering SVGs that lack explicit size
-svgFallbackHeight: 4096 # Fallback height used when rendering SVGs that lack explicit size
+svgFallbackLongSidePixelCount: 4096 # Fallback long-side pixel count used when rendering SVGs without explicit size; aspect ratio retained via viewBox or square if none
 database:
   type: "sqlite"
   connectionString: "file:goframe.db?cache=shared&mode=rwc"
 rotationTimezone: "UTC" # Timezone for daily rotation e.g. "Europe/Berlin" or "America/New_York"
+logLevel: "info" # Log level for application (debug, info, warn, error)
 thumbnailWidth: 512 # Thumbnail width used for frontend thumbnails
 commands:
   - name: OrientationCommand
