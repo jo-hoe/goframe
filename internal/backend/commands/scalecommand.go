@@ -3,12 +3,13 @@ package commands
 import (
 	"bytes"
 	"fmt"
-	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 	"image"
 	"image/color"
 	"image/draw"
 	"image/png"
 	"log/slog"
+
+	"github.com/jo-hoe/goframe/internal/backend/commandstructure"
 )
 
 // ScaleParams represents typed parameters for scale command
@@ -404,10 +405,10 @@ func computeLinearTFunc(start, end int, invert bool) func(i int) float64 {
 
 // chooseBWTargetFromLuma selects black or white given a luminance value [0..255].
 func chooseBWTargetFromLuma(y float64) color.RGBA {
-	if y < 127.5 {
-		return color.RGBA{0, 0, 0, 255}
+	if y < 255.0*0.75 { // threshold can be tuned; 0.75 is a heuristic to prefer black for mid-tones and below.
+		return color.RGBA{0, 0, 0, 255} // dark edge - fade to black
 	}
-	return color.RGBA{255, 255, 255, 255}
+	return color.RGBA{255, 255, 255, 255} // light edge - fade to white
 }
 
 // avgEdgeLuminanceInterval computes average luminance over an integer interval [start..end],
