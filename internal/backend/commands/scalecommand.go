@@ -275,28 +275,25 @@ func fillEdgeGradientPadding(targetImg *image.RGBA, offsetX, offsetY, scaledWidt
 	}
 }
 
-// computeBandTargets determines the black/white target per band using average luminance.
 func computeBandTargets(img *image.RGBA, imgX0, imgX1, imgY0, imgY1, targetWidth, targetHeight int) (left, right, top, bottom color.RGBA) {
+	// Default to the canvas background (white) as a fallback.
 	left = color.RGBA{255, 255, 255, 255}
 	right = color.RGBA{255, 255, 255, 255}
 	top = color.RGBA{255, 255, 255, 255}
 	bottom = color.RGBA{255, 255, 255, 255}
 
+	// For each side, compute the average edge color of the scaled image along that edge.
 	if imgX0 > 0 {
-		l := avgEdgeLuminanceColumn(img, imgX0, imgY0, imgY1)
-		left = chooseBWTargetFromLuma(l)
+		left = avgEdgeColorColumn(img, imgX0, imgY0, imgY1)
 	}
 	if imgX1 < targetWidth-1 {
-		l := avgEdgeLuminanceColumn(img, imgX1, imgY0, imgY1)
-		right = chooseBWTargetFromLuma(l)
+		right = avgEdgeColorColumn(img, imgX1, imgY0, imgY1)
 	}
 	if imgY0 > 0 {
-		l := avgEdgeLuminanceRow(img, imgY0, imgX0, imgX1)
-		top = chooseBWTargetFromLuma(l)
+		top = avgEdgeColorRow(img, imgY0, imgX0, imgX1)
 	}
 	if imgY1 < targetHeight-1 {
-		l := avgEdgeLuminanceRow(img, imgY1, imgX0, imgX1)
-		bottom = chooseBWTargetFromLuma(l)
+		bottom = avgEdgeColorRow(img, imgY1, imgX0, imgX1)
 	}
 	return
 }
@@ -402,40 +399,44 @@ func computeLinearTFunc(start, end int, invert bool) func(i int) float64 {
 	}
 }
 
-// chooseBWTargetFromLuma selects black or white given a luminance value [0..255].
-func chooseBWTargetFromLuma(y float64) color.RGBA {
-	if y < 127.5 {
-		return color.RGBA{0, 0, 0, 255}
-	}
-	return color.RGBA{255, 255, 255, 255}
-}
-
-// avgEdgeLuminanceInterval computes average luminance over an integer interval [start..end],
-// sampling colors via the provided callback. Returns 0 when end < start.
-func avgEdgeLuminanceInterval(start, end int, sample func(i int) color.RGBA) float64 {
+// avgEdgeColorInterval computes average RGBA color over an integer interval [start..end],
+// sampling colors via the provided callback. Returns opaque average color (A=255). If end < start, returns white.
+func avgEdgeColorInterval(start, end int, sample func(i int) color.RGBA) color.RGBA {
 	if end < start {
-		return 0
+		return color.RGBA{255, 255, 255, 255}
 	}
-	sum := 0.0
-	n := 0
+	var sumR, sumG, sumB, sumA float64
+	n := 0.0
 	for i := start; i <= end; i++ {
 		c := sample(i)
-		sum += 0.2126*float64(c.R) + 0.7152*float64(c.G) + 0.0722*float64(c.B)
+		sumR += float64(c.R)
+		sumG += float64(c.G)
+		sumB += float64(c.B)
+		sumA += float64(c.A)
 		n++
 	}
-	return sum / float64(n)
+	if n == 0 {
+		return color.RGBA{255, 255, 255, 255}
+	}
+	// Use averaged alpha only to inform color; final gradient enforces opaque output.
+	return color.RGBA{
+		R: uint8(sumR/n + 0.5),
+		G: uint8(sumG/n + 0.5),
+		B: uint8(sumB/n + 0.5),
+		A: 255,
+	}
 }
 
-// avgEdgeLuminanceColumn computes average luminance along a column x from y0..y1 inclusive.
-func avgEdgeLuminanceColumn(img *image.RGBA, x, y0, y1 int) float64 {
-	return avgEdgeLuminanceInterval(y0, y1, func(y int) color.RGBA {
+// avgEdgeColorColumn computes average color along a column x from y0..y1 inclusive.
+func avgEdgeColorColumn(img *image.RGBA, x, y0, y1 int) color.RGBA {
+	return avgEdgeColorInterval(y0, y1, func(y int) color.RGBA {
 		return img.RGBAAt(x, y)
 	})
 }
 
-// avgEdgeLuminanceRow computes average luminance along a row y from x0..x1 inclusive.
-func avgEdgeLuminanceRow(img *image.RGBA, y, x0, x1 int) float64 {
-	return avgEdgeLuminanceInterval(x0, x1, func(x int) color.RGBA {
+// avgEdgeColorRow computes average color along a row y from x0..x1 inclusive.
+func avgEdgeColorRow(img *image.RGBA, y, x0, x1 int) color.RGBA {
+	return avgEdgeColorInterval(x0, x1, func(x int) color.RGBA {
 		return img.RGBAAt(x, y)
 	})
 }
