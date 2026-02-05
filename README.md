@@ -52,6 +52,10 @@ API test:
 - Health: `curl http://localhost:8080/probe`
 - Current processed image (PNG): `curl -s http://localhost:8080/api/image.png -o current.png`
 - Upload an image (multipart/form-data, field "image"): `curl -s -X POST -F "image=@/path/to/your/image.png" http://localhost:8080/api/image`
+- List images (IDs and URLs): `curl http://localhost:8080/api/images`
+- Download processed by ID: `curl -s http://localhost:8080/api/images/<id>/processed.png -o processed.png`
+- Download original by ID: `curl -s http://localhost:8080/api/images/<id>/original.png -o original.png`
+- Delete by ID: `curl -X DELETE http://localhost:8080/api/images/<id> -i`
 
 ## Make
 
