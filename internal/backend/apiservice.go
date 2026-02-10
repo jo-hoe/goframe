@@ -2,6 +2,8 @@ package backend
 
 import (
 	"io"
+	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"time"
@@ -59,13 +61,16 @@ func (s *APIService) writePNG(ctx echo.Context, png []byte) error {
 }
 
 func (s *APIService) handleGetCurrentImage(ctx echo.Context) error {
-	imageId, err := s.coreService.GetImageForTime(time.Now())
+	now := time.Now()
+	imageId, err := s.coreService.GetImageForTime(now)
 	if err != nil {
+		slog.Error("failed to get current image id", "error", err, "at", now, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusInternalServerError, "Failed to get current image")
 	}
 
 	imageData, err := s.coreService.GetImageById(imageId)
 	if err != nil {
+		slog.Error("failed to get image data", "imageId", imageId, "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusInternalServerError, "Failed to get image data")
 	}
 
@@ -73,24 +78,43 @@ func (s *APIService) handleGetCurrentImage(ctx echo.Context) error {
 }
 
 func (s *APIService) handleUploadImage(ctx echo.Context) error {
-	file, err := ctx.FormFile("image")
+	form, err := ctx.MultipartForm()
 	if err != nil {
-		return ctx.String(http.StatusBadRequest, "Missing image file")
+		slog.Info("invalid multipart form", "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
+		return ctx.String(http.StatusBadRequest, "Invalid multipart form")
+	}
+	// Clean up any temp files created by ParseMultipartForm
+	defer func() { _ = form.RemoveAll() }()
+
+	// Pick the first file from any field (field name agnostic)
+	var fh *multipart.FileHeader
+	for _, fhs := range form.File {
+		if len(fhs) > 0 {
+			fh = fhs[0]
+			break
+		}
+	}
+	if fh == nil {
+		slog.Info("no file provided in multipart form", "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
+		return ctx.String(http.StatusBadRequest, "No file provided")
 	}
 
-	src, err := file.Open()
+	src, err := fh.Open()
 	if err != nil {
+		slog.Error("failed to open uploaded file", "file", fh.Filename, "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusInternalServerError, "Failed to open uploaded file")
 	}
 	defer func() { _ = src.Close() }()
 
 	data, err := io.ReadAll(src)
 	if err != nil {
+		slog.Error("failed to read uploaded file", "file", fh.Filename, "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusInternalServerError, "Failed to read uploaded file")
 	}
 
 	apiImg, err := s.coreService.AddImage(data)
 	if err != nil {
+		slog.Error("failed to process uploaded image", "file", fh.Filename, "sizeBytes", len(data), "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusInternalServerError, "Failed to process uploaded image")
 	}
 
@@ -114,10 +138,12 @@ func (s *APIService) getImageBytesByID(id string, processed bool) ([]byte, error
 func (s *APIService) handleGetProcessedImageByID(ctx echo.Context) error {
 	id := ctx.Param("id")
 	if id == "" {
+		slog.Info("missing image id parameter", "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusBadRequest, "Missing image id")
 	}
 	data, err := s.getImageBytesByID(id, true)
 	if err != nil {
+		slog.Info("processed image not found", "imageId", id, "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusNotFound, "Image not found")
 	}
 	return s.writePNG(ctx, data)
@@ -126,10 +152,12 @@ func (s *APIService) handleGetProcessedImageByID(ctx echo.Context) error {
 func (s *APIService) handleGetOriginalImageByID(ctx echo.Context) error {
 	id := ctx.Param("id")
 	if id == "" {
+		slog.Info("missing image id parameter", "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusBadRequest, "Missing image id")
 	}
 	data, err := s.getImageBytesByID(id, false)
 	if err != nil {
+		slog.Info("original image not found", "imageId", id, "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusNotFound, "Image not found")
 	}
 	return s.writePNG(ctx, data)
@@ -144,6 +172,7 @@ type imageListItem struct {
 func (s *APIService) handleListImages(ctx echo.Context) error {
 	ids, err := s.coreService.GetOrderedImageIDs()
 	if err != nil {
+		slog.Error("failed to list images", "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusInternalServerError, "Failed to list images")
 	}
 	items := make([]imageListItem, 0, len(ids))
@@ -160,9 +189,11 @@ func (s *APIService) handleListImages(ctx echo.Context) error {
 func (s *APIService) handleDeleteImageByID(ctx echo.Context) error {
 	id := ctx.Param("id")
 	if id == "" {
+		slog.Info("missing image id parameter for delete", "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusBadRequest, "Missing image id")
 	}
 	if err := s.coreService.DeleteImage(id); err != nil {
+		slog.Info("attempted to delete non-existing image", "imageId", id, "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusNotFound, "Image not found")
 	}
 	return ctx.NoContent(http.StatusNoContent)
