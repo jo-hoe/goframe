@@ -14,13 +14,11 @@ import (
 )
 
 type APIService struct {
-	config      *core.ServiceConfig
 	coreService *core.CoreService
 }
 
-func NewAPIService(config *core.ServiceConfig, coreService *core.CoreService) *APIService {
+func NewAPIService(coreService *core.CoreService) *APIService {
 	return &APIService{
-		config:      config,
 		coreService: coreService,
 	}
 }

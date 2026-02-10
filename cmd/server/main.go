@@ -68,7 +68,7 @@ func main() {
 	coreService := core.NewCoreService(config)
 	server := defineServer()
 
-	apiService := backend.NewAPIService(config, coreService)
+	apiService := backend.NewAPIService(coreService)
 	apiService.SetRoutes(server)
 	frontendService := frontend.NewFrontendService(config, coreService)
 	frontendService.SetRoutes(server)

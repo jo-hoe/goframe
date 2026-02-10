@@ -19,7 +19,6 @@ type CoreService struct {
 	tzLoc           *time.Location
 
 	mu      sync.Mutex
-	pointer int
 	lastDay time.Time
 }
 
@@ -50,7 +49,6 @@ func NewCoreService(config *ServiceConfig) *CoreService {
 		databaseService: db,
 		commandConfigs:  cmdCfgs,
 		tzLoc:           loc,
-		pointer:         0,
 		lastDay:         time.Time{},
 	}
 }
@@ -251,27 +249,10 @@ func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
 	return ids[0], nil
 }
 
-// UpdateImageOrder updates the persistent order (LexoRanks) to match the given list of IDs,
-// attempting to preserve the currently selected image by adjusting the in-memory pointer.
+// UpdateImageOrder updates the persistent order (LexoRanks) to match the given list of IDs.
 func (service *CoreService) UpdateImageOrder(order []string) error {
 	if len(order) == 0 {
 		return nil
 	}
-
-	if err := service.databaseService.UpdateRanks(order); err != nil {
-		return err
-	}
-
-	n := len(order)
-	if n == 0 {
-		return nil
-	}
-
-	// After re-ranking, make the top-of-list (index 0) be today's image.
-	// This ensures moving an item to the top immediately makes it today's image as returned by /api/image.png.
-	service.mu.Lock()
-	service.pointer = 0
-	service.mu.Unlock()
-
-	return nil
+	return service.databaseService.UpdateRanks(order)
 }

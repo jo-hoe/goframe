@@ -53,7 +53,7 @@ func NewSQLiteDatabase(connectionString string) (DatabaseService, error) {
 	}, nil
 }
 
-func (s *SQLiteDatabase) CreateDatabase() (*sql.DB, error) {
+func (s *SQLiteDatabase) CreateDatabase() error {
 	_, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS images (
 		id TEXT PRIMARY KEY,
 		original_image BLOB,
@@ -61,21 +61,21 @@ func (s *SQLiteDatabase) CreateDatabase() (*sql.DB, error) {
 		rank TEXT NOT NULL
 	)`)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Prepare common statements for reuse under load
 	if s.insertStmt, err = s.db.Prepare(`INSERT INTO images (id, original_image, processed_image, rank) VALUES (?, ?, ?, ?)`); err != nil {
-		return nil, err
+		return err
 	}
 	if s.deleteStmt, err = s.db.Prepare(`DELETE FROM images WHERE id = ?`); err != nil {
-		return nil, err
+		return err
 	}
 	if s.getByIDStmt, err = s.db.Prepare(`SELECT id, original_image, processed_image, rank FROM images WHERE id = ?`); err != nil {
-		return nil, err
+		return err
 	}
 
-	return s.db, nil
+	return nil
 }
 
 func (s *SQLiteDatabase) Close() error {

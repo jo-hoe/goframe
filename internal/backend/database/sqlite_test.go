@@ -12,7 +12,7 @@ func newTestDB(t *testing.T) DatabaseService {
 	if err != nil {
 		t.Fatalf("NewSQLiteDatabase error: %v", err)
 	}
-	_, err = ds.CreateDatabase()
+	err = ds.CreateDatabase()
 	if err != nil {
 		t.Fatalf("CreateDatabase error: %v", err)
 	}

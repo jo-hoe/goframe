@@ -18,7 +18,7 @@ func NewDatabase(databaseType, connectionString string) (database DatabaseServic
 
 	// Ensure database schema exists (idempotent), important for in-memory SQLite
 	log.Printf("initializing database schema (ensuring tables exist) - driver=%s dsn=%q", databaseType, connectionString)
-	_, err = database.CreateDatabase()
+	err = database.CreateDatabase()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create database: %w", err)
 	}

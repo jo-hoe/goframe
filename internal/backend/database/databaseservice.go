@@ -1,9 +1,7 @@
 package database
 
-import "database/sql"
-
 type DatabaseService interface {
-	CreateDatabase() (*sql.DB, error)
+	CreateDatabase() error
 	Close() error
 
 	// CreateImage inserts a new image row with both original and processed image in a single transaction,
