@@ -19,7 +19,8 @@ commands:
   - name: CropCommand
     height: 1600
     width: 1200
-  - name: DitherCommand # Floyd-Steinberg dithering algorithm
+  - name: DitherCommand # Dithering algorithm (default: Floyd-Steinberg)
+    # ditheringAlgorithm: atkinson  # Optional: choose 'atkinson' or 'floyd-steinberg'
     # Palette of device/dither color pairs.
     # Each entry is [[devR,devG,devB],[dithR,dithG,dithB]]
     # Example palette for Spectra 6 displays

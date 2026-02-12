@@ -32,6 +32,8 @@ type ColorPair struct {
 type DitherParams struct {
 	// PalettePairs contains ordered pairs of [Device, Dither] colors
 	PalettePairs []ColorPair
+	// Algorithm selects the dithering algorithm: "floyd-steinberg" (default) or "atkinson"
+	Algorithm string
 }
 
 // Defaults to black/white with identical device and dithering colors
@@ -57,6 +59,24 @@ func NewDitherParamsFromMap(params map[string]any) (*DitherParams, error) {
 		ditherParams.PalettePairs = pairs
 	} else {
 		ditherParams.PalettePairs = defaultBWPalettePairs()
+	}
+
+	// Parse optional ditheringAlgorithm parameter (preferred)
+	if algoParam, ok := params["ditheringAlgorithm"]; ok {
+		if s, ok := algoParam.(string); ok {
+			switch s {
+			case "", "floyd-steinberg":
+				ditherParams.Algorithm = "floyd-steinberg"
+			case "atkinson":
+				ditherParams.Algorithm = "atkinson"
+			default:
+				return nil, fmt.Errorf("invalid ditheringAlgorithm: %s", s)
+			}
+		} else {
+			return nil, fmt.Errorf("ditheringAlgorithm must be a string")
+		}
+	} else {
+		ditherParams.Algorithm = "floyd-steinberg"
 	}
 
 	return ditherParams, nil
@@ -223,7 +243,8 @@ func (c *DitherCommand) Name() string {
 // Execute applies dithering using the dithering palette and outputs the image mapped to device colors
 func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 	slog.Debug("DitherCommand: dither and map",
-		"input_size_bytes", len(imageData))
+		"input_size_bytes", len(imageData),
+		"ditheringAlgorithm", c.params.Algorithm)
 
 	// decode
 	img, err := decodePNGData(imageData)
@@ -255,7 +276,13 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 	}
 
 	// perform dithering with quantization against ditherPalette, write devicePalette colors
-	outImg, err := ditherAndMapFloydSteinberg(img, ditherPalette, devicePalette)
+	var outImg image.Image
+	switch c.params.Algorithm {
+	case "atkinson":
+		outImg, err = ditherAndMapAtkinson(img, ditherPalette, devicePalette)
+	default:
+		outImg, err = ditherAndMapFloydSteinberg(img, ditherPalette, devicePalette)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -469,6 +496,129 @@ func ditherAndMapFloydSteinberg(img image.Image, ditherPalette, devicePalette []
 			errNextR[i] = 0
 			errNextG[i] = 0
 			errNextB[i] = 0
+		}
+	}
+
+	return out, nil
+}
+
+// roundDiv8Atkinson rounds an accumulated error scaled by 8 to nearest integer
+func roundDiv8Atkinson(e int) int {
+	const atkinsonScale = 8
+	if e >= 0 {
+		return (e + atkinsonScale/2) / atkinsonScale
+	}
+	return (e - atkinsonScale/2) / atkinsonScale
+}
+
+// distributeAtkinsonError applies Standard Atkinson error distribution from pixel (x,y)
+func distributeAtkinsonError(
+	x, y, w, h int,
+	er, eg, eb int,
+	errCurrR, errCurrG, errCurrB []int,
+	errNextR, errNextG, errNextB []int,
+	errNext2R, errNext2G, errNext2B []int,
+) {
+	// Right neighbors (same row)
+	if x+1 < w {
+		errCurrR[x+1] += er
+		errCurrG[x+1] += eg
+		errCurrB[x+1] += eb
+	}
+	if x+2 < w {
+		errCurrR[x+2] += er
+		errCurrG[x+2] += eg
+		errCurrB[x+2] += eb
+	}
+	// Next row neighbors
+	if y+1 < h {
+		if x-1 >= 0 {
+			errNextR[x-1] += er
+			errNextG[x-1] += eg
+			errNextB[x-1] += eb
+		}
+		errNextR[x] += er
+		errNextG[x] += eg
+		errNextB[x] += eb
+		if x+1 < w {
+			errNextR[x+1] += er
+			errNextG[x+1] += eg
+			errNextB[x+1] += eb
+		}
+	}
+	// Two rows down
+	if y+2 < h {
+		errNext2R[x] += er
+		errNext2G[x] += eg
+		errNext2B[x] += eb
+	}
+}
+
+// ditherAndMapAtkinson applies Standard Atkinson error diffusion (non-serpentine)
+// with nearest-color mapping in 8-bit sRGB and alpha compositing over white.
+// Quantization (error target) uses ditherPalette; output pixel is written using devicePalette at the chosen index.
+func ditherAndMapAtkinson(img image.Image, ditherPalette, devicePalette []color.RGBA) (image.Image, error) {
+	bounds := img.Bounds()
+	w := bounds.Dx()
+	h := bounds.Dy()
+
+	// Output image as paletted with device palette for faster encoding and reduced memory
+	out := image.NewPaletted(bounds, toColorPalette(devicePalette))
+
+	errCurrR := make([]int, w)
+	errCurrG := make([]int, w)
+	errCurrB := make([]int, w)
+	errNextR := make([]int, w)
+	errNextG := make([]int, w)
+	errNextB := make([]int, w)
+	errNext2R := make([]int, w)
+	errNext2G := make([]int, w)
+	errNext2B := make([]int, w)
+
+	// Iterate rows top-to-bottom, left-to-right (no serpentine)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			xx := bounds.Min.X + x
+			yy := bounds.Min.Y + y
+
+			r16, g16, b16, a16 := img.At(xx, yy).RGBA()
+			r8 := int(uint8(r16 >> 8))
+			g8 := int(uint8(g16 >> 8))
+			b8 := int(uint8(b16 >> 8))
+			a8 := int(uint8(a16 >> 8))
+
+			// Composite over white background (unpremultiplied) with rounding
+			r0, g0, b0 := compositeOverWhite(r8, g8, b8, a8)
+
+			// Apply accumulated error (scaled by 8) with rounding to nearest
+			rAdj := clamp8Int(r0 + roundDiv8Atkinson(errCurrR[x]))
+			gAdj := clamp8Int(g0 + roundDiv8Atkinson(errCurrG[x]))
+			bAdj := clamp8Int(b0 + roundDiv8Atkinson(errCurrB[x]))
+
+			// Nearest palette index against dithering palette (Euclidean in sRGB)
+			bestIdx := nearestPaletteIndex(rAdj, gAdj, bAdj, ditherPalette)
+			quant := ditherPalette[bestIdx]
+
+			// Error (unscaled) between adjusted source and quantized dither color
+			er := rAdj - int(quant.R)
+			eg := gAdj - int(quant.G)
+			eb := bAdj - int(quant.B)
+
+			// Set output pixel to the corresponding device color index (paletted image)
+			out.SetColorIndex(xx, yy, uint8(bestIdx))
+
+			// Distribute Atkinson error to neighbors (each neighbor receives 1/8; arrays hold error scaled by 8)
+			distributeAtkinsonError(x, y, w, h, er, eg, eb, errCurrR, errCurrG, errCurrB, errNextR, errNextG, errNextB, errNext2R, errNext2G, errNext2B)
+		}
+
+		// Rotate error rows: curr <- next, next <- next2, next2 <- cleared old curr
+		errCurrR, errNextR, errNext2R = errNextR, errNext2R, errCurrR
+		errCurrG, errNextG, errNext2G = errNextG, errNext2G, errCurrG
+		errCurrB, errNextB, errNext2B = errNextB, errNext2B, errCurrB
+		for i := 0; i < w; i++ {
+			errNext2R[i] = 0
+			errNext2G[i] = 0
+			errNext2B[i] = 0
 		}
 	}
 

@@ -332,3 +332,38 @@ func TestDitherCommand_SkipWhenAlreadyDeviceColors(t *testing.T) {
 		t.Fatalf("Expected command to skip processing and return the original bytes unchanged")
 	}
 }
+
+func TestDitherCommand_Execute_Atkinson(t *testing.T) {
+	imageData := createTestImage(64, 64)
+
+	cmd, err := NewDitherCommand(map[string]any{
+		"ditheringAlgorithm": "atkinson",
+	})
+	if err != nil {
+		t.Fatalf("Failed to create command: %v", err)
+	}
+
+	result, err := cmd.Execute(imageData)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if len(result) == 0 {
+		t.Error("Expected non-empty result")
+	}
+
+	// Verify result is valid PNG
+	_, err = png.Decode(bytes.NewReader(result))
+	if err != nil {
+		t.Errorf("Result is not valid PNG: %v", err)
+	}
+}
+
+func TestNewDitherCommand_InvalidDitheringAlgorithm(t *testing.T) {
+	_, err := NewDitherCommand(map[string]any{
+		"ditheringAlgorithm": "bogus",
+	})
+	if err == nil {
+		t.Error("Expected error for invalid ditheringAlgorithm")
+	}
+}
