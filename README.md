@@ -2,6 +2,8 @@
 
 [![Lint](https://github.com/jo-hoe/goframe/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/jo-hoe/goframe/actions/workflows/lint.yml)
 [![Test](https://github.com/jo-hoe/goframe/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/jo-hoe/goframe/actions/workflows/test.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/jo-hoe/goframe)](https://goreportcard.com/report/github.com/jo-hoe/goframe)
+[![Coverage Status](https://coveralls.io/repos/github/jo-hoe/goframe/badge.svg?branch=main)](https://coveralls.io/github/jo-hoe/goframe?branch=main)
 
 Image processing web service written in Go. The services is used for e-ink photo frames that display a different image each day from a curated set.
 

@@ -16,6 +16,9 @@ commands:
     width: 1080
     # When true, fill padding with adaptive edge gradient (fades to black/white per edge)
     edgeGradient: false
+    # Threshold for choosing black vs white for edge gradient target; fraction of 255 luminance in [0..1], default 0.75
+    # Lower values bias toward black; higher toward white
+    edgeGradientBWThreshold: 0.75
   - name: CropCommand
     height: 1600
     width: 1200

@@ -17,7 +17,7 @@ func createTestImage(width, height int) []byte {
 	// Create a gradient
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
-			gray := uint8((x * 255) / width)
+			gray := uint8((x * 255) / width) //nolint:gosec // computed gradient is in 0..255 for 0<=x<width
 			img.Set(x, y, color.RGBA{gray, gray, gray, 255})
 		}
 	}
@@ -288,7 +288,7 @@ func TestDitherCommand_OutputContainsOnlyDeviceColors(t *testing.T) {
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		for x := b.Min.X; x < b.Max.X; x++ {
 			r16, g16, b16, _ := outImg.At(x, y).RGBA()
-			key := [3]uint8{uint8(r16 >> 8), uint8(g16 >> 8), uint8(b16 >> 8)}
+			key := [3]uint8{uint8(r16 >> 8), uint8(g16 >> 8), uint8(b16 >> 8)} //nolint:gosec // values are 16-bit components; shifting >>8 yields 0..255 before conversion
 			if _, ok := deviceSet[key]; !ok {
 				t.Fatalf("Found non-device color at (%d,%d): %v", x, y, key)
 			}

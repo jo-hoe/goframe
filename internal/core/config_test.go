@@ -18,7 +18,7 @@ imageTargetType: "png"
 database:
   type: "sqlite"
   connectionString: "test-connection-string"`
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0600)
 	if err != nil {
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
@@ -77,7 +77,7 @@ commands:
     height: 1600
     width: 1200`
 
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0600)
 	if err != nil {
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
@@ -121,7 +121,7 @@ commands:
   - name: ""
     orientation: portrait`
 
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0600)
 	if err != nil {
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
@@ -144,7 +144,7 @@ commands:
   - name: OrientationCommand
     orientation: landscape`
 
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0600)
 	if err != nil {
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
@@ -166,7 +166,7 @@ commands:
     orientation: portrait
   invalid yaml syntax here`
 
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0600)
 	if err != nil {
 		t.Fatalf("Failed to create test config file: %v", err)
 	}

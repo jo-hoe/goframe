@@ -173,6 +173,7 @@ func (s *SQLiteDatabase) GetImages(fields ...string) ([]*Image, error) {
 	}
 
 	selectClause := strings.Join(selected, ", ")
+	// #nosec G201 -- selectClause is constructed from validated struct tags (whitelisted), preventing injection
 	query := fmt.Sprintf("SELECT %s FROM images ORDER BY rank ASC, rowid ASC", selectClause)
 
 	rows, err := s.db.Query(query)
@@ -250,6 +251,7 @@ func (s *SQLiteDatabase) UpdateRanks(order []string) error {
 		args = append(args, id)
 	}
 
+	// #nosec G202 -- placeholders are statically generated as "?,...?" and args are bound parameters; no string interpolation of values
 	rows, err := s.db.Query("SELECT id, rank FROM images WHERE id IN ("+placeholders+")", args...)
 	if err != nil {
 		return err

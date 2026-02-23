@@ -12,15 +12,15 @@ update: ## pulls git repo
 
 .PHONY: test
 test: ## run golang test (including integration tests)
-	go test -timeout 0  ./...
+	go test ${ROOT_DIR}/...
 
 .PHONY: build
 build: ## build goframe binary
-	go build ./...
+	go build ${ROOT_DIR}/...
 
 .PHONY: lint
 lint: ## run golangci-lint
-	golangci-lint run ${ROOT_DIR}...
+	golangci-lint run ${ROOT_DIR}... -E dupl -E gocyclo -E gosec -E misspell -E sqlclosecheck
 
 .PHONY: install-hooks
 install-hooks: ## install git hooks

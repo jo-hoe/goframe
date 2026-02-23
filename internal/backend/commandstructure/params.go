@@ -2,6 +2,7 @@ package commandstructure
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -15,6 +16,10 @@ func GetStringParam(params map[string]any, key string, defaultValue string) stri
 	return defaultValue
 }
 
+/* no-op */
+
+/* Reinsert GetIntParam and add GetFloatParam, then original GetBoolParam */
+
 // GetIntParam safely extracts an int parameter from the params map
 func GetIntParam(params map[string]any, key string, defaultValue int) int {
 	if val, ok := params[key]; ok {
@@ -25,6 +30,26 @@ func GetIntParam(params map[string]any, key string, defaultValue int) int {
 			return int(v)
 		case float64:
 			return int(v)
+		}
+	}
+	return defaultValue
+}
+
+// GetFloatParam safely extracts a float64 parameter from the params map
+func GetFloatParam(params map[string]any, key string, defaultValue float64) float64 {
+	if val, ok := params[key]; ok {
+		switch v := val.(type) {
+		case float64:
+			return v
+		case int:
+			return float64(v)
+		case int64:
+			return float64(v)
+		case string:
+			s := strings.TrimSpace(v)
+			if f, err := strconv.ParseFloat(s, 64); err == nil {
+				return f
+			}
 		}
 	}
 	return defaultValue

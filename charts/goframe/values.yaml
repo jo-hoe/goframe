@@ -110,7 +110,7 @@ config:
   # -- Processing pipeline configuration
   # Supported command names and parameters:
   # - OrientationCommand: orientation [portrait|landscape], rotateWhenSquare (bool, default false), clockwise (bool; true=clockwise, false=counterclockwise; default true)
-  # - ScaleCommand: height (int), width (int), edgeGradient (bool, optional; default false)
+  # - ScaleCommand: height (int), width (int), edgeGradient (bool, optional; default false), edgeGradientBWThreshold (float [0..1], optional; default 0.75)
   # - PixelScaleCommand: height (int, optional), width (int, optional) - at least one must be provided
   # - CropCommand: height (int), width (int)
   # - PngConverterCommand: no parameters; enforces PNG output
@@ -120,6 +120,7 @@ config:
   #   height: 1920
   #   width: 1080
   #   edgeGradient: false
+  #   edgeGradientBWThreshold: 0.75
   # - name: PixelScaleCommand
   #   width: 1080
   # - name: CropCommand

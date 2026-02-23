@@ -216,9 +216,9 @@ func makeLargePNG(b *testing.B, width, height int) []byte {
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	// Simple gradient fill
 	for y := 0; y < height; y++ {
-		yy := uint8((y * 255) / height)
+		yy := uint8((y * 255) / height) // #nosec G115 -- computed gradient is in 0..255 for 0<=y<height
 		for x := 0; x < width; x++ {
-			xx := uint8((x * 255) / width)
+			xx := uint8((x * 255) / width) // #nosec G115 -- computed gradient is in 0..255 for 0<=x<width
 			img.Set(x, y, color.RGBA{R: xx, G: yy, B: (xx + yy) / 2, A: 255})
 		}
 	}

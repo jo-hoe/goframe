@@ -13,10 +13,12 @@ import (
 )
 
 // ScaleParams represents typed parameters for scale command
+const DefaultEdgeGradientBWThreshold = 0.75 // default fraction of full luminance [0..1]
 type ScaleParams struct {
-	Height       int
-	Width        int
-	EdgeGradient bool
+	Height                  int
+	Width                   int
+	EdgeGradient            bool
+	EdgeGradientBWThreshold float64
 }
 
 // NewScaleParamsFromMap creates ScaleParams from a generic map
@@ -29,6 +31,12 @@ func NewScaleParamsFromMap(params map[string]any) (*ScaleParams, error) {
 	height := commandstructure.GetIntParam(params, "height", 0)
 	width := commandstructure.GetIntParam(params, "width", 0)
 	edgeGradient := commandstructure.GetBoolParam(params, "edgeGradient", false)
+	edgeGradientBWThreshold := commandstructure.GetFloatParam(params, "edgeGradientBWThreshold", DefaultEdgeGradientBWThreshold)
+	if edgeGradientBWThreshold < 0 {
+		edgeGradientBWThreshold = 0
+	} else if edgeGradientBWThreshold > 1 {
+		edgeGradientBWThreshold = 1
+	}
 
 	// Validate dimensions are positive
 	if height <= 0 {
@@ -39,9 +47,10 @@ func NewScaleParamsFromMap(params map[string]any) (*ScaleParams, error) {
 	}
 
 	return &ScaleParams{
-		Height:       height,
-		Width:        width,
-		EdgeGradient: edgeGradient,
+		Height:                  height,
+		Width:                   width,
+		EdgeGradient:            edgeGradient,
+		EdgeGradientBWThreshold: edgeGradientBWThreshold,
 	}, nil
 }
 
@@ -76,9 +85,10 @@ func NewScaleCommandWithParams(height, width int) (*ScaleCommand, error) {
 	return &ScaleCommand{
 		name: "ScaleCommand",
 		params: &ScaleParams{
-			Height:       height,
-			Width:        width,
-			EdgeGradient: false,
+			Height:                  height,
+			Width:                   width,
+			EdgeGradient:            false,
+			EdgeGradientBWThreshold: DefaultEdgeGradientBWThreshold,
 		},
 	}, nil
 }
@@ -145,7 +155,7 @@ func (c *ScaleCommand) Execute(imageData []byte) ([]byte, error) {
 	// Optional: Fill padding areas with gradient from image edge colors to black/white border.
 	// Use scaled vs target size to detect any padding (including 1px on one side when centering odd differences).
 	if c.params.EdgeGradient && (scaledWidth < targetWidth || scaledHeight < targetHeight) {
-		fillEdgeGradientPadding(targetImg, offsetX, offsetY, scaledWidth, scaledHeight)
+		fillEdgeGradientPadding(targetImg, offsetX, offsetY, scaledWidth, scaledHeight, c.params.EdgeGradientBWThreshold)
 	}
 
 	slog.Debug("ScaleCommand: encoding scaled image")
@@ -236,7 +246,7 @@ func drawScaledNearest(dst *image.RGBA, src image.Image, offsetX, offsetY, scale
 	})
 }
 
-func fillEdgeGradientPadding(targetImg *image.RGBA, offsetX, offsetY, scaledWidth, scaledHeight int) {
+func fillEdgeGradientPadding(targetImg *image.RGBA, offsetX, offsetY, scaledWidth, scaledHeight int, threshold float64) {
 	targetBounds := targetImg.Bounds()
 	targetWidth := targetBounds.Dx()
 	targetHeight := targetBounds.Dy()
@@ -247,7 +257,7 @@ func fillEdgeGradientPadding(targetImg *image.RGBA, offsetX, offsetY, scaledWidt
 	imgY1 := offsetY + scaledHeight - 1
 
 	// Compute per-side gradient targets (black/white) using average edge luminance
-	leftTarget, rightTarget, topTarget, bottomTarget := computeBandTargets(targetImg, imgX0, imgX1, imgY0, imgY1, targetWidth, targetHeight)
+	leftTarget, rightTarget, topTarget, bottomTarget := computeBandTargets(targetImg, imgX0, imgX1, imgY0, imgY1, targetWidth, targetHeight, threshold)
 
 	// Left band [0, imgX0)
 	if imgX0 > 0 {
@@ -277,7 +287,7 @@ func fillEdgeGradientPadding(targetImg *image.RGBA, offsetX, offsetY, scaledWidt
 }
 
 // computeBandTargets determines the black/white target per band using average luminance.
-func computeBandTargets(img *image.RGBA, imgX0, imgX1, imgY0, imgY1, targetWidth, targetHeight int) (left, right, top, bottom color.RGBA) {
+func computeBandTargets(img *image.RGBA, imgX0, imgX1, imgY0, imgY1, targetWidth, targetHeight int, threshold float64) (left, right, top, bottom color.RGBA) {
 	left = color.RGBA{255, 255, 255, 255}
 	right = color.RGBA{255, 255, 255, 255}
 	top = color.RGBA{255, 255, 255, 255}
@@ -285,19 +295,19 @@ func computeBandTargets(img *image.RGBA, imgX0, imgX1, imgY0, imgY1, targetWidth
 
 	if imgX0 > 0 {
 		l := avgEdgeLuminanceColumn(img, imgX0, imgY0, imgY1)
-		left = chooseBWTargetFromLuma(l)
+		left = chooseBWTargetFromLuma(l, threshold)
 	}
 	if imgX1 < targetWidth-1 {
 		l := avgEdgeLuminanceColumn(img, imgX1, imgY0, imgY1)
-		right = chooseBWTargetFromLuma(l)
+		right = chooseBWTargetFromLuma(l, threshold)
 	}
 	if imgY0 > 0 {
 		l := avgEdgeLuminanceRow(img, imgY0, imgX0, imgX1)
-		top = chooseBWTargetFromLuma(l)
+		top = chooseBWTargetFromLuma(l, threshold)
 	}
 	if imgY1 < targetHeight-1 {
 		l := avgEdgeLuminanceRow(img, imgY1, imgX0, imgX1)
-		bottom = chooseBWTargetFromLuma(l)
+		bottom = chooseBWTargetFromLuma(l, threshold)
 	}
 	return
 }
@@ -404,11 +414,11 @@ func computeLinearTFunc(start, end int, invert bool) func(i int) float64 {
 }
 
 // chooseBWTargetFromLuma selects black or white given a luminance value [0..255].
-func chooseBWTargetFromLuma(y float64) color.RGBA {
-	if y < 255.0*0.75 { // threshold can be tuned; 0.75 is a heuristic to prefer black for mid-tones and below.
-		return color.RGBA{0, 0, 0, 255} // dark edge - fade to black
+func chooseBWTargetFromLuma(y float64, threshold float64) color.RGBA {
+	if y < 255.0*threshold {
+		return color.RGBA{0, 0, 0, 255}
 	}
-	return color.RGBA{255, 255, 255, 255} // light edge - fade to white
+	return color.RGBA{255, 255, 255, 255}
 }
 
 // avgEdgeLuminanceInterval computes average luminance over an integer interval [start..end],

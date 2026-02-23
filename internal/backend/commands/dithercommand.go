@@ -109,8 +109,8 @@ func parsePalettePairs(paletteParam any) ([]ColorPair, error) {
 					return nil, err
 				}
 				out = append(out, ColorPair{
-					Device: color.RGBA{R: uint8(dev[0]), G: uint8(dev[1]), B: uint8(dev[2]), A: 255},
-					Dither: color.RGBA{R: uint8(dith[0]), G: uint8(dith[1]), B: uint8(dith[2]), A: 255},
+					Device: color.RGBA{R: toUint8(dev[0]), G: toUint8(dev[1]), B: toUint8(dev[2]), A: 255},
+					Dither: color.RGBA{R: toUint8(dith[0]), G: toUint8(dith[1]), B: toUint8(dith[2]), A: 255},
 				})
 			default:
 				return nil, fmt.Errorf("palette entry at index %d must be a pair [[dev],[dith]]", i)
@@ -143,7 +143,15 @@ func toRGBTriple(val any, parentIdx int, role string) ([3]int, error) {
 	return res, nil
 }
 
+// toUint8 safely converts an int in [0..255] to uint8.
+// The input range is validated by toRGBTriple prior to conversion.
+// #nosec G115 -- n validated as 0..255 by toRGBTriple before conversion
+func toUint8(n int) uint8 {
+	return uint8(n)
+}
+
 // numberToByte coerces a numeric value to an int in [0,255], with helpful error messages
+// nolint:gocyclo // exhaustive type handling for better error messages and YAML coercion support
 func numberToByte(val any, colorIdx, compIdx int) (int, error) {
 	switch v := val.(type) {
 	case int:
@@ -176,10 +184,11 @@ func numberToByte(val any, colorIdx, compIdx int) (int, error) {
 		}
 		return iv, nil
 	case uint:
-		iv := int(v)
-		if iv < 0 || iv > 255 {
-			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, iv)
+		if v > 255 {
+			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, v)
 		}
+		// #nosec G115 -- v<=255 ensures safe conversion to int
+		iv := int(v)
 		return iv, nil
 	case uint8:
 		iv := int(v)
@@ -188,22 +197,25 @@ func numberToByte(val any, colorIdx, compIdx int) (int, error) {
 		}
 		return iv, nil
 	case uint16:
-		iv := int(v)
-		if iv < 0 || iv > 255 {
-			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, iv)
+		if v > 255 {
+			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, v)
 		}
+		// #nosec G115 -- v<=255 ensures safe conversion to int
+		iv := int(v)
 		return iv, nil
 	case uint32:
-		iv := int(v)
-		if iv < 0 || iv > 255 {
-			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, iv)
+		if v > 255 {
+			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, v)
 		}
+		// #nosec G115 -- v<=255 ensures safe conversion to int
+		iv := int(v)
 		return iv, nil
 	case uint64:
-		iv := int(v)
-		if iv < 0 || iv > 255 {
-			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, iv)
+		if v > 255 {
+			return 0, fmt.Errorf("RGB value at color %d, component %d must be 0-255, got %d", colorIdx, compIdx, v)
 		}
+		// #nosec G115 -- v<=255 ensures safe conversion to int
+		iv := int(v)
 		return iv, nil
 	case float64:
 		intVal := int(v)
@@ -257,6 +269,10 @@ func (c *DitherCommand) Execute(imageData []byte) ([]byte, error) {
 	devicePalette, ditherPalette := palettesFromPairs(c.params.PalettePairs)
 	if len(devicePalette) == 0 || len(ditherPalette) == 0 || len(devicePalette) != len(ditherPalette) {
 		return nil, fmt.Errorf("invalid palettes: device %d, dither %d", len(devicePalette), len(ditherPalette))
+	}
+	// Enforce paletted image constraints: indices are uint8, so palettes must contain at most 256 colors
+	if len(devicePalette) > 256 || len(ditherPalette) > 256 {
+		return nil, fmt.Errorf("palette length exceeds 256 colors; got device=%d dither=%d", len(devicePalette), len(ditherPalette))
 	}
 	if len(devicePalette) > 0 && len(ditherPalette) > 0 {
 		// Log palette sizes and the first pair to verify config ingestion at runtime
@@ -348,15 +364,15 @@ func needsDitheringAgainst(img image.Image, palette []color.RGBA) bool {
 			xx := bounds.Min.X + x
 
 			r16, g16, b16, a16 := img.At(xx, yy).RGBA()
-			r8 := int(uint8(r16 >> 8))
-			g8 := int(uint8(g16 >> 8))
-			b8 := int(uint8(b16 >> 8))
-			a8 := int(uint8(a16 >> 8))
+			r8 := int(uint8(r16 >> 8)) // #nosec G115 -- components are 16-bit; shifting >>8 ensures 0..255 before conversion
+			g8 := int(uint8(g16 >> 8)) // #nosec G115
+			b8 := int(uint8(b16 >> 8)) // #nosec G115
+			a8 := int(uint8(a16 >> 8)) // #nosec G115
 
 			// Composite over white background (same formula used in dithering path)
 			r0, g0, b0 := compositeOverWhite(r8, g8, b8, a8)
 
-			if _, ok := paletteSet[[3]uint8{uint8(r0), uint8(g0), uint8(b0)}]; !ok {
+			if _, ok := paletteSet[[3]uint8{toUint8(r0), toUint8(g0), toUint8(b0)}]; !ok {
 				return true // needs dithering
 			}
 		}
@@ -459,10 +475,10 @@ func ditherAndMapFloydSteinberg(img image.Image, ditherPalette, devicePalette []
 			yy := bounds.Min.Y + y
 
 			r16, g16, b16, a16 := img.At(xx, yy).RGBA()
-			r8 := int(uint8(r16 >> 8))
-			g8 := int(uint8(g16 >> 8))
-			b8 := int(uint8(b16 >> 8))
-			a8 := int(uint8(a16 >> 8))
+			r8 := int(uint8(r16 >> 8)) // #nosec G115 -- components are 16-bit; shifting >>8 ensures 0..255 before conversion
+			g8 := int(uint8(g16 >> 8)) // #nosec G115
+			b8 := int(uint8(b16 >> 8)) // #nosec G115
+			a8 := int(uint8(a16 >> 8)) // #nosec G115
 
 			// Composite over white background (unpremultiplied) with rounding
 			r0, g0, b0 := compositeOverWhite(r8, g8, b8, a8)
@@ -482,7 +498,7 @@ func ditherAndMapFloydSteinberg(img image.Image, ditherPalette, devicePalette []
 			eb := bAdj - int(quant.B)
 
 			// Set output pixel to the corresponding device color index (paletted image)
-			out.SetColorIndex(xx, yy, uint8(bestIdx))
+			out.SetColorIndex(xx, yy, uint8(bestIdx)) //nolint:gosec // bestIdx < 256 ensured by palette length validation
 
 			// Distribute Floyd-Steinberg error to neighbors (L->R)
 			distributeFloydSteinbergError(x, y, w, h, er, eg, eb, errCurrR, errCurrG, errCurrB, errNextR, errNextG, errNextB)
@@ -582,10 +598,10 @@ func ditherAndMapAtkinson(img image.Image, ditherPalette, devicePalette []color.
 			yy := bounds.Min.Y + y
 
 			r16, g16, b16, a16 := img.At(xx, yy).RGBA()
-			r8 := int(uint8(r16 >> 8))
-			g8 := int(uint8(g16 >> 8))
-			b8 := int(uint8(b16 >> 8))
-			a8 := int(uint8(a16 >> 8))
+			r8 := int(uint8(r16 >> 8)) // #nosec G115 -- components are 16-bit; shifting >>8 ensures 0..255 before conversion
+			g8 := int(uint8(g16 >> 8)) // #nosec G115
+			b8 := int(uint8(b16 >> 8)) // #nosec G115
+			a8 := int(uint8(a16 >> 8)) // #nosec G115
 
 			// Composite over white background (unpremultiplied) with rounding
 			r0, g0, b0 := compositeOverWhite(r8, g8, b8, a8)
@@ -605,7 +621,7 @@ func ditherAndMapAtkinson(img image.Image, ditherPalette, devicePalette []color.
 			eb := bAdj - int(quant.B)
 
 			// Set output pixel to the corresponding device color index (paletted image)
-			out.SetColorIndex(xx, yy, uint8(bestIdx))
+			out.SetColorIndex(xx, yy, uint8(bestIdx)) //nolint:gosec // bestIdx < 256 ensured by palette length validation
 
 			// Distribute Atkinson error to neighbors (each neighbor receives 1/8; arrays hold error scaled by 8)
 			distributeAtkinsonError(x, y, w, h, er, eg, eb, errCurrR, errCurrG, errCurrB, errNextR, errNextG, errNextB, errNext2R, errNext2G, errNext2B)

@@ -31,6 +31,7 @@ type ServiceConfig struct {
 // LoadConfig loads configuration from the specified YAML file
 func LoadConfig(configPath string) (*ServiceConfig, error) {
 	// Read the config file
+	// #nosec G304 -- reading configuration from a user-provided path is intended; path is controlled via env/defaults
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
