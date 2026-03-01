@@ -8,7 +8,7 @@ require (
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	golang.org/x/image v0.35.0
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/sqlite v1.44.3
+	modernc.org/sqlite v1.46.1
 )
 
 require (
