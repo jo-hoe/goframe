@@ -171,7 +171,7 @@ func (service *CoreService) dayStart(t time.Time, loc *time.Location) time.Time 
 
 // advancePointer moves the in-memory pointer forward by the number of days
 // elapsed since the last recorded day in the rotation timezone. It does not move backwards.
-func (service *CoreService) advancePointer(now time.Time, n int) {
+func (service *CoreService) advancePointer(now time.Time) {
 	// Rotate persisted order forward by whole days at midnight so that index 0 is always "today".
 	loc := service.loadRotationLocation()
 	todayMid := service.dayStart(now, loc)
@@ -188,13 +188,11 @@ func (service *CoreService) advancePointer(now time.Time, n int) {
 	// Advance only when a new day has begun in the rotation timezone
 	if todayMid.After(service.lastDay) {
 		days := int(todayMid.Sub(service.lastDay).Hours() / 24.0)
-		if days > 0 && n > 0 {
-			// Compute rotation by k positions (left shift): today's should become previous "tomorrow"
-			k := days % n
-
+		if days > 0 {
 			ids, err := service.getOrderedImageIDs()
-			if err == nil && len(ids) == n {
+			if err == nil && len(ids) > 0 {
 				// Rotate left by k: new order = ids[k:] + ids[:k]
+				k := days % len(ids)
 				newOrder := append([]string{}, ids[k:]...)
 				newOrder = append(newOrder, ids[:k]...)
 				_ = service.databaseService.UpdateRanks(newOrder)
@@ -217,35 +215,22 @@ func (service *CoreService) getOrderedImageIDs() ([]string, error) {
 }
 
 // GetOrderedImageIDs exposes the persisted order of images (ascending by rank).
+// It also advances the rotation pointer so callers always see the up-to-date order
+// without needing to go through GetImageForTime first.
 func (service *CoreService) GetOrderedImageIDs() ([]string, error) {
+	service.advancePointer(time.Now())
 	return service.getOrderedImageIDs()
 }
 
 func (service *CoreService) GetImageForTime(now time.Time) (string, error) {
-	// Ensure persisted order reflects the day change so index 0 is "today"
-	// First fetch count to compute rotation
+	service.advancePointer(now)
 	ids, err := service.getOrderedImageIDs()
-	if err != nil {
-		return "", err
-	}
-	n := len(ids)
-	if n == 0 {
-		return "", fmt.Errorf("no images")
-	}
-
-	// Rotate persisted order if a new day started
-	service.advancePointer(now, n)
-
-	// Re-fetch order after potential rotation
-	ids, err = service.getOrderedImageIDs()
 	if err != nil {
 		return "", err
 	}
 	if len(ids) == 0 {
 		return "", fmt.Errorf("no images")
 	}
-
-	// Index 0 is today's image
 	return ids[0], nil
 }
 

@@ -51,9 +51,17 @@ func TestLIFOSelectionCycles(t *testing.T) {
 	anchor := time.Date(1970, 1, 1, 0, 0, 0, 0, loc)
 
 	// Expected FIFO/top-of-list sequence for consecutive days with 3 items: first to last wrapping
-	order, err := svc.GetOrderedImageIDs()
+	// Use GetImageForTime at the anchor to initialize lastDay, then capture the order.
+	first, err := svc.GetImageForTime(anchor)
+	if err != nil {
+		t.Fatalf("initial GetImageForTime error: %v", err)
+	}
+	order, err := svc.getOrderedImageIDs()
 	if err != nil || len(order) != 3 {
 		t.Fatalf("failed to fetch order after inserts: err=%v len=%d", err, len(order))
+	}
+	if order[0] != first {
+		t.Fatalf("expected first image to be top-of-list, got %s", first)
 	}
 	expected := []string{order[0], order[1], order[2], order[0], order[1], order[2]}
 	for k := 0; k < len(expected); k++ {
