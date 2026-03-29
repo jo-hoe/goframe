@@ -34,15 +34,15 @@ func TestLIFOSelectionCycles(t *testing.T) {
 	svc := newTestCoreService(t, "UTC")
 
 	// Insert three images (processed non-empty); insertion order defines created_at ASC position
-	_, err := svc.databaseService.CreateImage([]byte("orig1"), []byte("proc1"))
+	_, err := svc.databaseService.CreateImage([]byte("orig1"), []byte("proc1"), time.Now())
 	if err != nil {
 		t.Fatalf("CreateImage #1 error: %v", err)
 	}
-	_, err = svc.databaseService.CreateImage([]byte("orig2"), []byte("proc2"))
+	_, err = svc.databaseService.CreateImage([]byte("orig2"), []byte("proc2"), time.Now())
 	if err != nil {
 		t.Fatalf("CreateImage #2 error: %v", err)
 	}
-	_, err = svc.databaseService.CreateImage([]byte("orig3"), []byte("proc3"))
+	_, err = svc.databaseService.CreateImage([]byte("orig3"), []byte("proc3"), time.Now())
 	if err != nil {
 		t.Fatalf("CreateImage #3 error: %v", err)
 	}
@@ -79,15 +79,15 @@ func TestLIFOSelectionCycles(t *testing.T) {
 func TestDeletionMidDayAdvancesSelection(t *testing.T) {
 	svc := newTestCoreService(t, "UTC")
 
-	id1, err := svc.databaseService.CreateImage([]byte("orig1"), []byte("proc1"))
+	id1, err := svc.databaseService.CreateImage([]byte("orig1"), []byte("proc1"), time.Now())
 	if err != nil {
 		t.Fatalf("CreateImage #1 error: %v", err)
 	}
-	_, err = svc.databaseService.CreateImage([]byte("orig2"), []byte("proc2"))
+	_, err = svc.databaseService.CreateImage([]byte("orig2"), []byte("proc2"), time.Now())
 	if err != nil {
 		t.Fatalf("CreateImage #2 error: %v", err)
 	}
-	id3, err := svc.databaseService.CreateImage([]byte("orig3"), []byte("proc3"))
+	id3, err := svc.databaseService.CreateImage([]byte("orig3"), []byte("proc3"), time.Now())
 	if err != nil {
 		t.Fatalf("CreateImage #3 error: %v", err)
 	}
@@ -122,11 +122,11 @@ func TestTimezoneConfigured(t *testing.T) {
 	// Use a non-UTC timezone and ensure selection still works
 	svc := newTestCoreService(t, "Europe/Berlin")
 
-	_, err := svc.databaseService.CreateImage([]byte("orig1"), []byte("proc1"))
+	_, err := svc.databaseService.CreateImage([]byte("orig1"), []byte("proc1"), time.Now())
 	if err != nil {
 		t.Fatalf("CreateImage #1 error: %v", err)
 	}
-	_, err = svc.databaseService.CreateImage([]byte("orig2"), []byte("proc2"))
+	_, err = svc.databaseService.CreateImage([]byte("orig2"), []byte("proc2"), time.Now())
 	if err != nil {
 		t.Fatalf("CreateImage #2 error: %v", err)
 	}

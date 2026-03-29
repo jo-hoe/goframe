@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -56,6 +57,7 @@ func NewSQLiteDatabase(connectionString string) (DatabaseService, error) {
 func (s *SQLiteDatabase) CreateDatabase() error {
 	_, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS images (
 		id TEXT PRIMARY KEY,
+		created_at TEXT NOT NULL,
 		original_image BLOB,
 		processed_image BLOB,
 		rank TEXT NOT NULL
@@ -65,13 +67,13 @@ func (s *SQLiteDatabase) CreateDatabase() error {
 	}
 
 	// Prepare common statements for reuse under load
-	if s.insertStmt, err = s.db.Prepare(`INSERT INTO images (id, original_image, processed_image, rank) VALUES (?, ?, ?, ?)`); err != nil {
+	if s.insertStmt, err = s.db.Prepare(`INSERT INTO images (id, created_at, original_image, processed_image, rank) VALUES (?, ?, ?, ?, ?)`); err != nil {
 		return err
 	}
 	if s.deleteStmt, err = s.db.Prepare(`DELETE FROM images WHERE id = ?`); err != nil {
 		return err
 	}
-	if s.getByIDStmt, err = s.db.Prepare(`SELECT id, original_image, processed_image, rank FROM images WHERE id = ?`); err != nil {
+	if s.getByIDStmt, err = s.db.Prepare(`SELECT id, created_at, original_image, processed_image, rank FROM images WHERE id = ?`); err != nil {
 		return err
 	}
 
@@ -109,7 +111,7 @@ func (s *SQLiteDatabase) Close() error {
 	return errors.Join(errs...)
 }
 
-func (s *SQLiteDatabase) CreateImage(original []byte, processed []byte) (string, error) {
+func (s *SQLiteDatabase) CreateImage(original []byte, processed []byte, createdAt time.Time) (string, error) {
 	if original == nil {
 		return "", fmt.Errorf("original image data cannot be nil")
 	}
@@ -134,10 +136,11 @@ func (s *SQLiteDatabase) CreateImage(original []byte, processed []byte) (string,
 	newRank := Next(prev)
 
 	// Insert both original and processed image atomically to avoid NULL race windows, with computed rank
+	createdAtStr := createdAt.Format(time.RFC3339)
 	if s.insertStmt != nil {
-		_, err = s.insertStmt.Exec(id, original, processed, newRank)
+		_, err = s.insertStmt.Exec(id, createdAtStr, original, processed, newRank)
 	} else {
-		_, err = s.db.Exec("INSERT INTO images (id, original_image, processed_image, rank) VALUES (?, ?, ?, ?)", id, original, processed, newRank)
+		_, err = s.db.Exec("INSERT INTO images (id, created_at, original_image, processed_image, rank) VALUES (?, ?, ?, ?, ?)", id, createdAtStr, original, processed, newRank)
 	}
 	if err != nil {
 		return "", err
@@ -189,16 +192,31 @@ func (s *SQLiteDatabase) GetImages(fields ...string) ([]*Image, error) {
 		var img Image
 		v := reflect.ValueOf(&img).Elem()
 
-		// Build scan destinations to the requested struct field pointers
+		// Build scan destinations; time.Time fields need a string intermediary (SQLite stores as TEXT)
 		dest := make([]any, 0, len(selected))
+		timeIndices := make(map[int]int) // dest index -> struct field index
 		for _, tag := range selected {
 			idx := tagToIndex[tag]
 			field := v.Field(idx)
-			dest = append(dest, field.Addr().Interface())
+			if field.Type() == reflect.TypeOf(time.Time{}) {
+				var s string
+				timeIndices[len(dest)] = idx
+				dest = append(dest, &s)
+			} else {
+				dest = append(dest, field.Addr().Interface())
+			}
 		}
 
 		if err := rows.Scan(dest...); err != nil {
 			return nil, err
+		}
+
+		// Parse time strings back into time.Time fields
+		for destIdx, fieldIdx := range timeIndices {
+			raw := *dest[destIdx].(*string)
+			if t, err := time.Parse(time.RFC3339, raw); err == nil {
+				v.Field(fieldIdx).Set(reflect.ValueOf(t))
+			}
 		}
 
 		images = append(images, &img)
@@ -224,14 +242,18 @@ func (s *SQLiteDatabase) GetImageByID(id string) (*Image, error) {
 	}
 
 	var img Image
+	var createdAtStr string
 	var rankStr string
-	if err := row.Scan(&img.ID, &img.OriginalImage, &img.ProcessedImage, &rankStr); err != nil {
+	if err := row.Scan(&img.ID, &createdAtStr, &img.OriginalImage, &img.ProcessedImage, &rankStr); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // Not found
 		}
 		return nil, err
 	}
 
+	if t, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
+		img.CreatedAt = t
+	}
 	if rankStr != "" {
 		img.Rank = rankStr
 	}

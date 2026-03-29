@@ -62,7 +62,7 @@ func (service *CoreService) AddImage(image []byte) (*common.ApiImage, error) {
 	}
 
 	// Insert atomically with processed image to avoid NULL windows
-	databaseImageID, err := service.databaseService.CreateImage(convertedImageData, processedImage)
+	databaseImageID, err := service.databaseService.CreateImage(convertedImageData, processedImage, time.Now().In(service.tzLoc))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create database image: %w", err)
 	}
@@ -220,6 +220,12 @@ func (service *CoreService) getOrderedImageIDs() ([]string, error) {
 func (service *CoreService) GetOrderedImageIDs() ([]string, error) {
 	service.advancePointer(time.Now())
 	return service.getOrderedImageIDs()
+}
+
+// GetOrderedImages returns images with id and created_at populated, in persisted rank order.
+func (service *CoreService) GetOrderedImages() ([]*database.Image, error) {
+	service.advancePointer(time.Now())
+	return service.databaseService.GetImages("id", "created_at")
 }
 
 func (service *CoreService) GetImageForTime(now time.Time) (string, error) {

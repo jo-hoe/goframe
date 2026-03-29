@@ -162,23 +162,25 @@ func (s *APIService) handleGetOriginalImageByID(ctx echo.Context) error {
 }
 
 type imageListItem struct {
-	ID           string `json:"id"`
-	ProcessedURL string `json:"processedUrl"`
-	OriginalURL  string `json:"originalUrl"`
+	ID           string    `json:"id"`
+	CreatedAt    time.Time `json:"createdAt"`
+	ProcessedURL string    `json:"processedUrl"`
+	OriginalURL  string    `json:"originalUrl"`
 }
 
 func (s *APIService) handleListImages(ctx echo.Context) error {
-	ids, err := s.coreService.GetOrderedImageIDs()
+	images, err := s.coreService.GetOrderedImages()
 	if err != nil {
 		slog.Error("failed to list images", "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusInternalServerError, "Failed to list images")
 	}
-	items := make([]imageListItem, 0, len(ids))
-	for _, id := range ids {
+	items := make([]imageListItem, 0, len(images))
+	for _, img := range images {
 		items = append(items, imageListItem{
-			ID:           id,
-			ProcessedURL: "/api/images/" + id + "/processed.png",
-			OriginalURL:  "/api/images/" + id + "/original.png",
+			ID:           img.ID,
+			CreatedAt:    img.CreatedAt,
+			ProcessedURL: "/api/images/" + img.ID + "/processed.png",
+			OriginalURL:  "/api/images/" + img.ID + "/original.png",
 		})
 	}
 	return ctx.JSON(http.StatusOK, items)

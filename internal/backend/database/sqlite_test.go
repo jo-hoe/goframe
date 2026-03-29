@@ -3,6 +3,7 @@ package database
 import (
 	"bytes"
 	"testing"
+	"time"
 )
 
 func newTestDB(t *testing.T) DatabaseService {
@@ -23,11 +24,11 @@ func newTestDB(t *testing.T) DatabaseService {
 func TestSQLite_GetImages_Projection(t *testing.T) {
 	ds := newTestDB(t)
 
-	id1, err := ds.CreateImage([]byte{0x01, 0x02}, []byte{0x10})
+	id1, err := ds.CreateImage([]byte{0x01, 0x02}, []byte{0x10}, time.Now())
 	if err != nil {
 		t.Fatalf("CreateImage #1 error: %v", err)
 	}
-	id2, err := ds.CreateImage([]byte{0x03}, []byte{0x20})
+	id2, err := ds.CreateImage([]byte{0x03}, []byte{0x20}, time.Now())
 	if err != nil {
 		t.Fatalf("CreateImage #2 error: %v", err)
 	}
@@ -92,7 +93,7 @@ func TestSQLite_GetImages_UnknownField(t *testing.T) {
 func TestSQLite_GetImages_AllFields(t *testing.T) {
 	ds := newTestDB(t)
 
-	id, err := ds.CreateImage([]byte("original"), []byte("processed"))
+	id, err := ds.CreateImage([]byte("original"), []byte("processed"), time.Now())
 	if err != nil {
 		t.Fatalf("CreateImage error: %v", err)
 	}
@@ -125,7 +126,7 @@ func TestSQLite_GetImages_AllFields(t *testing.T) {
 func TestSQLite_GetImageByID(t *testing.T) {
 	ds := newTestDB(t)
 
-	id, err := ds.CreateImage([]byte("orig"), []byte("proc"))
+	id, err := ds.CreateImage([]byte("orig"), []byte("proc"), time.Now())
 	if err != nil {
 		t.Fatalf("CreateImage error: %v", err)
 	}
@@ -161,11 +162,11 @@ func TestSQLite_GetImageByID(t *testing.T) {
 func TestSQLite_DeleteImage(t *testing.T) {
 	ds := newTestDB(t)
 
-	id1, err := ds.CreateImage([]byte("a"), []byte("A"))
+	id1, err := ds.CreateImage([]byte("a"), []byte("A"), time.Now())
 	if err != nil {
 		t.Fatalf("CreateImage #1 error: %v", err)
 	}
-	id2, err := ds.CreateImage([]byte("b"), []byte("B"))
+	id2, err := ds.CreateImage([]byte("b"), []byte("B"), time.Now())
 	if err != nil {
 		t.Fatalf("CreateImage #2 error: %v", err)
 	}
