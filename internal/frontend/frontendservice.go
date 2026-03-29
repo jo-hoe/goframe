@@ -258,7 +258,7 @@ func (service *FrontendService) buildImageListHTML(ts string) (string, error) {
 			disableDown = " disabled"
 		}
 
-		b.WriteString(fmt.Sprintf(`<div class="vertical-item" data-id="%s" style="margin-bottom:1rem"><article>
+		fmt.Fprintf(&b, `<div class="vertical-item" data-id="%s" style="margin-bottom:1rem"><article>
 	<img src="/htmx/image/original-thumb/%s?ts=%s" alt="Original thumbnail %s" style="max-width:100%%;height:auto">
 	<footer style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
 		<small>Scheduled date: %s</small>
@@ -276,7 +276,7 @@ func (service *FrontendService) buildImageListHTML(ts string) (string, error) {
 			<button hx-delete="/htmx/image/%s" hx-target="#image-list" hx-swap="innerHTML" class="secondary">Delete</button>
 		</div>
 	</footer>
-</article></div>`, id, id, ts, id, nextStr, id, disableUp, id, disableDown, id))
+</article></div>`, id, id, ts, id, nextStr, id, disableUp, id, disableDown, id)
 	}
 	b.WriteString(`</div>`)
 	return b.String(), nil
