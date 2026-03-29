@@ -8,4 +8,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./config.yaml:/config.yaml:ro
+      - type: bind
+        source: ./config.yaml
+        target: /config.yaml
+        read_only: true
