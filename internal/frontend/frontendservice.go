@@ -19,6 +19,44 @@ const (
 	mimePNG      = "image/png"
 )
 
+type moveDirection string
+
+const (
+	dirUp   moveDirection = "up"
+	dirDown moveDirection = "down"
+)
+
+func parseMoveDirection(s string) (moveDirection, bool) {
+	d := moveDirection(strings.ToLower(strings.TrimSpace(s)))
+	return d, d == dirUp || d == dirDown
+}
+
+// cycleMove moves the element at idx one step in dir, wrapping at the ends.
+func cycleMove(order []string, idx int, dir moveDirection) []string {
+	n := len(order)
+	result := make([]string, n)
+	copy(result, order)
+
+	var target int
+	switch dir {
+	case dirUp:
+		target = (idx - 1 + n) % n
+	case dirDown:
+		target = (idx + 1) % n
+	}
+	result[idx], result[target] = result[target], result[idx]
+	return result
+}
+
+func sliceIndex(s []string, v string) int {
+	for i, x := range s {
+		if x == v {
+			return i
+		}
+	}
+	return -1
+}
+
 type FrontendService struct {
 	coreService *core.CoreService
 	config      *core.ServiceConfig
@@ -248,27 +286,18 @@ func (service *FrontendService) buildImageListHTML(ts string) (string, error) {
 	for i, id := range ids {
 		showDate := base.AddDate(0, 0, i)
 		nextStr := service.formatNextShow(showDate)
-		// Controls: Up disabled for first, Down disabled for last
-		disableUp := ""
-		disableDown := ""
-		if i == 0 {
-			disableUp = " disabled"
-		}
-		if i == len(ids)-1 {
-			disableDown = " disabled"
-		}
 
 		fmt.Fprintf(&b, `<div class="vertical-item" data-id="%s" style="margin-bottom:1rem"><article>
 	<img src="/htmx/image/original-thumb/%s?ts=%s" alt="Original thumbnail %s" style="max-width:100%%;height:auto">
 	<footer style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
 		<small>Scheduled date: %s</small>
 		<div style="display:flex;gap:0.5rem">
-			<button hx-post="/htmx/image/%s/move?dir=up" hx-target="#image-list" hx-swap="innerHTML"%s aria-label="Move up" title="Move up">
+			<button hx-post="/htmx/image/%s/move?dir=up" hx-target="#image-list" hx-swap="innerHTML" aria-label="Move up" title="Move up">
 				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
 					<polygon points="12,5 19,18 5,18" />
 				</svg>
 			</button>
-			<button hx-post="/htmx/image/%s/move?dir=down" hx-target="#image-list" hx-swap="innerHTML"%s aria-label="Move down" title="Move down">
+			<button hx-post="/htmx/image/%s/move?dir=down" hx-target="#image-list" hx-swap="innerHTML" aria-label="Move down" title="Move down">
 				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
 					<polygon points="5,6 19,6 12,19" />
 				</svg>
@@ -276,7 +305,7 @@ func (service *FrontendService) buildImageListHTML(ts string) (string, error) {
 			<button hx-delete="/htmx/image/%s" hx-target="#image-list" hx-swap="innerHTML" class="secondary">Delete</button>
 		</div>
 	</footer>
-</article></div>`, id, id, ts, id, nextStr, id, disableUp, id, disableDown, id)
+</article></div>`, id, id, ts, id, nextStr, id, id, id)
 	}
 	b.WriteString(`</div>`)
 	return b.String(), nil
@@ -284,13 +313,12 @@ func (service *FrontendService) buildImageListHTML(ts string) (string, error) {
 
 func (service *FrontendService) htmxMoveImageHandler(ctx echo.Context) error {
 	id := ctx.Param("id")
-	dir := strings.ToLower(strings.TrimSpace(ctx.QueryParam("dir")))
-	if id == "" || (dir != "up" && dir != "down") {
-		slog.Warn("htmxMoveImageHandler: invalid params", "id", id, "dir", dir)
+	dir, ok := parseMoveDirection(ctx.QueryParam("dir"))
+	if id == "" || !ok {
+		slog.Warn("htmxMoveImageHandler: invalid params", "id", id, "dir", ctx.QueryParam("dir"))
 		return ctx.String(http.StatusBadRequest, "Invalid parameters")
 	}
 
-	// Get current order from DB
 	order, err := service.coreService.GetOrderedImageIDs()
 	if err != nil {
 		slog.Error("htmxMoveImageHandler: failed to get order", "error", err)
@@ -300,36 +328,18 @@ func (service *FrontendService) htmxMoveImageHandler(ctx echo.Context) error {
 		return ctx.String(http.StatusBadRequest, "No images")
 	}
 
-	// Find index
-	idx := -1
-	for i := range order {
-		if order[i] == id {
-			idx = i
-			break
-		}
-	}
+	idx := sliceIndex(order, id)
 	if idx < 0 {
 		return ctx.String(http.StatusBadRequest, "Image not found")
 	}
 
-	// Compute target index and swap
-	switch dir {
-	case "up":
-		if idx > 0 {
-			order[idx], order[idx-1] = order[idx-1], order[idx]
-		}
-	case "down":
-		if idx < len(order)-1 {
-			order[idx], order[idx+1] = order[idx+1], order[idx]
-		}
-	}
+	order = cycleMove(order, idx, dir)
 
 	if err := service.coreService.UpdateImageOrder(order); err != nil {
 		slog.Error("htmxMoveImageHandler: failed to update order", "error", err)
 		return ctx.String(http.StatusInternalServerError, "Failed to update order")
 	}
 
-	// Rebuild list
 	ts := service.timestampNanoStr()
 	listHTML, err := service.buildImageListHTML(ts)
 	if err != nil {
@@ -337,9 +347,7 @@ func (service *FrontendService) htmxMoveImageHandler(ctx echo.Context) error {
 		return ctx.String(http.StatusInternalServerError, "Failed to rebuild image list")
 	}
 
-	// Prevent caching
 	service.setNoCache(ctx)
-
 	return ctx.HTML(http.StatusOK, listHTML)
 }
 
