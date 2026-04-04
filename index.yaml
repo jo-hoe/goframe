@@ -3,6 +3,22 @@ entries:
   goframe:
   - apiVersion: v2
     appVersion: 4.0.0
+    created: "2026-04-04T15:45:34.029277826Z"
+    description: Helm chart for the goframe image processing web service
+    digest: 7f14ac479d7b59654db12e13f6210a437648b3e856b9307f537b65a87c805b2d
+    keywords:
+    - go
+    - image
+    - web
+    name: goframe
+    sources:
+    - https://github.com/jo-hoe/goframe
+    type: application
+    urls:
+    - https://github.com/jo-hoe/goframe/releases/download/goframe-4.0.2/goframe-4.0.2.tgz
+    version: 4.0.2
+  - apiVersion: v2
+    appVersion: 4.0.0
     created: "2026-04-04T15:36:45.267806978Z"
     description: Helm chart for the goframe image processing web service
     digest: 238259cef3b4aa1ef08aa03f670ac429441c5c457b6a946ad9baf6e158cb96ae
@@ -260,6 +276,23 @@ entries:
   goframe-operator:
   - apiVersion: v2
     appVersion: 4.0.0
+    created: "2026-04-04T15:45:34.140160208Z"
+    description: Helm chart for the GoFrame Kubernetes operator (install once per
+      cluster)
+    digest: 7576e36b2f47ce469e96732fb99df2486b586bb5cff9d80e76eb21bda8b72ea3
+    keywords:
+    - go
+    - operator
+    - kubernetes
+    name: goframe-operator
+    sources:
+    - https://github.com/jo-hoe/goframe
+    type: application
+    urls:
+    - https://github.com/jo-hoe/goframe/releases/download/goframe-operator-4.0.2/goframe-operator-4.0.2.tgz
+    version: 4.0.2
+  - apiVersion: v2
+    appVersion: 4.0.0
     created: "2026-04-04T14:51:58.664830587Z"
     description: Helm chart for the GoFrame Kubernetes operator (install once per
       cluster)
@@ -275,4 +308,4 @@ entries:
     urls:
     - https://github.com/jo-hoe/goframe/releases/download/goframe-operator-4.0.0/goframe-operator-4.0.0.tgz
     version: 4.0.0
-generated: "2026-04-04T15:36:45.267919196Z"
+generated: "2026-04-04T15:45:34.140281924Z"
