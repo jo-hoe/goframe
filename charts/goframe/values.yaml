@@ -54,9 +54,13 @@ schedulerImage:
 #     cron: "0 8 * * *"
 #     source: xkcd
 #     keepCount: 1
+#     commands:
+#       - name: ScaleCommand
+#         height: 1600
+#         width: 1200
 #     image:
 #       repository: ghcr.io/jo-hoe/goframe-image-scheduler
-#       tag: "4.0.0"
+#       tag: ""
 #       pullPolicy: IfNotPresent
 schedulers: []
 

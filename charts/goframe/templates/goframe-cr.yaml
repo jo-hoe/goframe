@@ -28,8 +28,9 @@ spec:
   commands:
     {{- range .Values.commands }}
     - name: {{ .name | quote }}
-      {{- if .params }}
-      params: {{ .params | toJson }}
+      {{- $params := omit . "name" }}
+      {{- if $params }}
+      params: {{ $params | toJson }}
       {{- end }}
     {{- end }}
   {{- end }}
@@ -42,6 +43,16 @@ spec:
       source: {{ .source | quote }}
       {{- if .keepCount }}
       keepCount: {{ .keepCount }}
+      {{- end }}
+      {{- if .commands }}
+      commands:
+        {{- range .commands }}
+        - name: {{ .name | quote }}
+          {{- $params := omit . "name" }}
+          {{- if $params }}
+          params: {{ $params | toJson }}
+          {{- end }}
+        {{- end }}
       {{- end }}
       image:
         repository: {{ ((.image).repository) | default $.Values.schedulerImage.repository | quote }}

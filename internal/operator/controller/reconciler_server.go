@@ -48,7 +48,7 @@ func buildServerConfig(gf *goframev1alpha1.GoFrame) (string, error) {
 	}
 	type cmdConfig struct {
 		Name   string         `yaml:"name"`
-		Params map[string]any `yaml:"params,omitempty"`
+		Params map[string]any `yaml:",inline"`
 	}
 	type serverConfig struct {
 		Port                          int32       `yaml:"port"`
