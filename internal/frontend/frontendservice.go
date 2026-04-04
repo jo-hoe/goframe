@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -9,8 +10,9 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/jo-hoe/goframe/internal/backend/commands"
+	"github.com/jo-hoe/goframe/internal/config"
 	"github.com/jo-hoe/goframe/internal/core"
+	"github.com/jo-hoe/goframe/internal/imageprocessing"
 	"github.com/labstack/echo/v4"
 )
 
@@ -59,10 +61,10 @@ func sliceIndex(s []string, v string) int {
 
 type FrontendService struct {
 	coreService *core.CoreService
-	config      *core.ServiceConfig
+	config      *config.ServiceConfig
 }
 
-func NewFrontendService(config *core.ServiceConfig, coreService *core.CoreService) *FrontendService {
+func NewFrontendService(config *config.ServiceConfig, coreService *core.CoreService) *FrontendService {
 	return &FrontendService{
 		coreService: coreService,
 		config:      config,
@@ -127,7 +129,7 @@ func (service *FrontendService) htmxUploadImageHandler(ctx echo.Context) error {
 		return ctx.String(http.StatusInternalServerError, "Failed to read uploaded file")
 	}
 
-	_, err = service.coreService.AddImage(image)
+	_, err = service.coreService.AddImage(ctx.Request().Context(), image, "")
 	if err != nil {
 		slog.Error("htmxUploadImageHandler: failed to process uploaded image",
 			"status", http.StatusInternalServerError, "error", err, "filename", file.Filename)
@@ -138,7 +140,7 @@ func (service *FrontendService) htmxUploadImageHandler(ctx echo.Context) error {
 	ts := service.timestampNanoStr()
 
 	// Build out-of-band update for the image list
-	imageListHTML, listErr := service.buildImageListHTML(ts)
+	imageListHTML, listErr := service.buildImageListHTML(ctx.Request().Context(), ts)
 	if listErr != nil {
 		// If building the list fails, still return the current image update and upload result
 		slog.Error("htmxUploadImageHandler: failed to list images for OOB update",
@@ -154,7 +156,7 @@ func (service *FrontendService) htmxUploadImageHandler(ctx echo.Context) error {
 }
 
 func (service *FrontendService) htmxListImagesHandler(ctx echo.Context) error {
-	listHTML, err := service.buildImageListHTML(service.timestampNanoStr())
+	listHTML, err := service.buildImageListHTML(ctx.Request().Context(), service.timestampNanoStr())
 	if err != nil {
 		slog.Error("htmxListImagesHandler: failed to list images",
 			"status", http.StatusInternalServerError, "error", err)
@@ -176,7 +178,7 @@ func (service *FrontendService) htmxGetOriginalThumbnailByIDHandler(ctx echo.Con
 		return ctx.String(http.StatusBadRequest, "Missing image ID")
 	}
 
-	image, err := service.coreService.GetImageById(id)
+	image, err := service.coreService.GetImageById(ctx.Request().Context(), id)
 	if err != nil || len(image.OriginalImage) == 0 {
 		slog.Warn("htmxGetOriginalThumbnailByIDHandler: image not available",
 			"status", http.StatusNotFound, "image_id", id, "error", err)
@@ -204,7 +206,7 @@ func (service *FrontendService) htmxDeleteImageHandler(ctx echo.Context) error {
 		return ctx.String(http.StatusBadRequest, "Missing image ID")
 	}
 
-	if err := service.coreService.DeleteImage(id); err != nil {
+	if err := service.coreService.DeleteImage(ctx.Request().Context(), id); err != nil {
 		slog.Error("htmxDeleteImageHandler: failed to delete image",
 			"status", http.StatusInternalServerError, "image_id", id, "error", err)
 		return ctx.String(http.StatusInternalServerError, "Failed to delete image")
@@ -212,7 +214,7 @@ func (service *FrontendService) htmxDeleteImageHandler(ctx echo.Context) error {
 
 	// Build updated list HTML
 	ts := service.timestampNanoStr()
-	listHTML, err := service.buildImageListHTML(ts)
+	listHTML, err := service.buildImageListHTML(ctx.Request().Context(), ts)
 	if err != nil {
 		slog.Error("htmxDeleteImageHandler: failed to list images after delete",
 			"status", http.StatusInternalServerError, "error", err)
@@ -228,7 +230,7 @@ func (service *FrontendService) htmxDeleteImageHandler(ctx echo.Context) error {
 
 func (service *FrontendService) toThumbnail(image []byte) ([]byte, error) {
 	// Ensure thumbnail generation starts from PNG to support non-PNG inputs (e.g., JPEG, WEBP, SVG)
-	pngConv, err := commands.NewPngConverterCommand(map[string]any{})
+	pngConv, err := imageprocessing.NewPngConverterCommand(map[string]any{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create PNG converter for thumbnail: %w", err)
 	}
@@ -239,7 +241,7 @@ func (service *FrontendService) toThumbnail(image []byte) ([]byte, error) {
 
 	// Scale down to target thumbnail width
 	width := service.config.ThumbnailWidth
-	command, err := commands.NewPixelScaleCommand(map[string]any{"width": width})
+	command, err := imageprocessing.NewPixelScaleCommand(map[string]any{"width": width})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create thumbnail scale command: %w", err)
 	}
@@ -267,9 +269,9 @@ func (service *FrontendService) formatNextShow(t time.Time) string {
 	return "unknown"
 }
 
-func (service *FrontendService) buildImageListHTML(ts string) (string, error) {
+func (service *FrontendService) buildImageListHTML(ctx context.Context, ts string) (string, error) {
 	// Render strictly in persisted DB order for deterministic Up/Down moves
-	ids, err := service.coreService.GetOrderedImageIDs()
+	ids, err := service.coreService.GetOrderedImageIDs(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -319,7 +321,7 @@ func (service *FrontendService) htmxMoveImageHandler(ctx echo.Context) error {
 		return ctx.String(http.StatusBadRequest, "Invalid parameters")
 	}
 
-	order, err := service.coreService.GetOrderedImageIDs()
+	order, err := service.coreService.GetOrderedImageIDs(ctx.Request().Context())
 	if err != nil {
 		slog.Error("htmxMoveImageHandler: failed to get order", "error", err)
 		return ctx.String(http.StatusInternalServerError, "Failed to fetch order")
@@ -335,13 +337,13 @@ func (service *FrontendService) htmxMoveImageHandler(ctx echo.Context) error {
 
 	order = cycleMove(order, idx, dir)
 
-	if err := service.coreService.UpdateImageOrder(order); err != nil {
+	if err := service.coreService.UpdateImageOrder(ctx.Request().Context(), order); err != nil {
 		slog.Error("htmxMoveImageHandler: failed to update order", "error", err)
 		return ctx.String(http.StatusInternalServerError, "Failed to update order")
 	}
 
 	ts := service.timestampNanoStr()
-	listHTML, err := service.buildImageListHTML(ts)
+	listHTML, err := service.buildImageListHTML(ctx.Request().Context(), ts)
 	if err != nil {
 		slog.Error("htmxMoveImageHandler: failed to rebuild image list", "error", err)
 		return ctx.String(http.StatusInternalServerError, "Failed to rebuild image list")

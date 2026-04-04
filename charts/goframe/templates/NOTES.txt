@@ -1,21 +1,13 @@
-1. Chart goframe has been installed.
+GoFrame CR "{{ .Release.Name }}" has been installed in namespace "{{ .Release.Namespace }}".
 
-Accessing the service:
+The GoFrame operator will reconcile this CR and provision:
+  - Redis (Deployment + Service + ConfigMap)
+  - goframe server (Deployment + Service + ConfigMap)
+  - CronJob per scheduler entry
 
-- Using kubectl port-forward (recommended for local dev without ingress):
-  kubectl port-forward svc/{{ include "goframe.fullname" . }} 8080:{{ .Values.service.port }}
+Access the server:
+  kubectl port-forward svc/{{ .Release.Name }}-server 8080:8080 -n {{ .Release.Namespace }}
+  Then open: http://localhost:8080/
 
-  Then open:
-  http://localhost:8080/
-
-- If you enabled ingress:
-  Host: {{ (index .Values.ingress.hosts 0).host | default "goframe.local" }}
-  Path: {{ (default (list (dict "path" "/" "pathType" "Prefix")) (index .Values.ingress.hosts 0).paths) | toYaml }}
-
-Probes:
-- Liveness:  GET /probe
-- Readiness: GET /probe
-
-Config:
-- Config is provided via a ConfigMap and mounted at /config/config.yaml
-- The application reads CONFIG_PATH=/config/config.yaml
+Check status:
+  kubectl get goframe {{ .Release.Name }} -n {{ .Release.Namespace }} -o wide
