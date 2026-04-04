@@ -1,6 +1,6 @@
 # goframe
 
-![Version: 3.2.1](https://img.shields.io/badge/Version-3.2.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 3.2.1](https://img.shields.io/badge/AppVersion-3.2.1-informational?style=flat-square)
+![Version: 4.0.0](https://img.shields.io/badge/Version-4.0.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.0.0](https://img.shields.io/badge/AppVersion-4.0.0-informational?style=flat-square)
 
 Helm chart for the goframe image processing web service
 
@@ -12,37 +12,24 @@ Helm chart for the goframe image processing web service
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| affinity | object | `{}` | Affinity rules for Pod scheduling |
-| commands | list | `[]` | Processing pipeline configuration Supported command names and parameters: - OrientationCommand: orientation [portrait|landscape], rotateWhenSquare (bool, default false), clockwise (bool; true=clockwise, false=counterclockwise; default true) - ScaleCommand: height (int), width (int), edgeGradient (bool, optional; default false), edgeGradientBWThreshold (float [0..1], optional; default 0.75) - PixelScaleCommand: height (int, optional), width (int, optional) - at least one must be provided - CropCommand: height (int), width (int) - PngConverterCommand: no parameters; enforces PNG output - DitherCommand: ditheringAlgorithm (string; 'floyd-steinberg' default, 'atkinson' supported), palette (list of device/dither pairs) |
-| extraEnv | list | `[]` | Extra environment variables to inject into the container |
-| extraEnvFrom | list | `[]` | Extra environment sources (e.g., ConfigMaps or Secrets) |
-| fullnameOverride | string | `""` | Fully override the release name |
-| image.pullPolicy | string | `"IfNotPresent"` | Image pull policy |
-| image.repository | string | `"ghcr.io/jo-hoe/goframe"` | Container image repository |
-| image.tag | string | `""` | Overrides the image tag whose default is the chart appVersion. |
-| imagePullSecrets | list | `[]` | Secrets to use for pulling images (for private registries) |
-| ingress.annotations | object | `{}` | Annotations to add to the Ingress |
-| ingress.className | string | `""` | IngressClass name |
-| ingress.enabled | bool | `false` | Enable Ingress |
-| ingress.hosts | list | `[{"host":"goframe.local","paths":[{"path":"/","pathType":"Prefix"}]}]` | Ingress host definitions |
-| ingress.tls | list | `[]` | TLS configuration for the Ingress |
-| nameOverride | string | `""` | Partially override the chart name |
-| nodeSelector | object | `{}` | Node selector for Pod assignment |
-| podAnnotations | object | `{}` | Annotations to add to the Pod |
-| podLabels | object | `{}` | Additional labels to add to the Pod |
-| podSecurityContext | object | `{}` | Pod-level security context |
-| replicaCount | int | `1` | Number of desired pod replicas |
-| resources | object | `{}` | Resource requests and limits for the container |
-| schedulers | list | `[]` | Scheduler CronJob instances. Each entry deploys an independent Kubernetes CronJob that fetches images from a single source and uploads them to goframe when the number of manually-uploaded images is at or below manualImageThreshold. Multiple schedulers with different sourceName values manage their own image lifecycles independently. Leave the list empty to deploy no schedulers. |
-| securityContext | object | `{}` | Container-level security context |
-| service.port | int | `80` | Service port |
-| service.targetPort | int | `8080` | Target container port exposed by the application |
-| service.type | string | `"ClusterIP"` | Kubernetes Service type |
-| serviceAccount.annotations | object | `{}` | Annotations to add to the service account |
-| serviceAccount.automount | bool | `true` | Automatically mount a ServiceAccount's API credentials |
-| serviceAccount.create | bool | `true` | Specifies whether a service account should be created |
-| serviceAccount.name | string | `""` | The name of the service account to use. If not set and create is true, a name is generated using the fullname template |
-| tolerations | list | `[]` | Tolerations for Pod assignment |
+| commands | list | `[]` |  |
+| ingress.annotations | object | `{}` |  |
+| ingress.className | string | `""` |  |
+| ingress.enabled | bool | `false` |  |
+| ingress.hosts[0].host | string | `"goframe.local"` |  |
+| ingress.hosts[0].paths[0].path | string | `"/"` |  |
+| ingress.hosts[0].paths[0].pathType | string | `"Prefix"` |  |
+| ingress.tls | list | `[]` |  |
+| redis.address | string | `""` |  |
+| schedulers | list | `[]` |  |
+| server.image.pullPolicy | string | `"IfNotPresent"` |  |
+| server.image.repository | string | `"ghcr.io/jo-hoe/goframe"` |  |
+| server.image.tag | string | `"latest"` |  |
+| server.logLevel | string | `"info"` |  |
+| server.port | int | `8080` |  |
+| server.svgFallbackLongSidePixelCount | int | `4096` |  |
+| server.thumbnailWidth | int | `512` |  |
+| timezone | string | `"UTC"` |  |
 
 ----------------------------------------------
 Autogenerated from chart metadata using [helm-docs v1.14.2](https://github.com/norwoodj/helm-docs/releases/v1.14.2)
