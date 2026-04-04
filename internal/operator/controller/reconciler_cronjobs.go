@@ -267,11 +267,11 @@ func (r *GoFrameReconciler) buildCronJob(gf *goframev1alpha1.GoFrame, sched gofr
 func schedulerImageRef(sched goframev1alpha1.SchedulerSpec) string {
 	repo := sched.Image.Repository
 	if repo == "" {
-		repo = "ghcr.io/jo-hoe/goframe-scheduler"
+		repo = "ghcr.io/jo-hoe/goframe-image-scheduler"
 	}
 	tag := sched.Image.Tag
 	if tag == "" {
-		tag = "latest"
+		tag = "4.0.0"
 	}
 	return repo + ":" + tag
 }

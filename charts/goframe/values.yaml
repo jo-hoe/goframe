@@ -10,7 +10,7 @@ redis:
 server:
   image:
     repository: ghcr.io/jo-hoe/goframe
-    tag: latest
+    tag: "4.0.0"
     pullPolicy: IfNotPresent
   port: 8080
   thumbnailWidth: 512

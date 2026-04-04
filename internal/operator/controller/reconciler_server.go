@@ -273,7 +273,7 @@ func serverImageRef(gf *goframev1alpha1.GoFrame) string {
 	}
 	tag := img.Tag
 	if tag == "" {
-		tag = "latest"
+		tag = "4.0.0"
 	}
 	return repo + ":" + tag
 }
