@@ -271,7 +271,7 @@ func schedulerImageRef(sched goframev1alpha1.SchedulerSpec) string {
 	}
 	tag := sched.Image.Tag
 	if tag == "" {
-		tag = "4.0.0"
+		tag = "latest"
 	}
 	return repo + ":" + tag
 }
