@@ -12,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"gopkg.in/yaml.v3"
 
 	goframev1alpha1 "github.com/jo-hoe/goframe/internal/operator/api/v1alpha1"
@@ -233,12 +232,17 @@ func (r *GoFrameReconciler) reconcileServerService(ctx context.Context, gf *gofr
 	if port == 0 {
 		port = serverPort
 	}
+	svcType := corev1.ServiceType(gf.Spec.Server.ServiceType)
+	if svcType == "" {
+		svcType = corev1.ServiceTypeClusterIP
+	}
 	desired := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      serverName(gf),
 			Namespace: gf.Namespace,
 		},
 		Spec: corev1.ServiceSpec{
+			Type:     svcType,
 			Selector: serverLabels(gf),
 			Ports: []corev1.ServicePort{
 				{Port: port, Protocol: corev1.ProtocolTCP},
@@ -254,7 +258,15 @@ func (r *GoFrameReconciler) reconcileServerService(ctx context.Context, gf *gofr
 	if apierrors.IsNotFound(err) {
 		return r.Create(ctx, desired)
 	}
-	return client.IgnoreNotFound(err)
+	if err != nil {
+		return err
+	}
+	if existing.Spec.Type != desired.Spec.Type {
+		existing.Spec.Type = desired.Spec.Type
+		existing.Spec.Ports = desired.Spec.Ports
+		return r.Update(ctx, existing)
+	}
+	return nil
 }
 
 func serverLabels(gf *goframev1alpha1.GoFrame) map[string]string {

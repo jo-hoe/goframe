@@ -129,6 +129,12 @@ type ServerSpec struct {
 	// +kubebuilder:default=4096
 	// +optional
 	SvgFallbackLongSidePixelCount int `json:"svgFallbackLongSidePixelCount,omitempty"`
+
+	// ServiceType is the Kubernetes Service type for the server (ClusterIP, NodePort, LoadBalancer).
+	// +kubebuilder:default="ClusterIP"
+	// +kubebuilder:validation:Enum=ClusterIP;NodePort;LoadBalancer
+	// +optional
+	ServiceType string `json:"serviceType,omitempty"`
 }
 
 // RedisSpec configures the Redis connection used by the operator.
