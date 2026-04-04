@@ -22,6 +22,7 @@ spec:
     thumbnailWidth: {{ .Values.server.thumbnailWidth }}
     logLevel: {{ .Values.server.logLevel | quote }}
     svgFallbackLongSidePixelCount: {{ .Values.server.svgFallbackLongSidePixelCount }}
+    serviceType: {{ .Values.server.serviceType | quote }}
 
   {{- if .Values.commands }}
   commands:

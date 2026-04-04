@@ -1,6 +1,6 @@
 # goframe
 
-![Version: 4.0.5](https://img.shields.io/badge/Version-4.0.5-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.0.1](https://img.shields.io/badge/AppVersion-4.0.1-informational?style=flat-square)
+![Version: 4.0.6](https://img.shields.io/badge/Version-4.0.6-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.0.1](https://img.shields.io/badge/AppVersion-4.0.1-informational?style=flat-square)
 
 Helm chart for the goframe image processing web service
 
@@ -30,6 +30,7 @@ Helm chart for the goframe image processing web service
 | server.image.tag | string | `""` |  |
 | server.logLevel | string | `"info"` |  |
 | server.port | int | `8080` |  |
+| server.serviceType | string | `"ClusterIP"` |  |
 | server.svgFallbackLongSidePixelCount | int | `4096` |  |
 | server.thumbnailWidth | int | `512` |  |
 | timezone | string | `"UTC"` |  |

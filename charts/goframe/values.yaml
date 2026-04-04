@@ -16,6 +16,9 @@ server:
   thumbnailWidth: 512
   logLevel: "info"
   svgFallbackLongSidePixelCount: 4096
+  # serviceType controls how the server Service is exposed.
+  # Valid values: ClusterIP, NodePort, LoadBalancer
+  serviceType: "ClusterIP"
 
 # Image processing pipeline applied to every ingested image.
 # Supported commands: OrientationCommand, ScaleCommand, PixelScaleCommand,

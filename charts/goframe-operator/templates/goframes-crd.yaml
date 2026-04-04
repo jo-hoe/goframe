@@ -193,6 +193,15 @@ spec:
                     description: Port is the HTTP port the server listens on.
                     format: int32
                     type: integer
+                  serviceType:
+                    default: ClusterIP
+                    description: ServiceType is the Kubernetes Service type for the
+                      server (ClusterIP, NodePort, LoadBalancer).
+                    enum:
+                    - ClusterIP
+                    - NodePort
+                    - LoadBalancer
+                    type: string
                   svgFallbackLongSidePixelCount:
                     default: 4096
                     description: SvgFallbackLongSidePixelCount is the rasterization
