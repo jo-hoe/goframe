@@ -26,17 +26,18 @@ Required and optional fields:
 
 - port: int (server port, default 8080)
 - database:
-  - type: string (e.g. "sqlite")
-  - connectionString: string (e.g. "file:goframe.db?cache=shared&mode=rwc" or ":memory:")
-- rotationTimezone: string (IANA TZ, default "UTC")
+  - type: string (e.g. "redis")
+  - connectionString: string (e.g. "localhost:6379")
+  - namespace: string (key namespace, e.g. "goframe")
+- timezone: string (IANA TZ, default "UTC") — used for daily image rotation and CronJob scheduling
 - commands: list of command definitions (see above)
 
 ## Quick start (local)
 
 Prerequisites:
 
-- Go 1.24+
-- SQLite (embedded via modernc.org/sqlite, no external DB needed)
+- Go 1.25+
+- Redis (or use `make start-docker` to run via docker-compose)
 
 Steps:
 
@@ -58,6 +59,16 @@ API test:
 - Download processed by ID: `curl -s http://localhost:8080/api/images/<id>/processed.png -o processed.png`
 - Download original by ID: `curl -s http://localhost:8080/api/images/<id>/original.png -o original.png`
 - Delete by ID: `curl -X DELETE http://localhost:8080/api/images/<id> -i`
+
+## Helm
+
+The chart is located in `charts/goframe`. It depends on the [Bitnami Redis chart](https://charts.bitnami.com/bitnami), which must be fetched before installing:
+
+```bash
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm dependency build charts/goframe
+helm install goframe charts/goframe
+```
 
 ## Make
 

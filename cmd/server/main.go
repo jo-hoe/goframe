@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"log/slog"
@@ -14,7 +15,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jo-hoe/goframe/internal/backend"
+	"github.com/jo-hoe/goframe/internal/apihandler"
+	"github.com/jo-hoe/goframe/internal/config"
 	"github.com/jo-hoe/goframe/internal/core"
 	frontend "github.com/jo-hoe/goframe/internal/frontend"
 	"github.com/labstack/echo/v4"
@@ -22,17 +24,20 @@ import (
 )
 
 func getConfigPath() string {
-	// First check if config path is provided via environment variable
+	configFlag := flag.String("config", "", "path to config file")
+	flag.Parse()
+	if *configFlag != "" {
+		return *configFlag
+	}
 	if configPath := os.Getenv("CONFIG_PATH"); configPath != "" {
 		return configPath
 	}
 
-	// Default to config.yaml in current working directory
 	cwd, err := os.Getwd()
 	if err != nil {
 		panic(err)
 	}
-	return filepath.Join(cwd, "config.yaml")
+	return filepath.Join(cwd, "local.yaml")
 }
 
 func parseLogLevel(s string) slog.Level {
@@ -51,38 +56,37 @@ func parseLogLevel(s string) slog.Level {
 }
 
 func main() {
-	// Load configuration
 	configPath := getConfigPath()
-	config, err := core.LoadConfig(configPath)
+	config, err := config.LoadServerConfig(configPath)
 	if err != nil {
 		log.Printf("failed to load config from %s: %v", configPath, err)
 		panic(err)
 	}
 
-	// Initialize global slog handler based on configured log level
 	level := parseLogLevel(config.LogLevel)
 	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
 	slog.SetDefault(slog.New(handler))
 	slog.Info("logging initialized", "level", config.LogLevel)
 
-	coreService := core.NewCoreService(config)
+	coreService, err := core.NewCoreService(config)
+	if err != nil {
+		log.Fatalf("failed to initialise core service: %v", err)
+	}
 	server := defineServer()
 
-	apiService := backend.NewAPIService(coreService)
-	apiService.SetRoutes(server)
+	api := apihandler.NewAPIService(coreService)
+	api.SetRoutes(server)
 	frontendService := frontend.NewFrontendService(config, coreService)
 	frontendService.SetRoutes(server)
 
 	portString := fmt.Sprintf(":%d", config.Port)
 
-	// Start HTTP server in a goroutine to allow graceful shutdown
 	go func() {
 		if err := server.Start(portString); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("http server error: %v", err)
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
@@ -103,7 +107,6 @@ func main() {
 func defineServer() *echo.Echo {
 	e := echo.New()
 
-	// Configure request logger to skip "/" endpoint (health check/probe)
 	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		Skipper: func(c echo.Context) bool {
 			return c.Path() == "/probe"
@@ -149,7 +152,6 @@ func defineServer() *echo.Echo {
 
 	e.Use(middleware.Recover())
 	e.Pre(middleware.RemoveTrailingSlash())
-
 	e.Validator = &GenericEchoValidator{}
 
 	return e

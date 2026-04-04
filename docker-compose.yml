@@ -1,14 +1,64 @@
 services:
+  redis:
+    image: redis:7-alpine
+    command: >
+      redis-server
+      --bind 0.0.0.0
+      --protected-mode no
+      --maxmemory 32mb
+      --maxmemory-policy allkeys-lru
+      --save ""
+      --appendonly no
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+
   goframe:
     build:
       context: .
+      target: dev
     image: goframe:latest
     environment:
-      CONFIG_PATH: /config.yaml
+      CONFIG_PATH: /local.yaml
     ports:
       - "8080:8080"
     volumes:
       - type: bind
-        source: ./config.yaml
-        target: /config.yaml
+        source: ./local.yaml
+        target: /local.yaml
         read_only: true
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/probe || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  image-scheduler:
+    build:
+      context: .
+      args:
+        CMD: imagescheduler
+    image: goframe-image-scheduler:latest
+    environment:
+      IMAGE_SCHEDULER_CONFIG_PATH: /local.yaml
+    volumes:
+      - type: bind
+        source: ./local.yaml
+        target: /local.yaml
+        read_only: true
+    depends_on:
+      goframe:
+        condition: service_healthy
+    # Restart on failure mirrors CronJob retry behaviour during local development.
+    # Set sources.xkcd.enabled: true in image-scheduler.yaml to trigger a real image fetch on startup.
+    restart: "no"
+

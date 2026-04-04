@@ -13,17 +13,7 @@ Helm chart for the goframe image processing web service
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` | Affinity rules for Pod scheduling |
-| config | object | `{"commands":[{"name":"OrientationCommand","orientation":"portrait"},{"name":"DitherCommand"}],"database":{"connectionString":"file:goframe.db?cache=shared&mode=rwc","type":"sqlite"},"logLevel":"info","port":8080,"rotationTimezone":"UTC","svgFallbackLongSidePixelCount":4096,"thumbnailWidth":512}` | Application configuration rendered into config.yaml and mounted into the container |
-| config.commands | list | `[{"name":"OrientationCommand","orientation":"portrait"},{"name":"DitherCommand"}]` | Processing pipeline configuration Supported command names and parameters: - OrientationCommand: orientation [portrait|landscape], rotateWhenSquare (bool, default false), clockwise (bool; true=clockwise, false=counterclockwise; default true) - ScaleCommand: height (int), width (int), edgeGradient (bool, optional; default false), edgeGradientBWThreshold (float [0..1], optional; default 0.75) - PixelScaleCommand: height (int, optional), width (int, optional) - at least one must be provided - CropCommand: height (int), width (int) - PngConverterCommand: no parameters; enforces PNG output - DitherCommand: palette (list of device/dither pairs), e.g. [[[0,0,0],[25,30,33]], [[255,255,255],[232,232,232]]] Examples (uncomment to use): - name: ScaleCommand   height: 1920   width: 1080   edgeGradient: false   edgeGradientBWThreshold: 0.75 - name: PixelScaleCommand   width: 1080 - name: CropCommand   height: 1600   width: 1200 - name: PngConverterCommand - name: DitherCommand   palette:     - [[0, 0, 0],[25, 30, 33]]     - [[255, 255, 255],[232, 232, 232]] |
-| config.database | object | `{"connectionString":"file:goframe.db?cache=shared&mode=rwc","type":"sqlite"}` | Database configuration |
-| config.database.connectionString | string | `"file:goframe.db?cache=shared&mode=rwc"` | Connection string (':memory:' for in-memory SQLite) |
-| config.database.type | string | `"sqlite"` | Database driver (e.g., sqlite) |
-| config.logLevel | string | `"info"` | Log level for application (debug, info, warn, error) |
-| config.port | int | `8080` | Port of the application |
-| config.rotationTimezone | string | `"UTC"` | Timezone used for image rotation scheduling |
-| config.svgFallbackLongSidePixelCount | int | `4096` | Fallback long-side pixel count used when rendering SVGs without explicit width/height Aspect ratio is retained using viewBox when available; falls back to square otherwise |
-| config.thumbnailWidth | int | `512` | Thumbnail width for thumbnails in the frontend |
-| configRaw | string | `""` |  |
+| commands | list | `[]` | Processing pipeline configuration Supported command names and parameters: - OrientationCommand: orientation [portrait|landscape], rotateWhenSquare (bool, default false), clockwise (bool; true=clockwise, false=counterclockwise; default true) - ScaleCommand: height (int), width (int), edgeGradient (bool, optional; default false), edgeGradientBWThreshold (float [0..1], optional; default 0.75) - PixelScaleCommand: height (int, optional), width (int, optional) - at least one must be provided - CropCommand: height (int), width (int) - PngConverterCommand: no parameters; enforces PNG output - DitherCommand: ditheringAlgorithm (string; 'floyd-steinberg' default, 'atkinson' supported), palette (list of device/dither pairs) |
 | extraEnv | list | `[]` | Extra environment variables to inject into the container |
 | extraEnvFrom | list | `[]` | Extra environment sources (e.g., ConfigMaps or Secrets) |
 | fullnameOverride | string | `""` | Fully override the release name |
@@ -43,6 +33,7 @@ Helm chart for the goframe image processing web service
 | podSecurityContext | object | `{}` | Pod-level security context |
 | replicaCount | int | `1` | Number of desired pod replicas |
 | resources | object | `{}` | Resource requests and limits for the container |
+| schedulers | list | `[]` | Scheduler CronJob instances. Each entry deploys an independent Kubernetes CronJob that fetches images from a single source and uploads them to goframe when the number of manually-uploaded images is at or below manualImageThreshold. Multiple schedulers with different sourceName values manage their own image lifecycles independently. Leave the list empty to deploy no schedulers. |
 | securityContext | object | `{}` | Container-level security context |
 | service.port | int | `80` | Service port |
 | service.targetPort | int | `8080` | Target container port exposed by the application |

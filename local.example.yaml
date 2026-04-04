@@ -1,0 +1,50 @@
+# local.example.yaml — unified local development configuration.
+# Used by both the goframe server and the image scheduler binary.
+# Copy to local.yaml and adjust as needed.
+# For k3d/k8s deployments, configure via charts/goframe/values.yaml instead.
+
+# ---- goframe server ----
+port: 8080
+logLevel: "info"
+thumbnailWidth: 512
+svgFallbackLongSidePixelCount: 4096
+timezone: "UTC"
+database:
+  type: "redis"
+  connectionString: "localhost:6379"  # docker-compose: "redis:6379"
+  namespace: "goframe"
+commands:
+  - name: OrientationCommand
+    orientation: portrait
+    # rotateWhenSquare: false
+    # clockwise: true
+  # - name: ScaleCommand
+  #   height: 1920
+  #   width: 1080
+  #   edgeGradient: false
+  #   edgeGradientBWThreshold: 0.75
+  # - name: CropCommand
+  #   height: 1600
+  #   width: 1200
+  # - name: DitherCommand
+  #   # ditheringAlgorithm: atkinson
+  #   palette:
+  #     - [[0, 0, 0],[25, 30, 33]]
+  #     - [[255, 255, 255],[232, 232, 232]]
+  #     - [[255, 255, 0],[239, 222, 68]]
+  #     - [[0, 0, 255],[33, 87, 186]]
+  #     - [[255, 0, 0],[178, 19, 24]]
+  #     - [[0, 255, 0],[18, 95, 32]]
+
+# ---- image scheduler ----
+goframeURL: "http://localhost:8080"  # docker-compose: "http://goframe:8080"
+sourceName: xkcd
+keepCount: 1
+skipIfUnmanagedImagesExceed: 0
+sources:
+  xkcd:
+    enabled: true
+# commands:  # scheduler-specific pipeline (separate from server commands above)
+#   - name: ScaleCommand
+#     height: 1200
+#     width: 1600

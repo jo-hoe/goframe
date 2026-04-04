@@ -27,6 +27,9 @@ jobs:
         go-version: ${{ matrix.go-version }}
     - name: Checkout code
       uses: actions/checkout@v6
+    - name: Check generated files are up to date
+      if: matrix.platform == 'ubuntu-latest'
+      run: make generate-check
     - name: Run tests with coverage
       if: matrix.platform == 'ubuntu-latest'
       run: go test -v ./... -covermode=count -coverprofile=coverage.out

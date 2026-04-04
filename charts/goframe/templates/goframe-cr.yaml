@@ -1,0 +1,52 @@
+apiVersion: goframe.io/v1alpha1
+kind: GoFrame
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  timezone: {{ .Values.timezone | quote }}
+
+  redis:
+    {{- if .Values.redis.address }}
+    address: {{ .Values.redis.address | quote }}
+    {{- else }}
+    address: {{ printf "redis-master.%s.svc.cluster.local:6379" .Release.Namespace | quote }}
+    {{- end }}
+
+  server:
+    image:
+      repository: {{ .Values.server.image.repository | quote }}
+      tag: {{ .Values.server.image.tag | quote }}
+      pullPolicy: {{ .Values.server.image.pullPolicy | quote }}
+    port: {{ .Values.server.port }}
+    thumbnailWidth: {{ .Values.server.thumbnailWidth }}
+    logLevel: {{ .Values.server.logLevel | quote }}
+    svgFallbackLongSidePixelCount: {{ .Values.server.svgFallbackLongSidePixelCount }}
+
+  {{- if .Values.commands }}
+  commands:
+    {{- range .Values.commands }}
+    - name: {{ .name | quote }}
+      {{- if .params }}
+      params: {{ .params | toJson }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
+  {{- if .Values.schedulers }}
+  schedulers:
+    {{- range .Values.schedulers }}
+    - name: {{ .name | quote }}
+      cron: {{ .cron | quote }}
+      source: {{ .source | quote }}
+      {{- if .keepCount }}
+      keepCount: {{ .keepCount }}
+      {{- end }}
+      {{- if .image }}
+      image:
+        repository: {{ .image.repository | quote }}
+        tag: {{ .image.tag | quote }}
+        pullPolicy: {{ .image.pullPolicy | default "IfNotPresent" | quote }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
