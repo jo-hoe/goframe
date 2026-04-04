@@ -10,7 +10,7 @@ redis:
 server:
   image:
     repository: ghcr.io/jo-hoe/goframe
-    tag: "4.0.0"
+    tag: ""
     pullPolicy: IfNotPresent
   port: 8080
   thumbnailWidth: 512
@@ -37,6 +37,12 @@ server:
 #         - [[255, 255, 255],[232, 232, 232]]
 commands: []
 
+# Default image used for scheduler CronJobs when no per-scheduler image is specified.
+schedulerImage:
+  repository: ghcr.io/jo-hoe/goframe-image-scheduler
+  tag: ""
+  pullPolicy: IfNotPresent
+
 # CronJob-based image schedulers (one CronJob per entry).
 # Each entry requires: name, cron, source
 # Example:
@@ -46,8 +52,8 @@ commands: []
 #     source: xkcd
 #     keepCount: 1
 #     image:
-#       repository: ghcr.io/jo-hoe/goframe-scheduler
-#       tag: latest
+#       repository: ghcr.io/jo-hoe/goframe-image-scheduler
+#       tag: "4.0.0"
 #       pullPolicy: IfNotPresent
 schedulers: []
 

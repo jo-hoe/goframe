@@ -1,6 +1,6 @@
 # goframe
 
-![Version: 4.0.2](https://img.shields.io/badge/Version-4.0.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.0.0](https://img.shields.io/badge/AppVersion-4.0.0-informational?style=flat-square)
+![Version: 4.0.3](https://img.shields.io/badge/Version-4.0.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.0.1](https://img.shields.io/badge/AppVersion-4.0.1-informational?style=flat-square)
 
 Helm chart for the goframe image processing web service
 
@@ -21,10 +21,13 @@ Helm chart for the goframe image processing web service
 | ingress.hosts[0].paths[0].pathType | string | `"Prefix"` |  |
 | ingress.tls | list | `[]` |  |
 | redis.address | string | `""` |  |
+| schedulerImage.pullPolicy | string | `"IfNotPresent"` |  |
+| schedulerImage.repository | string | `"ghcr.io/jo-hoe/goframe-image-scheduler"` |  |
+| schedulerImage.tag | string | `""` |  |
 | schedulers | list | `[]` |  |
 | server.image.pullPolicy | string | `"IfNotPresent"` |  |
 | server.image.repository | string | `"ghcr.io/jo-hoe/goframe"` |  |
-| server.image.tag | string | `"latest"` |  |
+| server.image.tag | string | `""` |  |
 | server.logLevel | string | `"info"` |  |
 | server.port | int | `8080` |  |
 | server.svgFallbackLongSidePixelCount | int | `4096` |  |

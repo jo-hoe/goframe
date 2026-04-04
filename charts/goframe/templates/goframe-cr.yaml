@@ -16,7 +16,7 @@ spec:
   server:
     image:
       repository: {{ .Values.server.image.repository | quote }}
-      tag: {{ .Values.server.image.tag | quote }}
+      tag: {{ .Values.server.image.tag | default .Chart.AppVersion | quote }}
       pullPolicy: {{ .Values.server.image.pullPolicy | quote }}
     port: {{ .Values.server.port }}
     thumbnailWidth: {{ .Values.server.thumbnailWidth }}
@@ -42,11 +42,9 @@ spec:
       {{- if .keepCount }}
       keepCount: {{ .keepCount }}
       {{- end }}
-      {{- if .image }}
       image:
-        repository: {{ .image.repository | quote }}
-        tag: {{ .image.tag | quote }}
-        pullPolicy: {{ .image.pullPolicy | default "IfNotPresent" | quote }}
-      {{- end }}
+        repository: {{ .image.repository | default $.Values.schedulerImage.repository | quote }}
+        tag: {{ .image.tag | default $.Values.schedulerImage.tag | default $.Chart.AppVersion | quote }}
+        pullPolicy: {{ .image.pullPolicy | default $.Values.schedulerImage.pullPolicy | quote }}
     {{- end }}
   {{- end }}
