@@ -175,10 +175,44 @@ func (r *RedisDatabase) GetImagesBySource(ctx context.Context, source string) ([
 }
 
 // DeleteImage removes an image hash and its sorted-set entry.
+// If the deleted image is the current rotation image, the rotation key is
+// atomically advanced to the next image in rank order (or cleared if none remain).
 func (r *RedisDatabase) DeleteImage(ctx context.Context, id string) error {
+	// Check if this is the current image before deleting.
+	currentID, err := r.client.Get(ctx, RotationCurrentIDKey(r.namespace)).Result()
+	if err != nil && err != redis.Nil {
+		return fmt.Errorf("reading current image id: %w", err)
+	}
+
+	// Find the successor in rank order before removing from the set.
+	var successorID string
+	if currentID == id {
+		ids, err := r.client.ZRange(ctx, OrderSetKey(r.namespace), 0, -1).Result()
+		if err != nil {
+			return fmt.Errorf("listing image order: %w", err)
+		}
+		for i, oid := range ids {
+			if oid == id {
+				if i+1 < len(ids) {
+					successorID = ids[i+1]
+				} else if i > 0 {
+					successorID = ids[0] // wrap to first if deleting the last
+				}
+				break
+			}
+		}
+	}
+
 	pipe := r.client.TxPipeline()
 	pipe.Del(ctx, ImageHashKey(r.namespace, id))
 	pipe.ZRem(ctx, OrderSetKey(r.namespace), id)
+	if currentID == id {
+		if successorID != "" {
+			pipe.Set(ctx, RotationCurrentIDKey(r.namespace), successorID, 0)
+		} else {
+			pipe.Del(ctx, RotationCurrentIDKey(r.namespace))
+		}
+	}
 
 	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("deleting image %s: %w", id, err)
