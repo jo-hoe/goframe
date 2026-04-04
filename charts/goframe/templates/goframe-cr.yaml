@@ -43,8 +43,8 @@ spec:
       keepCount: {{ .keepCount }}
       {{- end }}
       image:
-        repository: {{ .image.repository | default $.Values.schedulerImage.repository | quote }}
-        tag: {{ .image.tag | default $.Values.schedulerImage.tag | default $.Chart.AppVersion | quote }}
-        pullPolicy: {{ .image.pullPolicy | default $.Values.schedulerImage.pullPolicy | quote }}
+        repository: {{ ((.image).repository) | default $.Values.schedulerImage.repository | quote }}
+        tag: {{ ((.image).tag) | default $.Chart.AppVersion | quote }}
+        pullPolicy: {{ ((.image).pullPolicy) | default $.Values.schedulerImage.pullPolicy | quote }}
     {{- end }}
   {{- end }}
