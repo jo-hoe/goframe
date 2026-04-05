@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 
@@ -30,10 +31,11 @@ func serverName(gf *goframev1alpha1.GoFrame) string {
 
 // reconcileServer ensures the server Deployment, Service, and ConfigMap exist and match the CR spec.
 func (r *GoFrameReconciler) reconcileServer(ctx context.Context, gf *goframev1alpha1.GoFrame) error {
-	if err := r.reconcileServerConfigMap(ctx, gf); err != nil {
+	configData, err := r.reconcileServerConfigMap(ctx, gf)
+	if err != nil {
 		return err
 	}
-	if err := r.reconcileServerDeployment(ctx, gf); err != nil {
+	if err := r.reconcileServerDeployment(ctx, gf, configData); err != nil {
 		return err
 	}
 	return r.reconcileServerService(ctx, gf)
@@ -114,10 +116,10 @@ func buildServerConfig(gf *goframev1alpha1.GoFrame) (string, error) {
 	return string(out), nil
 }
 
-func (r *GoFrameReconciler) reconcileServerConfigMap(ctx context.Context, gf *goframev1alpha1.GoFrame) error {
+func (r *GoFrameReconciler) reconcileServerConfigMap(ctx context.Context, gf *goframev1alpha1.GoFrame) (string, error) {
 	configData, err := buildServerConfig(gf)
 	if err != nil {
-		return fmt.Errorf("building server config: %w", err)
+		return "", fmt.Errorf("building server config: %w", err)
 	}
 
 	desired := &corev1.ConfigMap{
@@ -130,31 +132,33 @@ func (r *GoFrameReconciler) reconcileServerConfigMap(ctx context.Context, gf *go
 		},
 	}
 	if err := ctrl.SetControllerReference(gf, desired, r.Scheme); err != nil {
-		return err
+		return "", err
 	}
 
 	existing := &corev1.ConfigMap{}
 	err = r.Get(ctx, types.NamespacedName{Name: desired.Name, Namespace: desired.Namespace}, existing)
 	if apierrors.IsNotFound(err) {
-		return r.Create(ctx, desired)
+		return configData, r.Create(ctx, desired)
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 	if !equality.Semantic.DeepEqual(existing.Data, desired.Data) {
 		existing.Data = desired.Data
-		return r.Update(ctx, existing)
+		return configData, r.Update(ctx, existing)
 	}
-	return nil
+	return configData, nil
 }
 
-func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *goframev1alpha1.GoFrame) error {
+func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *goframev1alpha1.GoFrame, configData string) error {
 	replicas := int32(1)
 	img := serverImageRef(gf)
 	port := gf.Spec.Server.Port
 	if port == 0 {
 		port = serverPort
 	}
+
+	configHash := fmt.Sprintf("%x", sha256.Sum256([]byte(configData)))
 
 	desired := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -167,7 +171,12 @@ func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *g
 				MatchLabels: serverLabels(gf),
 			},
 			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{Labels: serverLabels(gf)},
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: serverLabels(gf),
+					Annotations: map[string]string{
+						"checksum/config": configHash,
+					},
+				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
@@ -218,10 +227,16 @@ func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *g
 
 	existingContainer := &existing.Spec.Template.Spec.Containers[0]
 	desiredContainer := &desired.Spec.Template.Spec.Containers[0]
+	existingHash := existing.Spec.Template.Annotations["checksum/config"]
 	if existingContainer.Image != desiredContainer.Image ||
-		existingContainer.ImagePullPolicy != desiredContainer.ImagePullPolicy {
+		existingContainer.ImagePullPolicy != desiredContainer.ImagePullPolicy ||
+		existingHash != configHash {
 		existingContainer.Image = desiredContainer.Image
 		existingContainer.ImagePullPolicy = desiredContainer.ImagePullPolicy
+		if existing.Spec.Template.Annotations == nil {
+			existing.Spec.Template.Annotations = map[string]string{}
+		}
+		existing.Spec.Template.Annotations["checksum/config"] = configHash
 		return r.Update(ctx, existing)
 	}
 	return nil
