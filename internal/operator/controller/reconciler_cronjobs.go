@@ -67,10 +67,15 @@ func (r *GoFrameReconciler) reconcileCronJobs(ctx context.Context, gf *goframev1
 			continue
 		}
 
-		// Update if schedule, image, or volume config changed.
+		// Update if schedule, timezone, image, or volume config changed.
 		currContainer := curr.Spec.JobTemplate.Spec.Template.Spec.Containers[0]
 		desiredContainer := desired.Spec.JobTemplate.Spec.Template.Spec.Containers[0]
+		currTZ := ""
+		if curr.Spec.TimeZone != nil {
+			currTZ = *curr.Spec.TimeZone
+		}
 		if curr.Spec.Schedule != desired.Spec.Schedule ||
+			currTZ != *desired.Spec.TimeZone ||
 			currContainer.Image != desiredContainer.Image ||
 			!equality.Semantic.DeepEqual(currContainer.Env, desiredContainer.Env) ||
 			!equality.Semantic.DeepEqual(currContainer.VolumeMounts, desiredContainer.VolumeMounts) ||
@@ -207,6 +212,11 @@ func (r *GoFrameReconciler) buildCronJob(gf *goframev1alpha1.GoFrame, sched gofr
 
 	configMountPath := schedulerConfigMountPath + "/" + schedulerConfigFileName
 
+	tz := gf.Spec.Timezone
+	if tz == "" {
+		tz = "UTC"
+	}
+
 	return &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -215,6 +225,7 @@ func (r *GoFrameReconciler) buildCronJob(gf *goframev1alpha1.GoFrame, sched gofr
 		},
 		Spec: batchv1.CronJobSpec{
 			Schedule:                   sched.Cron,
+			TimeZone:                   &tz,
 			ConcurrencyPolicy:          batchv1.ForbidConcurrent,
 			SuccessfulJobsHistoryLimit: int32Ptr(1),
 			FailedJobsHistoryLimit:     int32Ptr(3),
