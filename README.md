@@ -36,7 +36,7 @@ Required and optional fields:
 
 Prerequisites:
 
-- Go 1.25+
+- Go 1.26+
 - Redis (or use `make start-docker` to run via docker-compose)
 
 Steps:

@@ -6,7 +6,7 @@
 #   docker build --build-arg CMD=operator       -t goframe-operator .
 # The resulting binary is always placed at /app/goframe regardless of CMD.
 
-ARG GO_VERSION=1.25
+ARG GO_VERSION=1.26.2
 # CMD selects which subdirectory under cmd/ to build (server, imagescheduler, operator).
 ARG CMD=server
 
