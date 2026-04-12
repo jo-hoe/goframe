@@ -70,6 +70,27 @@ helm dependency build charts/goframe
 helm install goframe charts/goframe
 ```
 
+## Redis sizing
+
+Images are stored in Redis as base64-encoded strings (original + processed). Use this rule of thumb to size `maxmemory`:
+
+```
+maxmemory ≈ image_count × avg_original_size_MB × 1.5
+```
+
+Example: 100 images with a 3 MB average original → ~450 MB → set `maxmemory` to 512mb.
+
+Set the container memory limit about 20% above `maxmemory` to leave room for Redis overhead (e.g. 512mb maxmemory → 640Mi container limit).
+
+Recommended flags:
+
+```
+--maxmemory <size>
+--maxmemory-policy allkeys-lru
+```
+
+With `allkeys-lru`, Redis evicts the least-recently-used images when memory is full instead of returning an error. If you prefer hard failures over silent eviction, use `noeviction` and size `maxmemory` generously.
+
 ## Make
 
 Use `make help` to see available targets.

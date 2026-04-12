@@ -101,14 +101,18 @@ install-redis: ## install Redis via OCI chart
 		--set auth.enabled=false \
 		--set master.persistence.enabled=false \
 		--set "master.resources.requests.cpu=50m" \
-		--set "master.resources.requests.memory=32Mi" \
+		--set "master.resources.requests.memory=64Mi" \
 		--set "master.resources.limits.cpu=100m" \
-		--set "master.resources.limits.memory=64Mi" \
+		--set "master.resources.limits.memory=300Mi" \
 		--set replica.replicaCount=0 \
 		--set sentinel.enabled=false \
 		--set metrics.enabled=false \
 		--set volumePermissions.enabled=false \
-		--set sysctl.enabled=false
+		--set sysctl.enabled=false \
+		--set "master.extraFlags[0]=--maxmemory 256mb" \
+		--set "master.extraFlags[1]=--maxmemory-policy allkeys-lru" \
+		--set "master.extraFlags[2]=--save ''" \
+		--set "master.extraFlags[3]=--appendonly no"
 
 .PHONY: start-k3d
 start-k3d: start-cluster push-k3d push-k3d-operator install-operator install-redis ## start k3d cluster and deploy operator + GoFrame CR

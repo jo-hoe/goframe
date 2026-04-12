@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -62,10 +63,12 @@ func (r *RedisDatabase) Close() error {
 	return r.client.Close()
 }
 
-// CreateImage stores a new image in Redis atomically.
+// CreateImage stores a new image in Redis.
 // When afterID is empty the image is appended to the end of the queue.
 // When afterID is set the image is inserted immediately after that image using
 // a float64 score midpoint, so no other scores need to be rewritten.
+// Score assignment and hash/sorted-set writes are protected by WATCH + optimistic
+// retry to prevent duplicate scores under concurrent uploads.
 func (r *RedisDatabase) CreateImage(ctx context.Context, original []byte, processed []byte, createdAt time.Time, source string, afterID string) (string, error) {
 	if original == nil {
 		return "", fmt.Errorf("original image data cannot be nil")
@@ -80,50 +83,58 @@ func (r *RedisDatabase) CreateImage(ctx context.Context, original []byte, proces
 	}
 
 	orderKey := OrderSetKey(r.namespace)
+	hashKey := ImageHashKey(r.namespace, id)
 
-	var newScore float64
-	if afterID == "" {
-		// Append to end: score = current cardinality + 1.
-		card, err := r.client.ZCard(ctx, orderKey).Result()
-		if err != nil {
-			return "", fmt.Errorf("getting order set cardinality: %w", err)
-		}
-		newScore = float64(card + 1)
-	} else {
-		// Insert after afterID: use score midpoint between afterID and its successor.
-		s, err := r.client.ZScore(ctx, orderKey, afterID).Result()
-		if err != nil {
-			return "", fmt.Errorf("getting score for afterID %q: %w", afterID, err)
-		}
-		// Find the next item's score (exclusive lower bound).
-		nexts, err := r.client.ZRangeByScoreWithScores(ctx, orderKey, &redis.ZRangeBy{
-			Min:    fmt.Sprintf("(%g", s),
-			Max:    "+inf",
-			Offset: 0,
-			Count:  1,
-		}).Result()
-		if err != nil {
-			return "", fmt.Errorf("finding successor score: %w", err)
-		}
-		if len(nexts) == 0 {
-			newScore = s + 0.5
-		} else {
-			newScore = s + (nexts[0].Score-s)/2
+	const maxRetries = 25
+	for i := 0; i < maxRetries; i++ {
+		err = r.client.Watch(ctx, func(tx *redis.Tx) error {
+			var newScore float64
+			if afterID == "" {
+				card, err := tx.ZCard(ctx, orderKey).Result()
+				if err != nil {
+					return fmt.Errorf("getting order set cardinality: %w", err)
+				}
+				newScore = float64(card + 1)
+			} else {
+				s, err := tx.ZScore(ctx, orderKey, afterID).Result()
+				if err != nil {
+					return fmt.Errorf("getting score for afterID %q: %w", afterID, err)
+				}
+				nexts, err := tx.ZRangeByScoreWithScores(ctx, orderKey, &redis.ZRangeBy{
+					Min:    fmt.Sprintf("(%g", s),
+					Max:    "+inf",
+					Offset: 0,
+					Count:  1,
+				}).Result()
+				if err != nil {
+					return fmt.Errorf("finding successor score: %w", err)
+				}
+				if len(nexts) == 0 {
+					newScore = s + 0.5
+				} else {
+					newScore = s + (nexts[0].Score-s)/2
+				}
+			}
+
+			_, err := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+				pipe.HSet(ctx, hashKey,
+					fieldID, id,
+					fieldCreatedAt, createdAt.Format(time.RFC3339),
+					fieldOriginalImage, base64.StdEncoding.EncodeToString(original),
+					fieldProcessedImage, base64.StdEncoding.EncodeToString(processed),
+					fieldSource, source,
+				)
+				pipe.ZAdd(ctx, orderKey, redis.Z{Score: newScore, Member: id})
+				return nil
+			})
+			return err
+		}, orderKey)
+
+		if err == nil || !errors.Is(err, redis.TxFailedErr) {
+			break
 		}
 	}
-
-	hashKey := ImageHashKey(r.namespace, id)
-	pipe := r.client.TxPipeline()
-	pipe.HSet(ctx, hashKey,
-		fieldID, id,
-		fieldCreatedAt, createdAt.Format(time.RFC3339),
-		fieldOriginalImage, base64.StdEncoding.EncodeToString(original),
-		fieldProcessedImage, base64.StdEncoding.EncodeToString(processed),
-		fieldSource, source,
-	)
-	pipe.ZAdd(ctx, orderKey, redis.Z{Score: newScore, Member: id})
-
-	if _, err := pipe.Exec(ctx); err != nil {
+	if err != nil {
 		return "", fmt.Errorf("creating image in redis: %w", err)
 	}
 	return id, nil

@@ -3,6 +3,7 @@ package database_test
 import (
 	"bytes"
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -249,5 +250,46 @@ func TestRedisDatabase_CreateImage_AfterID_AtEnd(t *testing.T) {
 	if images[0].ID != id1 || images[1].ID != id2 || images[2].ID != id3 {
 		t.Errorf("unexpected order: got [%s %s %s], want [%s %s %s]",
 			images[0].ID, images[1].ID, images[2].ID, id1, id2, id3)
+	}
+}
+
+func TestRedisDatabase_CreateImage_ConcurrentUploads(t *testing.T) {
+	ctx := context.Background()
+	db := newTestRedisDB(t)
+
+	const n = 10
+	now := time.Now().UTC()
+
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+			_, err := db.CreateImage(ctx, []byte("orig"), []byte("proc"), now, "", "")
+			if err != nil {
+				t.Errorf("concurrent CreateImage: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	images, err := db.GetImages(ctx, "id")
+	if err != nil {
+		t.Fatalf("GetImages: %v", err)
+	}
+	if len(images) != n {
+		t.Fatalf("expected %d images, got %d", n, len(images))
+	}
+
+	// Verify all IDs are unique (no duplicate sorted-set members).
+	seen := make(map[string]bool, n)
+	for _, img := range images {
+		if seen[img.ID] {
+			t.Errorf("duplicate image ID in results: %s", img.ID)
+		}
+		seen[img.ID] = true
+	}
+	if len(seen) != n {
+		t.Errorf("expected %d unique IDs, got %d", n, len(seen))
 	}
 }
