@@ -290,7 +290,7 @@ func (service *FrontendService) buildImageListHTML(ctx context.Context, ts strin
 		nextStr := service.formatNextShow(showDate)
 
 		fmt.Fprintf(&b, `<div class="vertical-item" data-id="%s" style="margin-bottom:1rem"><article>
-	<img src="/htmx/image/original-thumb/%s?ts=%s" alt="Original thumbnail %s" style="max-width:100%%;height:auto">
+	<img src="/htmx/image/original-thumb/%s?ts=%s" alt="Original thumbnail %s" loading="lazy" style="max-width:100%%;height:auto">
 	<footer style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
 		<small>Scheduled date: %s</small>
 		<div style="display:flex;gap:0.5rem">

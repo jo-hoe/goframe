@@ -63,6 +63,51 @@ func (r *RedisDatabase) Close() error {
 	return r.client.Close()
 }
 
+// computeInsertScore returns the sorted-set score at which a new image should
+// be inserted. It must be called from within a WATCH transaction so that the
+// read is protected against concurrent modifications.
+// When afterID is empty the score is appended after the current last entry.
+// When afterID is set the score is the midpoint between afterID and its successor.
+func computeInsertScore(ctx context.Context, tx *redis.Tx, orderKey, afterID string) (float64, error) {
+	if afterID == "" {
+		card, err := tx.ZCard(ctx, orderKey).Result()
+		if err != nil {
+			return 0, fmt.Errorf("getting order set cardinality: %w", err)
+		}
+		return float64(card + 1), nil
+	}
+
+	s, err := tx.ZScore(ctx, orderKey, afterID).Result()
+	if err != nil {
+		return 0, fmt.Errorf("getting score for afterID %q: %w", afterID, err)
+	}
+	nexts, err := tx.ZRangeByScoreWithScores(ctx, orderKey, &redis.ZRangeBy{
+		Min:    fmt.Sprintf("(%g", s),
+		Max:    "+inf",
+		Offset: 0,
+		Count:  1,
+	}).Result()
+	if err != nil {
+		return 0, fmt.Errorf("finding successor score: %w", err)
+	}
+	if len(nexts) == 0 {
+		return s + 0.5, nil
+	}
+	return s + (nexts[0].Score-s)/2, nil
+}
+
+// writeImageTx queues the hash write and sorted-set insertion into pipe.
+func writeImageTx(ctx context.Context, pipe redis.Pipeliner, hashKey, orderKey string, score float64, id string, original, processed []byte, createdAt time.Time, source string) {
+	pipe.HSet(ctx, hashKey,
+		fieldID, id,
+		fieldCreatedAt, createdAt.Format(time.RFC3339),
+		fieldOriginalImage, base64.StdEncoding.EncodeToString(original),
+		fieldProcessedImage, base64.StdEncoding.EncodeToString(processed),
+		fieldSource, source,
+	)
+	pipe.ZAdd(ctx, orderKey, redis.Z{Score: score, Member: id})
+}
+
 // CreateImage stores a new image in Redis.
 // When afterID is empty the image is appended to the end of the queue.
 // When afterID is set the image is inserted immediately after that image using
@@ -86,45 +131,14 @@ func (r *RedisDatabase) CreateImage(ctx context.Context, original []byte, proces
 	hashKey := ImageHashKey(r.namespace, id)
 
 	const maxRetries = 25
-	for i := 0; i < maxRetries; i++ {
+	for range maxRetries {
 		err = r.client.Watch(ctx, func(tx *redis.Tx) error {
-			var newScore float64
-			if afterID == "" {
-				card, err := tx.ZCard(ctx, orderKey).Result()
-				if err != nil {
-					return fmt.Errorf("getting order set cardinality: %w", err)
-				}
-				newScore = float64(card + 1)
-			} else {
-				s, err := tx.ZScore(ctx, orderKey, afterID).Result()
-				if err != nil {
-					return fmt.Errorf("getting score for afterID %q: %w", afterID, err)
-				}
-				nexts, err := tx.ZRangeByScoreWithScores(ctx, orderKey, &redis.ZRangeBy{
-					Min:    fmt.Sprintf("(%g", s),
-					Max:    "+inf",
-					Offset: 0,
-					Count:  1,
-				}).Result()
-				if err != nil {
-					return fmt.Errorf("finding successor score: %w", err)
-				}
-				if len(nexts) == 0 {
-					newScore = s + 0.5
-				} else {
-					newScore = s + (nexts[0].Score-s)/2
-				}
+			score, err := computeInsertScore(ctx, tx, orderKey, afterID)
+			if err != nil {
+				return err
 			}
-
-			_, err := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-				pipe.HSet(ctx, hashKey,
-					fieldID, id,
-					fieldCreatedAt, createdAt.Format(time.RFC3339),
-					fieldOriginalImage, base64.StdEncoding.EncodeToString(original),
-					fieldProcessedImage, base64.StdEncoding.EncodeToString(processed),
-					fieldSource, source,
-				)
-				pipe.ZAdd(ctx, orderKey, redis.Z{Score: newScore, Member: id})
+			_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+				writeImageTx(ctx, pipe, hashKey, orderKey, score, id, original, processed, createdAt, source)
 				return nil
 			})
 			return err
@@ -308,20 +322,97 @@ func (r *RedisDatabase) firstImageID(ctx context.Context) (string, error) {
 	return ids[0], nil
 }
 
+// imageFieldMapping maps a logical field name to its Redis hash field name.
+type imageFieldMapping struct {
+	logical string
+	redis   string
+}
+
+// allImageFields defines the complete ordered set of image hash fields.
+var allImageFields = []imageFieldMapping{
+	{"id", fieldID},
+	{"created_at", fieldCreatedAt},
+	{"original_image", fieldOriginalImage},
+	{"processed_image", fieldProcessedImage},
+	{"source", fieldSource},
+}
+
+// resolveRedisFields returns the Redis hash field names that correspond to the
+// requested logical fields. If fields is empty all hash fields are returned.
+func resolveRedisFields(fields []string) []string {
+	if len(fields) == 0 {
+		names := make([]string, len(allImageFields))
+		for i, fm := range allImageFields {
+			names[i] = fm.redis
+		}
+		return names
+	}
+	want := make(map[string]bool, len(fields))
+	for _, f := range fields {
+		want[f] = true
+	}
+	var names []string
+	for _, fm := range allImageFields {
+		if want[fm.logical] {
+			names = append(names, fm.redis)
+		}
+	}
+	return names
+}
+
+// hmgetToMap converts the positional HMGet result slice into a map keyed by
+// Redis field name. Returns nil if every value is nil (key does not exist).
+func hmgetToMap(redisFields []string, vals []any) map[string]string {
+	result := make(map[string]string, len(redisFields))
+	for i, rf := range redisFields {
+		if vals[i] != nil {
+			result[rf] = vals[i].(string)
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+// populateImage fills the fields of img from fieldVals according to which
+// logical fields were requested. want returns true for any field that should
+// be populated.
+func populateImage(img *Image, fieldVals map[string]string, want func(string) bool) {
+	if want("id") {
+		img.ID = fieldVals[fieldID]
+	}
+	if want("created_at") {
+		if t, err := time.Parse(time.RFC3339, fieldVals[fieldCreatedAt]); err == nil {
+			img.CreatedAt = t
+		}
+	}
+	if want("original_image") {
+		img.OriginalImage = decodeBase64(fieldVals[fieldOriginalImage])
+	}
+	if want("processed_image") {
+		img.ProcessedImage = decodeBase64(fieldVals[fieldProcessedImage])
+	}
+	if want("source") {
+		img.Source = fieldVals[fieldSource]
+	}
+}
+
 // fetchImageFields reads an image hash from Redis, populating only the requested fields.
 // If fields is nil or empty, all fields are populated.
 func (r *RedisDatabase) fetchImageFields(ctx context.Context, id string, fields []string) (*Image, error) {
-	hashKey := ImageHashKey(r.namespace, id)
+	redisFields := resolveRedisFields(fields)
 
-	vals, err := r.client.HGetAll(ctx, hashKey).Result()
+	vals, err := r.client.HMGet(ctx, ImageHashKey(r.namespace, id), redisFields...).Result()
 	if err != nil {
 		return nil, fmt.Errorf("fetching image %s: %w", id, err)
 	}
-	if len(vals) == 0 {
+
+	fieldVals := hmgetToMap(redisFields, vals)
+	if fieldVals == nil {
 		return nil, nil // image not found
 	}
 
-	img := &Image{}
 	wantAll := len(fields) == 0
 	fieldSet := make(map[string]bool, len(fields))
 	for _, f := range fields {
@@ -329,24 +420,8 @@ func (r *RedisDatabase) fetchImageFields(ctx context.Context, id string, fields 
 	}
 	want := func(f string) bool { return wantAll || fieldSet[f] }
 
-	if want("id") {
-		img.ID = vals[fieldID]
-	}
-	if want("created_at") {
-		if t, err := time.Parse(time.RFC3339, vals[fieldCreatedAt]); err == nil {
-			img.CreatedAt = t
-		}
-	}
-	if want("original_image") {
-		img.OriginalImage = decodeBase64(vals[fieldOriginalImage])
-	}
-	if want("processed_image") {
-		img.ProcessedImage = decodeBase64(vals[fieldProcessedImage])
-	}
-	if want("source") {
-		img.Source = vals[fieldSource]
-	}
-
+	img := &Image{}
+	populateImage(img, fieldVals, want)
 	return img, nil
 }
 
