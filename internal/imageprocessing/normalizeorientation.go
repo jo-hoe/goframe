@@ -132,17 +132,18 @@ func tiffByteOrder(tiff []byte) (binary.ByteOrder, error) {
 
 // readIFD0Orientation scans IFD0 entries for the Orientation tag (0x0112).
 func readIFD0Orientation(tiff []byte, ifdOffset uint32, bo binary.ByteOrder) (NormalizeOrientation, bool, error) {
-	const ifdEntrySize = 12
+	const ifdEntrySize = uint32(12)
 	const tagOrientation = uint16(0x0112)
 
-	if uint32(len(tiff)) < ifdOffset+2 {
+	tiffLen := uint32(len(tiff)) // #nosec G115 -- TIFF data is always well under 4 GB
+	if tiffLen < ifdOffset+2 {
 		return 0, false, nil
 	}
 	entryCount := bo.Uint16(tiff[ifdOffset : ifdOffset+2])
 
-	for i := uint16(0); i < entryCount; i++ {
-		entryOffset := ifdOffset + 2 + uint32(i)*ifdEntrySize
-		if uint32(len(tiff)) < entryOffset+ifdEntrySize {
+	for i := uint32(0); i < uint32(entryCount); i++ {
+		entryOffset := ifdOffset + 2 + i*ifdEntrySize
+		if tiffLen < entryOffset+ifdEntrySize {
 			break
 		}
 		tag := bo.Uint16(tiff[entryOffset : entryOffset+2])

@@ -2,8 +2,8 @@ apiVersion: v2
 name: goframe
 description: Helm chart for the goframe image processing web service
 type: application
-version: 4.0.13
-appVersion: "4.0.13"
+version: 4.1.0
+appVersion: "4.1.0"
 keywords:
   - go
   - image

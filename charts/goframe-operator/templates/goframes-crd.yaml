@@ -113,6 +113,12 @@ spec:
                       description: Cron is the schedule in standard cron syntax (e.g.
                         "0 8 * * *").
                       type: string
+                    drainIfUnmanagedImagesExceed:
+                      default: 0
+                      description: |-
+                        DrainIfUnmanagedImagesExceed causes the scheduler to skip upload and delete all own images
+                        if the number of images not owned by this scheduler exceeds this value.
+                      type: integer
                     image:
                       description: Image configures the container image for the scheduler
                         CronJob.
@@ -146,12 +152,6 @@ spec:
                       description: Name uniquely identifies this scheduler within
                         the GoFrame instance.
                       type: string
-                    skipIfUnmanagedImagesExceed:
-                      default: 0
-                      description: |-
-                        SkipIfUnmanagedImagesExceed causes the scheduler to skip its run if the number of
-                        images not owned by this scheduler exceeds this value.
-                      type: integer
                     source:
                       description: Source is the image source identifier passed to
                         the scheduler binary (e.g. "xkcd").

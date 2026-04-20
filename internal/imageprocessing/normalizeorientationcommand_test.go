@@ -45,6 +45,11 @@ func injectNormalizeOrientation(t *testing.T, jpegBytes []byte, o NormalizeOrien
 	return out
 }
 
+// orientationByte converts a NormalizeOrientation (uint16, always 1–8) to byte safely.
+func orientationByte(o NormalizeOrientation) byte {
+	return byte(o & 0xFF) // #nosec G115 -- values are 1-8, well within byte range
+}
+
 // buildExifAPP1 constructs a minimal big-endian EXIF APP1 segment with only the
 // Orientation tag in IFD0.
 func buildExifAPP1(o NormalizeOrientation) []byte {
@@ -55,7 +60,7 @@ func buildExifAPP1(o NormalizeOrientation) []byte {
 		0x01, 0x12, // tag = 0x0112 (Orientation)
 		0x00, 0x03, // type = SHORT
 		0x00, 0x00, 0x00, 0x01, // count = 1
-		0x00, byte(o), // value (big-endian uint16, high byte always 0 for 1-8)
+		0x00, orientationByte(o), // value; high byte is 0 since orientation values are 1-8
 		0x00, 0x00, // padding to fill value field to 4 bytes
 		0x00, 0x00, 0x00, 0x00, // next IFD offset = 0 (none)
 	}
@@ -67,8 +72,8 @@ func buildExifAPP1(o NormalizeOrientation) []byte {
 	tiff = append(tiff, ifd...)
 
 	payload := append([]byte("Exif\x00\x00"), tiff...)
-	segLen := uint16(2 + len(payload)) // length field includes itself
-	header := []byte{0xFF, 0xE1, byte(segLen >> 8), byte(segLen)}
+	segLen := uint16(2 + len(payload)) // #nosec G115 -- payload is always tiny (< 100 bytes)
+	header := []byte{0xFF, 0xE1, byte(segLen >> 8), byte(segLen)} // #nosec G115
 	return append(header, payload...)
 }
 
