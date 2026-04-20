@@ -24,10 +24,8 @@ func NewNormalizeOrientationParams() (*NormalizeOrientationParams, error) {
 // NormalizeOrientationCommand reads the EXIF orientation tag from the input bytes,
 // applies the corresponding pixel transform, and returns a PNG whose pixels are
 // visually upright regardless of what the original EXIF tag indicated.
-//
-// Place this command first in the pipeline, before PngConverterCommand, so that
-// it receives the original JPEG bytes that still carry the EXIF metadata.
-// Non-JPEG input or input without an orientation tag is returned as-is.
+// Non-JPEG input (PNG, SVG, BMP, TIFF, WebP, GIF) is returned unchanged — only
+// JPEG carries EXIF orientation in practice.
 type NormalizeOrientationCommand struct {
 	name   string
 	params *NormalizeOrientationParams

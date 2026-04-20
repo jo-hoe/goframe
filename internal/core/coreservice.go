@@ -130,9 +130,17 @@ func (service *CoreService) getOrderedImageIDs(ctx context.Context) ([]string, e
 }
 
 // applyPipeline converts the input image to PNG and applies the configured command pipeline.
+// If NormalizeOrientationCommand is present in the pipeline, it runs first on the raw input
+// bytes (before PNG conversion) so that EXIF orientation data is still available.
 func (service *CoreService) applyPipeline(image []byte) (converted []byte, processed []byte, err error) {
 	if image == nil {
 		return nil, nil, fmt.Errorf("input image is nil")
+	}
+
+	// Run NormalizeOrientationCommand on raw bytes before PNG conversion if configured.
+	preProcessed, remainingConfigs, err := applyPrePNGCommands(image, service.commandConfigs)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	params := map[string]any{}
@@ -143,20 +151,46 @@ func (service *CoreService) applyPipeline(image []byte) (converted []byte, proce
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create PNG converter command: %w", err)
 	}
-	convertedImageData, err := pngCmd.Execute(image)
+	convertedImageData, err := pngCmd.Execute(preProcessed)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to convert image to PNG: %w", err)
 	}
 
-	if len(service.commandConfigs) == 0 {
+	if len(remainingConfigs) == 0 {
 		slog.Debug("CoreService.applyPipeline: no commands configured, returning converted image", "bytes", len(convertedImageData))
 		return convertedImageData, convertedImageData, nil
 	}
 
-	slog.Info("CoreService.applyPipeline: executing configured commands", "count", len(service.commandConfigs), "input_size_bytes", len(convertedImageData))
-	out, execErr := imageprocessing.ExecuteCommands(convertedImageData, service.commandConfigs)
+	slog.Info("CoreService.applyPipeline: executing configured commands", "count", len(remainingConfigs), "input_size_bytes", len(convertedImageData))
+	out, execErr := imageprocessing.ExecuteCommands(convertedImageData, remainingConfigs)
 	if execErr != nil {
 		return nil, nil, fmt.Errorf("failed to apply configured commands: %w", execErr)
 	}
 	return convertedImageData, out, nil
+}
+
+// applyPrePNGCommands runs any NormalizeOrientationCommand entries on raw image bytes
+// before PNG conversion, so they receive the original format (e.g. JPEG) with EXIF
+// metadata still intact. Non-JPEG formats (PNG, SVG, BMP, TIFF, WebP, GIF) are passed
+// through unchanged. All other commands are deferred to the post-conversion pipeline.
+// Returns the processed bytes and the remaining command configs.
+func applyPrePNGCommands(image []byte, configs []imageprocessing.CommandConfig) ([]byte, []imageprocessing.CommandConfig, error) {
+	remaining := make([]imageprocessing.CommandConfig, 0, len(configs))
+	current := image
+	for _, cfg := range configs {
+		if cfg.Name != "NormalizeOrientationCommand" {
+			remaining = append(remaining, cfg)
+			continue
+		}
+		cmd, err := imageprocessing.DefaultRegistry.Create(cfg.Name, cfg.Params)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create %s: %w", cfg.Name, err)
+		}
+		current, err = cmd.Execute(current)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s failed: %w", cfg.Name, err)
+		}
+		slog.Info("CoreService.applyPipeline: applied pre-PNG command", "command", cfg.Name)
+	}
+	return current, remaining, nil
 }

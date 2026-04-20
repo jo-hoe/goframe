@@ -14,10 +14,9 @@ database:
   connectionString: "localhost:6379"  # docker-compose: "redis:6379"
   namespace: "goframe"
 commands:
-  - name: OrientationCommand
-    orientation: portrait
-    # rotateWhenSquare: false
-    # clockwise: true
+  - name: RotationCommand
+    steps: 1         # 1=90°, 2=180°, 3=270°
+    clockwise: true  # optional, default: true
   # - name: ScaleCommand
   #   height: 1920
   #   width: 1080
