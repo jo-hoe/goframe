@@ -16,9 +16,10 @@ type SchedulerFileConfig struct {
 	SourceName string `yaml:"sourceName"`
 	// KeepCount is the maximum number of image scheduler-managed images to retain (default: 1).
 	KeepCount int `yaml:"keepCount"`
-	// SkipIfUnmanagedImagesExceed is the max number of images not owned by this scheduler
-	// that still allows the scheduler to act (default: 0, meaning skip if any unmanaged image exists).
-	SkipIfUnmanagedImagesExceed int `yaml:"skipIfUnmanagedImagesExceed"`
+	// DrainIfUnmanagedImagesExceed is the max number of images not owned by this scheduler
+	// that still allows uploading. When exceeded, no new image is uploaded and all own images
+	// are deleted (default: 0, meaning drain if any unmanaged image exists).
+	DrainIfUnmanagedImagesExceed int `yaml:"drainIfUnmanagedImagesExceed"`
 	// LogLevel controls verbosity (debug, info, warn, error).
 	LogLevel string `yaml:"logLevel"`
 	// Sources lists the available image sources and whether each is enabled.
@@ -53,8 +54,8 @@ func LoadSchedulerConfig(path string) (*SchedulerFileConfig, error) {
 	if cfg.KeepCount < 1 {
 		cfg.KeepCount = 1
 	}
-	if cfg.SkipIfUnmanagedImagesExceed < 0 {
-		cfg.SkipIfUnmanagedImagesExceed = 0
+	if cfg.DrainIfUnmanagedImagesExceed < 0 {
+		cfg.DrainIfUnmanagedImagesExceed = 0
 	}
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"

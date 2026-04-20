@@ -80,11 +80,11 @@ type SchedulerSpec struct {
 	// +optional
 	KeepCount int `json:"keepCount,omitempty"`
 
-	// SkipIfUnmanagedImagesExceed causes the scheduler to skip its run if the number of
-	// images not owned by this scheduler exceeds this value.
+	// DrainIfUnmanagedImagesExceed causes the scheduler to skip upload and delete all own images
+	// if the number of images not owned by this scheduler exceeds this value.
 	// +kubebuilder:default=0
 	// +optional
-	SkipIfUnmanagedImagesExceed int `json:"skipIfUnmanagedImagesExceed,omitempty"`
+	DrainIfUnmanagedImagesExceed int `json:"drainIfUnmanagedImagesExceed,omitempty"`
 
 	// LogLevel sets the scheduler log verbosity (debug, info, warn, error).
 	// +kubebuilder:default="info"

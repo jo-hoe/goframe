@@ -109,7 +109,7 @@ func TestRunOnce_UploadsWhenNoUnmanagedImages(t *testing.T) {
 		GoframeBaseURL:              srv.URL,
 		SourceName:                  "test-source",
 		KeepCount:                   1,
-		SkipIfUnmanagedImagesExceed: 0,
+		DrainIfUnmanagedImagesExceed: 0,
 		Source:                      &staticSource{name: "test-source", data: minimalPNG()},
 	}
 
@@ -125,21 +125,22 @@ func TestRunOnce_UploadsWhenNoUnmanagedImages(t *testing.T) {
 	}
 }
 
-func TestRunOnce_SkipsWhenUnmanagedCountExceedsThreshold(t *testing.T) {
-	// Two images from other sources (unmanaged from "test-source"'s perspective).
+func TestRunOnce_DrainsOwnImagesWhenUnmanagedCountExceedsThreshold(t *testing.T) {
+	// Two unmanaged images exceed threshold=1; one own image should be drained.
 	initialImages := []apiImageItem{
 		{ID: "other-1", Source: ""},
 		{ID: "other-2", Source: "other-source"},
+		{ID: "own-1", Source: "test-source"},
 	}
 	srv, state := newGoframeTestServer(initialImages)
 	defer srv.Close()
 
 	cfg := Config{
-		GoframeBaseURL:              srv.URL,
-		SourceName:                  "test-source",
-		KeepCount:                   1,
-		SkipIfUnmanagedImagesExceed: 1, // threshold=1, but unmanaged count=2 → skip
-		Source:                      &staticSource{name: "test-source", data: minimalPNG()},
+		GoframeBaseURL:               srv.URL,
+		SourceName:                   "test-source",
+		KeepCount:                    1,
+		DrainIfUnmanagedImagesExceed: 1, // threshold=1, unmanaged count=2 → drain
+		Source:                       &staticSource{name: "test-source", data: minimalPNG()},
 	}
 
 	if err := RunOnce(context.Background(), cfg); err != nil {
@@ -147,10 +148,10 @@ func TestRunOnce_SkipsWhenUnmanagedCountExceedsThreshold(t *testing.T) {
 	}
 
 	if state.uploadedSource != "" {
-		t.Errorf("expected no upload when unmanaged count exceeds threshold, but got upload with source %q", state.uploadedSource)
+		t.Errorf("expected no upload when threshold exceeded, but got upload with source %q", state.uploadedSource)
 	}
-	if len(state.images) != 2 {
-		t.Errorf("expected image count unchanged at 2, got %d", len(state.images))
+	if len(state.deletedIDs) != 1 || state.deletedIDs[0] != "own-1" {
+		t.Errorf("expected own-1 to be drained, got deletedIDs=%v", state.deletedIDs)
 	}
 }
 
@@ -165,7 +166,7 @@ func TestRunOnce_ActsWhenUnmanagedCountAtThreshold(t *testing.T) {
 		GoframeBaseURL:              srv.URL,
 		SourceName:                  "test-source",
 		KeepCount:                   1,
-		SkipIfUnmanagedImagesExceed: 1, // threshold=1, unmanaged count=1 → act
+		DrainIfUnmanagedImagesExceed: 1, // threshold=1, unmanaged count=1 → act
 		Source:                      &staticSource{name: "test-source", data: minimalPNG()},
 	}
 
@@ -191,7 +192,7 @@ func TestRunOnce_PrunesExcessOwnImages(t *testing.T) {
 		GoframeBaseURL:              srv.URL,
 		SourceName:                  "test-source",
 		KeepCount:                   1,
-		SkipIfUnmanagedImagesExceed: 0,
+		DrainIfUnmanagedImagesExceed: 0,
 		Source:                      &staticSource{name: "test-source", data: minimalPNG()},
 	}
 
@@ -222,7 +223,7 @@ func TestRunOnce_OnlyPrunesOwnImages(t *testing.T) {
 		GoframeBaseURL:              srv.URL,
 		SourceName:                  "test-source",
 		KeepCount:                   1,
-		SkipIfUnmanagedImagesExceed: 5, // high threshold so image scheduler always acts
+		DrainIfUnmanagedImagesExceed: 5, // high threshold so image scheduler always acts
 		Source:                      &staticSource{name: "test-source", data: minimalPNG()},
 	}
 
@@ -250,7 +251,7 @@ func TestRunOnce_SourceFetchError(t *testing.T) {
 		GoframeBaseURL:              srv.URL,
 		SourceName:                  "test-source",
 		KeepCount:                   1,
-		SkipIfUnmanagedImagesExceed: 0,
+		DrainIfUnmanagedImagesExceed: 0,
 		Source:                      &staticSource{name: "test-source", err: fetchErr},
 	}
 

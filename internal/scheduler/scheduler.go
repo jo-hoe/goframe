@@ -26,9 +26,10 @@ type Config struct {
 	SourceName string
 	// KeepCount is the maximum number of images owned by this image scheduler to retain (must be >= 1).
 	KeepCount int
-	// SkipIfUnmanagedImagesExceed is the maximum number of images not owned by this scheduler
-	// that still allows the image scheduler to act.
-	SkipIfUnmanagedImagesExceed int
+	// DrainIfUnmanagedImagesExceed is the maximum number of images not owned by this scheduler
+	// that still allows uploading a new image. When exceeded, no new image is uploaded and all
+	// own images are deleted.
+	DrainIfUnmanagedImagesExceed int
 	// Source is the image source used to fetch a new image.
 	Source ImageSource
 	// Commands is an optional pipeline applied after PNG conversion.
@@ -36,8 +37,9 @@ type Config struct {
 }
 
 // RunOnce executes one image scheduler cycle:
-//  1. List images from goframe to count manually-uploaded images (empty source).
-//  2. If unmanaged image count > SkipIfUnmanagedImagesExceed, log and return without changes.
+//  1. List images from goframe.
+//  2. If unmanaged image count > DrainIfUnmanagedImagesExceed, skip upload and delete all own
+//     images, then return.
 //  3. Fetch a new image from the configured source.
 //  4. Convert to PNG (always).
 //  5. Apply the configured command pipeline (if any).
@@ -52,13 +54,13 @@ func RunOnce(ctx context.Context, cfg Config) error {
 	}
 
 	unmanagedCount := countUnmanagedImages(images, cfg.SourceName)
-	if unmanagedCount > cfg.SkipIfUnmanagedImagesExceed {
-		slog.Info("image-scheduler: unmanaged image threshold exceeded, skipping",
+	if unmanagedCount > cfg.DrainIfUnmanagedImagesExceed {
+		slog.Info("image-scheduler: unmanaged image threshold exceeded, draining own images",
 			"source", cfg.SourceName,
 			"unmanagedCount", unmanagedCount,
-			"threshold", cfg.SkipIfUnmanagedImagesExceed,
+			"threshold", cfg.DrainIfUnmanagedImagesExceed,
 		)
-		return nil
+		return pruneOwnImages(ctx, client, images, cfg.SourceName, 0)
 	}
 
 	imageData, err := cfg.Source.Fetch(ctx)

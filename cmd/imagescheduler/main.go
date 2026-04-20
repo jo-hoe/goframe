@@ -48,7 +48,7 @@ func main() {
 		GoframeBaseURL:       fileCfg.GoframeURL,
 		SourceName:           fileCfg.SourceName,
 		KeepCount:            fileCfg.KeepCount,
-		SkipIfUnmanagedImagesExceed: fileCfg.SkipIfUnmanagedImagesExceed,
+		DrainIfUnmanagedImagesExceed: fileCfg.DrainIfUnmanagedImagesExceed,
 		Source:               source,
 		Commands:             cmdCfgs,
 	}

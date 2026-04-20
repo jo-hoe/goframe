@@ -116,7 +116,7 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		GoframeURL                  string        `yaml:"goframeURL"`
 		SourceName                  string        `yaml:"sourceName"`
 		KeepCount                   int           `yaml:"keepCount"`
-		SkipIfUnmanagedImagesExceed int           `yaml:"skipIfUnmanagedImagesExceed"`
+		DrainIfUnmanagedImagesExceed int           `yaml:"drainIfUnmanagedImagesExceed"`
 		LogLevel                    string        `yaml:"logLevel"`
 		Sources                     sourcesConfig `yaml:"sources"`
 		Commands                    []cmdConfig   `yaml:"commands,omitempty"`
@@ -152,7 +152,7 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		GoframeURL:                  serverURL(gf),
 		SourceName:                  sched.Source,
 		KeepCount:                   keepCount,
-		SkipIfUnmanagedImagesExceed: sched.SkipIfUnmanagedImagesExceed,
+		DrainIfUnmanagedImagesExceed: sched.DrainIfUnmanagedImagesExceed,
 		LogLevel:                    logLevel,
 		Sources:                     sources,
 		Commands:                    cmds,
