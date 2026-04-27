@@ -114,13 +114,12 @@ func TestFetch_EndToEnd(t *testing.T) {
 		t.Fatalf("fetchBytes: %v", err)
 	}
 
-	imgURL, err := extractImageURL(body)
-	if err != nil {
+	if _, err = extractImageURL(body); err != nil {
 		t.Fatalf("extractImageURL: %v", err)
 	}
 
 	// Redirect the image fetch to the test server.
-	imgURL = srv.URL + "/wp-content/uploads/2026/04/test.gif"
+	imgURL := srv.URL + "/wp-content/uploads/2026/04/test.gif"
 
 	got, err := source.fetchBytes(context.Background(), imgURL)
 	if err != nil {

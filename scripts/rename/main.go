@@ -12,7 +12,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "usage: rename <src> <dst>")
 		os.Exit(1)
 	}
-	if err := os.Rename(os.Args[1], os.Args[2]); err != nil {
+	if err := os.Rename(os.Args[1], os.Args[2]); err != nil { //nolint:gosec // intentional: tool accepts user-supplied paths by design
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
