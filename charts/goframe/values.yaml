@@ -48,6 +48,7 @@ schedulerImage:
 
 # CronJob-based image schedulers (one CronJob per entry).
 # Each entry requires: name, cron, source
+# Supported sources: xkcd, pusheen
 # Example:
 # schedulers:
 #   - name: xkcd

@@ -95,7 +95,7 @@ type SchedulerSpec struct {
 	// +optional
 	Commands []CommandSpec `json:"commands,omitempty"`
 
-	// Source is the image source identifier passed to the scheduler binary (e.g. "xkcd").
+	// Source is the image source identifier passed to the scheduler binary (e.g. "xkcd", "pusheen").
 	Source string `json:"source"`
 
 	// Image configures the container image for the scheduler CronJob.

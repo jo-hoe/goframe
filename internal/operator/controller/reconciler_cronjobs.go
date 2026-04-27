@@ -106,7 +106,8 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		Enabled bool `yaml:"enabled"`
 	}
 	type sourcesConfig struct {
-		XKCD sourceConfig `yaml:"xkcd"`
+		XKCD    sourceConfig `yaml:"xkcd"`
+		Pusheen sourceConfig `yaml:"pusheen"`
 	}
 	type cmdConfig struct {
 		Name   string         `yaml:"name"`
@@ -135,6 +136,8 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 	switch strings.ToLower(sched.Source) {
 	case "xkcd":
 		sources.XKCD.Enabled = true
+	case "pusheen":
+		sources.Pusheen.Enabled = true
 	}
 
 	cmds := make([]cmdConfig, 0, len(sched.Commands))

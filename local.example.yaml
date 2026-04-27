@@ -43,6 +43,8 @@ skipIfUnmanagedImagesExceed: 0
 sources:
   xkcd:
     enabled: true
+  # pusheen:
+  #   enabled: true
 # commands:  # scheduler-specific pipeline (separate from server commands above)
 #   - name: ScaleCommand
 #     height: 1200

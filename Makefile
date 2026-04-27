@@ -30,7 +30,7 @@ install-hooks: ## install git hooks
 .PHONY: generate
 generate: ## regenerate CRD YAML and deepcopy from Go types
 	go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest object paths="./internal/operator/api/v1alpha1/..." crd paths="./internal/operator/api/v1alpha1/..." output:crd:dir=./charts/goframe-operator/templates
-	@mv ${ROOT_DIR}charts/goframe-operator/templates/goframe.io_goframes.yaml ${ROOT_DIR}charts/goframe-operator/templates/goframes-crd.yaml
+	go run ${ROOT_DIR}scripts/rename/main.go ${ROOT_DIR}charts/goframe-operator/templates/goframe.io_goframes.yaml ${ROOT_DIR}charts/goframe-operator/templates/goframes-crd.yaml
 
 .PHONY: generate-check
 generate-check: generate ## fail if generated files are out of sync with Go types

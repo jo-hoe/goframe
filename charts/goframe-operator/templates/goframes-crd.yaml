@@ -154,7 +154,7 @@ spec:
                       type: string
                     source:
                       description: Source is the image source identifier passed to
-                        the scheduler binary (e.g. "xkcd").
+                        the scheduler binary (e.g. "xkcd", "pusheen").
                       type: string
                   required:
                   - cron

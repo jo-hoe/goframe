@@ -11,6 +11,7 @@ import (
 	"github.com/jo-hoe/goframe/internal/config"
 	"github.com/jo-hoe/goframe/internal/imageprocessing"
 	"github.com/jo-hoe/goframe/internal/scheduler"
+	"github.com/jo-hoe/goframe/internal/scheduler/pusheen"
 	"github.com/jo-hoe/goframe/internal/scheduler/xkcd"
 
 	// Trigger command registrations.
@@ -73,6 +74,9 @@ func configFilePath() string {
 func buildSource(cfg *config.SchedulerFileConfig) scheduler.ImageSource {
 	if cfg.Sources.XKCD.Enabled {
 		return xkcd.NewXKCDSource()
+	}
+	if cfg.Sources.Pusheen.Enabled {
+		return pusheen.NewPusheenSource()
 	}
 	return nil
 }
