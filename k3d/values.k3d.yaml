@@ -17,13 +17,20 @@ commands:
     steps: 1         # 1=90°, 2=180°, 3=270°
     clockwise: true  # optional, default: true
 
-schedulers: []
-
 schedulers:
   - name: xkcd
     cron: "*/1 * * * *"
     source: xkcd
     keepCount: 1
+    image:
+      repository: registry.localhost:5000/goframe-image-scheduler
+      tag: latest
+      pullPolicy: Always
+  - name: pusheen
+    cron: "*/1 * * * *"
+    source: pusheen
+    keepCount: 1
+    drainIfUnmanagedImagesExceed: 1
     image:
       repository: registry.localhost:5000/goframe-image-scheduler
       tag: latest
