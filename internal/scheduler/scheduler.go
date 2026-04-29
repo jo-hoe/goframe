@@ -59,7 +59,7 @@ func RunOnce(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("listing images: %w", err)
 	}
 
-	unmanagedCount := countUnmanagedImages(images, cfg.SourceName)
+	unmanagedCount := countUnmanagedImages(images, cfg.SourceName, cfg.GroupMembers)
 	if unmanagedCount > cfg.SkipIfUnmanagedImagesExceed {
 		slog.Info("image-scheduler: unmanaged image threshold exceeded, skipping",
 			"source", cfg.SourceName,
@@ -110,10 +110,17 @@ func RunOnce(ctx context.Context, cfg Config) error {
 }
 
 // countUnmanagedImages counts images not owned by the given source.
-func countUnmanagedImages(images []apiImageItem, sourceName string) int {
+// countUnmanagedImages counts images not owned by sourceName and not owned by any group member.
+// Group member images are excluded because they will be evicted on a successful upload anyway.
+func countUnmanagedImages(images []apiImageItem, sourceName string, groupMembers []string) int {
+	excluded := make(map[string]struct{}, len(groupMembers)+1)
+	excluded[sourceName] = struct{}{}
+	for _, m := range groupMembers {
+		excluded[m] = struct{}{}
+	}
 	count := 0
 	for _, img := range images {
-		if img.Source != sourceName {
+		if _, ok := excluded[img.Source]; !ok {
 			count++
 		}
 	}

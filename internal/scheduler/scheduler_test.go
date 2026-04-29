@@ -370,6 +370,47 @@ func TestRunOnce_ActsWhenUnmanagedCountAtThreshold(t *testing.T) {
 
 // --- Helper function tests ---
 
+func TestCountUnmanagedImages_ExcludesGroupMembers(t *testing.T) {
+	// Images from group members must not count as unmanaged.
+	images := []apiImageItem{
+		{ID: "1", Source: "xkcd"},
+		{ID: "2", Source: "pusheen"}, // group member
+		{ID: "3", Source: "manual"},  // truly unmanaged
+		{ID: "4", Source: ""},        // truly unmanaged
+	}
+	got := countUnmanagedImages(images, "xkcd", []string{"xkcd", "pusheen"})
+	if got != 2 {
+		t.Errorf("expected 2 unmanaged (manual + empty), got %d", got)
+	}
+}
+
+func TestRunOnce_SkipDoesNotCountGroupMemberImages(t *testing.T) {
+	// A group member image must not trigger a skip even at threshold=0.
+	initialImages := []apiImageItem{
+		{ID: "peer-img", Source: "pusheen"}, // group member, not unmanaged
+	}
+	srv, state := newGoframeTestServer(initialImages)
+	defer srv.Close()
+
+	cfg := Config{
+		GoframeBaseURL:              srv.URL,
+		SourceName:                  "xkcd",
+		KeepCount:                   1,
+		SkipIfUnmanagedImagesExceed: 0,
+		ExclusionGroup:              "daily-wallpaper",
+		GroupMembers:                []string{"xkcd", "pusheen"},
+		Source:                      &staticSource{name: "xkcd", data: minimalPNG()},
+	}
+
+	if err := RunOnce(context.Background(), cfg); err != nil {
+		t.Fatalf("RunOnce error: %v", err)
+	}
+
+	if state.uploadedSource != "xkcd" {
+		t.Errorf("expected upload despite peer image (group member should not count), got %q", state.uploadedSource)
+	}
+}
+
 func TestFilterBySource(t *testing.T) {
 	images := []apiImageItem{
 		{ID: "1", Source: "xkcd"},
