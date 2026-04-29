@@ -38,13 +38,10 @@ commands:
 # ---- image scheduler ----
 goframeURL: "http://localhost:8080"  # docker-compose: "http://goframe:8080"
 sourceName: xkcd
+source: xkcd
 keepCount: 1
-skipIfUnmanagedImagesExceed: 0
-sources:
-  xkcd:
-    enabled: true
-  # pusheen:
-  #   enabled: true
+# exclusionGroup: daily-wallpaper   # schedulers in the same group evict each other's images on upload
+# groupMembers: [xkcd, pusheen]     # populated automatically by the operator; set manually for local runs
 # commands:  # scheduler-specific pipeline (separate from server commands above)
 #   - name: ScaleCommand
 #     height: 1200

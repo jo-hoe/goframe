@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -102,26 +101,19 @@ func (r *GoFrameReconciler) reconcileCronJobs(ctx context.Context, gf *goframev1
 
 // buildSchedulerConfig renders the scheduler image-scheduler.yaml content for the given SchedulerSpec.
 func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.SchedulerSpec) (string, error) {
-	type sourceConfig struct {
-		Enabled bool `yaml:"enabled"`
-	}
-	type sourcesConfig struct {
-		XKCD    sourceConfig `yaml:"xkcd"`
-		Pusheen sourceConfig `yaml:"pusheen"`
-		Oatmeal sourceConfig `yaml:"oatmeal"`
-	}
 	type cmdConfig struct {
 		Name   string         `yaml:"name"`
 		Params map[string]any `yaml:",inline"`
 	}
 	type schedulerConfig struct {
-		GoframeURL                  string        `yaml:"goframeURL"`
-		SourceName                  string        `yaml:"sourceName"`
-		KeepCount                   int           `yaml:"keepCount"`
-		DrainIfUnmanagedImagesExceed int           `yaml:"drainIfUnmanagedImagesExceed"`
-		LogLevel                    string        `yaml:"logLevel"`
-		Sources                     sourcesConfig `yaml:"sources"`
-		Commands                    []cmdConfig   `yaml:"commands,omitempty"`
+		GoframeURL     string      `yaml:"goframeURL"`
+		SourceName     string      `yaml:"sourceName"`
+		Source         string      `yaml:"source"`
+		KeepCount      int         `yaml:"keepCount"`
+		ExclusionGroup string      `yaml:"exclusionGroup,omitempty"`
+		GroupMembers   []string    `yaml:"groupMembers,omitempty"`
+		LogLevel       string      `yaml:"logLevel"`
+		Commands       []cmdConfig `yaml:"commands,omitempty"`
 	}
 
 	keepCount := sched.KeepCount
@@ -131,16 +123,6 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 	logLevel := sched.LogLevel
 	if logLevel == "" {
 		logLevel = defaultLogLevel
-	}
-
-	var sources sourcesConfig
-	switch strings.ToLower(sched.Source) {
-	case "xkcd":
-		sources.XKCD.Enabled = true
-	case "pusheen":
-		sources.Pusheen.Enabled = true
-	case "oatmeal":
-		sources.Oatmeal.Enabled = true
 	}
 
 	cmds := make([]cmdConfig, 0, len(sched.Commands))
@@ -154,14 +136,24 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		cmds = append(cmds, cc)
 	}
 
+	var groupMembers []string
+	if sched.ExclusionGroup != "" {
+		for _, s := range gf.Spec.Schedulers {
+			if s.ExclusionGroup == sched.ExclusionGroup {
+				groupMembers = append(groupMembers, s.Source)
+			}
+		}
+	}
+
 	cfg := schedulerConfig{
-		GoframeURL:                  serverURL(gf),
-		SourceName:                  sched.Source,
-		KeepCount:                   keepCount,
-		DrainIfUnmanagedImagesExceed: sched.DrainIfUnmanagedImagesExceed,
-		LogLevel:                    logLevel,
-		Sources:                     sources,
-		Commands:                    cmds,
+		GoframeURL:     serverURL(gf),
+		SourceName:     sched.Source,
+		Source:         sched.Source,
+		KeepCount:      keepCount,
+		ExclusionGroup: sched.ExclusionGroup,
+		GroupMembers:   groupMembers,
+		LogLevel:       logLevel,
+		Commands:       cmds,
 	}
 
 	out, err := yaml.Marshal(cfg)

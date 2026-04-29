@@ -44,6 +44,9 @@ spec:
       {{- if .keepCount }}
       keepCount: {{ .keepCount }}
       {{- end }}
+      {{- if .exclusionGroup }}
+      exclusionGroup: {{ .exclusionGroup | quote }}
+      {{- end }}
       {{- if .commands }}
       commands:
         {{- range .commands }}

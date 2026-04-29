@@ -14,30 +14,20 @@ type SchedulerFileConfig struct {
 	GoframeURL string `yaml:"goframeURL"`
 	// SourceName is the unique identity of this image scheduler instance.
 	SourceName string `yaml:"sourceName"`
+	// Source is the image source identifier (e.g. "xkcd", "pusheen", "oatmeal").
+	Source string `yaml:"source"`
 	// KeepCount is the maximum number of image scheduler-managed images to retain (default: 1).
 	KeepCount int `yaml:"keepCount"`
-	// DrainIfUnmanagedImagesExceed is the max number of images not owned by this scheduler
-	// that still allows uploading. When exceeded, no new image is uploaded and all own images
-	// are deleted (default: 0, meaning drain if any unmanaged image exists).
-	DrainIfUnmanagedImagesExceed int `yaml:"drainIfUnmanagedImagesExceed"`
+	// ExclusionGroup is an optional group name. When set, a successful upload causes all images
+	// owned by other members of the same group to be deleted.
+	ExclusionGroup string `yaml:"exclusionGroup"`
+	// GroupMembers lists the source names of all schedulers in the same ExclusionGroup,
+	// including this scheduler's own SourceName. Populated by the operator at config-render time.
+	GroupMembers []string `yaml:"groupMembers"`
 	// LogLevel controls verbosity (debug, info, warn, error).
 	LogLevel string `yaml:"logLevel"`
-	// Sources lists the available image sources and whether each is enabled.
-	Sources SchedulerSources `yaml:"sources"`
 	// Commands is an optional processing pipeline applied to each fetched image before upload.
 	Commands []CommandConfig `yaml:"commands"`
-}
-
-// SchedulerSources holds per-source enable flags.
-type SchedulerSources struct {
-	XKCD    SchedulerSource `yaml:"xkcd"`
-	Pusheen SchedulerSource `yaml:"pusheen"`
-	Oatmeal SchedulerSource `yaml:"oatmeal"`
-}
-
-// SchedulerSource holds the enabled flag for a single image source.
-type SchedulerSource struct {
-	Enabled bool `yaml:"enabled"`
 }
 
 // LoadSchedulerConfig reads and parses a YAML image scheduler config from the given path.
@@ -55,9 +45,6 @@ func LoadSchedulerConfig(path string) (*SchedulerFileConfig, error) {
 
 	if cfg.KeepCount < 1 {
 		cfg.KeepCount = 1
-	}
-	if cfg.DrainIfUnmanagedImagesExceed < 0 {
-		cfg.DrainIfUnmanagedImagesExceed = 0
 	}
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"

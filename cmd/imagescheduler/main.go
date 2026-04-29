@@ -35,7 +35,7 @@ func main() {
 	level := parseLogLevel(fileCfg.LogLevel)
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})))
 
-	source := buildSource(fileCfg)
+	source := buildSource(fileCfg.Source)
 	if source == nil {
 		slog.Info("image-scheduler: no image source configured, nothing to do")
 		return
@@ -47,12 +47,13 @@ func main() {
 	}
 
 	runCfg := scheduler.Config{
-		GoframeBaseURL:       fileCfg.GoframeURL,
-		SourceName:           fileCfg.SourceName,
-		KeepCount:            fileCfg.KeepCount,
-		DrainIfUnmanagedImagesExceed: fileCfg.DrainIfUnmanagedImagesExceed,
-		Source:               source,
-		Commands:             cmdCfgs,
+		GoframeBaseURL: fileCfg.GoframeURL,
+		SourceName:     fileCfg.SourceName,
+		KeepCount:      fileCfg.KeepCount,
+		ExclusionGroup: fileCfg.ExclusionGroup,
+		GroupMembers:   fileCfg.GroupMembers,
+		Source:         source,
+		Commands:       cmdCfgs,
 	}
 
 	if err := scheduler.RunOnce(context.Background(), runCfg); err != nil {
@@ -71,15 +72,14 @@ func configFilePath() string {
 	return filepath.Join(cwd, "local.yaml")
 }
 
-// buildSource returns the configured ImageSource, or nil when no source is enabled.
-func buildSource(cfg *config.SchedulerFileConfig) scheduler.ImageSource {
-	if cfg.Sources.XKCD.Enabled {
+// buildSource returns the ImageSource for the given name, or nil if unrecognised.
+func buildSource(name string) scheduler.ImageSource {
+	switch strings.ToLower(name) {
+	case "xkcd":
 		return xkcd.NewXKCDSource()
-	}
-	if cfg.Sources.Pusheen.Enabled {
+	case "pusheen":
 		return pusheen.NewPusheenSource()
-	}
-	if cfg.Sources.Oatmeal.Enabled {
+	case "oatmeal":
 		return oatmeal.NewOatmealSource()
 	}
 	return nil

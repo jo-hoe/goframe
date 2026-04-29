@@ -48,8 +48,26 @@ schedulerImage:
 
 # CronJob-based image schedulers (one CronJob per entry).
 # Each entry requires: name, cron, source
-# Supported sources: xkcd, pusheen
-# Example:
+# Supported sources: xkcd, pusheen, oatmeal
+#
+# exclusionGroup: optional. Schedulers sharing the same group evict each other's images on
+# a successful upload, so only one group member's image is displayed at a time. Use this to
+# stagger different sources across days or time periods.
+#
+# Example — weekday/weekend stagger:
+# schedulers:
+#   - name: weekday-xkcd
+#     cron: "0 8 * * 1-5"
+#     source: xkcd
+#     keepCount: 1
+#     exclusionGroup: daily-wallpaper
+#   - name: weekend-pusheen
+#     cron: "0 8 * * 6,0"
+#     source: pusheen
+#     keepCount: 1
+#     exclusionGroup: daily-wallpaper
+#
+# Example — single source with per-scheduler processing pipeline:
 # schedulers:
 #   - name: xkcd
 #     cron: "0 8 * * *"

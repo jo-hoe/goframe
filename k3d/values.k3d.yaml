@@ -19,28 +19,28 @@ commands:
 
 schedulers:
   - name: xkcd
-    cron: "*/1 * * * *"
+    cron: "*/3 * * * *"
     source: xkcd
     keepCount: 1
+    exclusionGroup: daily-wallpaper
     image:
       repository: registry.localhost:5000/goframe-image-scheduler
       tag: latest
       pullPolicy: Always
   - name: pusheen
-    cron: "*/1 * * * *"
+    cron: "1-59/3 * * * *"
     source: pusheen
     keepCount: 1
-    drainIfUnmanagedImagesExceed: 1
+    exclusionGroup: daily-wallpaper
     image:
       repository: registry.localhost:5000/goframe-image-scheduler
       tag: latest
       pullPolicy: Always
-
   - name: oatmeal
-    cron: "*/1 * * * *"
+    cron: "2-59/3 * * * *"
     source: oatmeal
     keepCount: 1
-    drainIfUnmanagedImagesExceed: 2
+    exclusionGroup: daily-wallpaper
     image:
       repository: registry.localhost:5000/goframe-image-scheduler
       tag: latest

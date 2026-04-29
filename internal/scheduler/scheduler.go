@@ -26,10 +26,12 @@ type Config struct {
 	SourceName string
 	// KeepCount is the maximum number of images owned by this image scheduler to retain (must be >= 1).
 	KeepCount int
-	// DrainIfUnmanagedImagesExceed is the maximum number of images not owned by this scheduler
-	// that still allows uploading a new image. When exceeded, no new image is uploaded and all
-	// own images are deleted.
-	DrainIfUnmanagedImagesExceed int
+	// ExclusionGroup is an optional group name. When non-empty, a successful upload causes all
+	// images owned by other members listed in GroupMembers to be deleted.
+	ExclusionGroup string
+	// GroupMembers lists the source names of all schedulers sharing ExclusionGroup, including
+	// this scheduler's own SourceName. Ignored when ExclusionGroup is empty.
+	GroupMembers []string
 	// Source is the image source used to fetch a new image.
 	Source ImageSource
 	// Commands is an optional pipeline applied after PNG conversion.
@@ -37,31 +39,14 @@ type Config struct {
 }
 
 // RunOnce executes one image scheduler cycle:
-//  1. List images from goframe.
-//  2. If unmanaged image count > DrainIfUnmanagedImagesExceed, skip upload and delete all own
-//     images, then return.
-//  3. Fetch a new image from the configured source.
-//  4. Convert to PNG (always).
-//  5. Apply the configured command pipeline (if any).
-//  6. Upload the processed image to goframe with source set in the multipart form field.
-//  7. Only if upload succeeded: delete the oldest images owned by this image scheduler if the count exceeds KeepCount.
+//  1. Fetch a new image from the configured source.
+//  2. Convert to PNG (always).
+//  3. Apply the configured command pipeline (if any).
+//  4. Upload the processed image to goframe.
+//  5. On success: if ExclusionGroup is set, delete all images owned by other group members.
+//  6. On success: delete own images exceeding KeepCount (oldest first).
 func RunOnce(ctx context.Context, cfg Config) error {
 	client := newGoframeClient(cfg.GoframeBaseURL)
-
-	images, err := client.listImages(ctx)
-	if err != nil {
-		return fmt.Errorf("listing images: %w", err)
-	}
-
-	unmanagedCount := countUnmanagedImages(images, cfg.SourceName)
-	if unmanagedCount > cfg.DrainIfUnmanagedImagesExceed {
-		slog.Info("image-scheduler: unmanaged image threshold exceeded, draining own images",
-			"source", cfg.SourceName,
-			"unmanagedCount", unmanagedCount,
-			"threshold", cfg.DrainIfUnmanagedImagesExceed,
-		)
-		return pruneOwnImages(ctx, client, images, cfg.SourceName, 0)
-	}
 
 	imageData, err := cfg.Source.Fetch(ctx)
 	if err != nil {
@@ -89,23 +74,39 @@ func RunOnce(ctx context.Context, cfg Config) error {
 	}
 	slog.Info("image-scheduler: uploaded new image", "source", cfg.SourceName)
 
-	images, err = client.listImages(ctx)
+	images, err := client.listImages(ctx)
 	if err != nil {
 		return fmt.Errorf("listing images after upload: %w", err)
+	}
+
+	if cfg.ExclusionGroup != "" {
+		if err := evictGroupPeers(ctx, client, images, cfg.SourceName, cfg.GroupMembers); err != nil {
+			return err
+		}
 	}
 
 	return pruneOwnImages(ctx, client, images, cfg.SourceName, cfg.KeepCount)
 }
 
-// countUnmanagedImages counts images not owned by the given source (i.e. source != sourceName).
-func countUnmanagedImages(images []apiImageItem, sourceName string) int {
-	count := 0
-	for _, img := range images {
-		if img.Source != sourceName {
-			count++
+// evictGroupPeers deletes all images owned by other members of the exclusion group.
+func evictGroupPeers(ctx context.Context, client *goframeClient, images []apiImageItem, ownSource string, groupMembers []string) error {
+	var errs []string
+	for _, member := range groupMembers {
+		if member == ownSource {
+			continue
+		}
+		for _, img := range filterBySource(images, member) {
+			if err := client.deleteImage(ctx, img.ID); err != nil {
+				errs = append(errs, fmt.Sprintf("delete %s (source %q): %v", img.ID, member, err))
+				continue
+			}
+			slog.Info("image-scheduler: evicted peer image", "id", img.ID, "source", member, "evictedBy", ownSource)
 		}
 	}
-	return count
+	if len(errs) > 0 {
+		return fmt.Errorf("evicting group peers: %s", strings.Join(errs, "; "))
+	}
+	return nil
 }
 
 // pruneOwnImages deletes the oldest images owned by this image scheduler when the count exceeds keepCount.
