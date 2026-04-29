@@ -61,6 +61,20 @@ func TestExtractImageURL_Success(t *testing.T) {
 	}
 }
 
+func TestExtractImageURL_EscapedSlashes(t *testing.T) {
+	// The WordPress REST API escapes forward slashes as \/ in the JSON response.
+	// This is the actual wire format returned by pusheen.com.
+	body := []byte(`[{"content":{"rendered":"<img width=\"1080\" height=\"1080\" src=\"https:\/\/pusheen.com\/wp-content\/uploads\/2026\/04\/Meowdy.gif\" \/>"}}]`)
+	got, err := extractImageURL(body)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "https://pusheen.com/wp-content/uploads/2026/04/Meowdy.gif"
+	if got != want {
+		t.Errorf("expected %q, got %q", want, got)
+	}
+}
+
 func TestExtractImageURL_NoMatch(t *testing.T) {
 	body := []byte(`[{"content":{"rendered":"<p>no image here<\/p>"}}]`)
 	_, err := extractImageURL(body)

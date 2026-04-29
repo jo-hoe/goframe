@@ -21,6 +21,8 @@ const (
 // The rendered HTML inside the JSON is backslash-escaped, so quotes appear as \".
 var imgSrcPattern = regexp.MustCompile(`src=\\"(https://pusheen\.com/wp-content/uploads/[^\\"]+\.gif)\\"`)
 
+// escapedSlashRe matches JSON-escaped forward slashes (\/) for normalisation.
+var escapedSlashRe = regexp.MustCompile(`\\/`)
 
 // PusheenSource fetches a random Pusheen comic GIF via the WordPress REST API.
 type PusheenSource struct {
@@ -82,7 +84,8 @@ func (p *PusheenSource) fetchBytes(ctx context.Context, url string) ([]byte, err
 }
 
 func extractImageURL(body []byte) (string, error) {
-	sub := imgSrcPattern.FindSubmatch(body)
+	normalised := escapedSlashRe.ReplaceAll(body, []byte("/"))
+	sub := imgSrcPattern.FindSubmatch(normalised)
 	if sub == nil {
 		return "", fmt.Errorf("no pusheen GIF src found in response")
 	}
