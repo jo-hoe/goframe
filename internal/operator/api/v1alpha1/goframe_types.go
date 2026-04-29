@@ -80,11 +80,11 @@ type SchedulerSpec struct {
 	// +optional
 	KeepCount int `json:"keepCount,omitempty"`
 
-	// SkipIfUnmanagedImagesExceed causes the scheduler to skip its run if the number of
-	// images not owned by this scheduler exceeds this value.
-	// +kubebuilder:default=0
+	// WhenUnmanaged controls scheduler behaviour when unmanaged images exist.
+	// Valid values: upload (default), skip, drain.
+	// +kubebuilder:validation:Enum=upload;skip;drain
 	// +optional
-	SkipIfUnmanagedImagesExceed int `json:"skipIfUnmanagedImagesExceed,omitempty"`
+	WhenUnmanaged string `json:"whenUnmanaged,omitempty"`
 
 	// ExclusionGroup is an optional group name shared by schedulers that are mutually exclusive.
 	// When a scheduler in a group successfully uploads an image, all images owned by other

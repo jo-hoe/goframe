@@ -40,7 +40,7 @@ goframeURL: "http://localhost:8080"  # docker-compose: "http://goframe:8080"
 sourceName: xkcd
 source: xkcd
 keepCount: 1
-# skipIfUnmanagedImagesExceed: 0  # skip run if any manually-uploaded image exists (0 = skip if ≥1 unmanaged)
+# whenUnmanaged: upload  # upload (default), skip (keep own images), drain (delete own images)
 # exclusionGroup: daily-wallpaper   # schedulers in the same group evict each other's images on upload
 # groupMembers: [xkcd, pusheen]     # populated automatically by the operator; set manually for local runs
 # commands:  # scheduler-specific pipeline (separate from server commands above)

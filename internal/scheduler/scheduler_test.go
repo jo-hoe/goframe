@@ -154,7 +154,7 @@ func TestRunOnce_PrunesExcessOwnImages(t *testing.T) {
 }
 
 func TestRunOnce_OnlyPrunesOwnImages(t *testing.T) {
-	// Images from other sources must not be touched during own-image pruning.
+	// Unmanaged images must not be touched during own-image pruning (skip/drain disabled).
 	initialImages := []apiImageItem{
 		{ID: "unmanaged-1", Source: ""},
 		{ID: "other-source-1", Source: "other"},
@@ -164,11 +164,11 @@ func TestRunOnce_OnlyPrunesOwnImages(t *testing.T) {
 	defer srv.Close()
 
 	cfg := Config{
-		GoframeBaseURL:              srv.URL,
-		SourceName:                  "test-source",
-		KeepCount:                   1,
-		SkipIfUnmanagedImagesExceed: 5, // high threshold so scheduler always acts
-		Source:                      &staticSource{name: "test-source", data: minimalPNG()},
+		GoframeBaseURL: srv.URL,
+		SourceName:     "test-source",
+		KeepCount:      1,
+		Source:         &staticSource{name: "test-source", data: minimalPNG()},
+		// SkipIfUnmanagedImagesExceed and DrainIfUnmanagedImagesExceed both 0 = disabled
 	}
 
 	if err := RunOnce(context.Background(), cfg); err != nil {
@@ -192,7 +192,6 @@ func TestRunOnce_SourceFetchError(t *testing.T) {
 	cfg := Config{
 		GoframeBaseURL: srv.URL,
 		SourceName:     "test-source",
-		KeepCount:      1,
 		Source:         &staticSource{name: "test-source", err: io.EOF},
 	}
 
@@ -216,13 +215,12 @@ func TestRunOnce_ExclusionGroup_EvictsPeers(t *testing.T) {
 	defer srv.Close()
 
 	cfg := Config{
-		GoframeBaseURL:              srv.URL,
-		SourceName:                  "xkcd",
-		KeepCount:                   1,
-		SkipIfUnmanagedImagesExceed: 5, // allow peers to exist without skipping
-		ExclusionGroup:              "daily-wallpaper",
-		GroupMembers:                []string{"xkcd", "pusheen", "oatmeal"},
-		Source:                      &staticSource{name: "xkcd", data: minimalPNG()},
+		GoframeBaseURL: srv.URL,
+		SourceName:     "xkcd",
+		KeepCount:      1,
+		ExclusionGroup: "daily-wallpaper",
+		GroupMembers:   []string{"xkcd", "pusheen", "oatmeal"},
+		Source:         &staticSource{name: "xkcd", data: minimalPNG()},
 	}
 
 	if err := RunOnce(context.Background(), cfg); err != nil {
@@ -261,13 +259,12 @@ func TestRunOnce_ExclusionGroup_DoesNotEvictNonMembers(t *testing.T) {
 	defer srv.Close()
 
 	cfg := Config{
-		GoframeBaseURL:              srv.URL,
-		SourceName:                  "xkcd",
-		KeepCount:                   1,
-		SkipIfUnmanagedImagesExceed: 5, // allow peers to exist without skipping
-		ExclusionGroup:              "daily-wallpaper",
-		GroupMembers:                []string{"xkcd", "pusheen"},
-		Source:                      &staticSource{name: "xkcd", data: minimalPNG()},
+		GoframeBaseURL: srv.URL,
+		SourceName:     "xkcd",
+		KeepCount:      1,
+		ExclusionGroup: "daily-wallpaper",
+		GroupMembers:   []string{"xkcd", "pusheen"},
+		Source:         &staticSource{name: "xkcd", data: minimalPNG()},
 	}
 
 	if err := RunOnce(context.Background(), cfg); err != nil {
@@ -295,11 +292,9 @@ func TestRunOnce_NoExclusionGroup_DoesNotEvictPeers(t *testing.T) {
 	defer srv.Close()
 
 	cfg := Config{
-		GoframeBaseURL:              srv.URL,
-		SourceName:                  "xkcd",
-		KeepCount:                   1,
-		SkipIfUnmanagedImagesExceed: 5, // allow peers to exist without skipping
-		Source:                      &staticSource{name: "xkcd", data: minimalPNG()},
+		GoframeBaseURL: srv.URL,
+		SourceName:     "xkcd",
+		Source:         &staticSource{name: "xkcd", data: minimalPNG()},
 	}
 
 	if err := RunOnce(context.Background(), cfg); err != nil {
@@ -313,22 +308,20 @@ func TestRunOnce_NoExclusionGroup_DoesNotEvictPeers(t *testing.T) {
 	}
 }
 
-func TestRunOnce_SkipsWhenUnmanagedCountExceedsThreshold(t *testing.T) {
-	// Two unmanaged images exceed threshold=1; scheduler must skip without upload or deletion.
+func TestRunOnce_DrainsOwnImagesWhenUnmanagedCountExceedsThreshold(t *testing.T) {
+	// Unmanaged images present; drain should delete own image without uploading.
 	initialImages := []apiImageItem{
 		{ID: "other-1", Source: ""},
-		{ID: "other-2", Source: "other-source"},
 		{ID: "own-1", Source: "test-source"},
 	}
 	srv, state := newGoframeTestServer(initialImages)
 	defer srv.Close()
 
 	cfg := Config{
-		GoframeBaseURL:              srv.URL,
-		SourceName:                  "test-source",
-		KeepCount:                   1,
-		SkipIfUnmanagedImagesExceed: 1, // threshold=1, unmanaged count=2 → skip
-		Source:                      &staticSource{name: "test-source", data: minimalPNG()},
+		GoframeBaseURL: srv.URL,
+		SourceName:     "test-source",
+		WhenUnmanaged:  WhenUnmanagedDrain,
+		Source:         &staticSource{name: "test-source", data: minimalPNG()},
 	}
 
 	if err := RunOnce(context.Background(), cfg); err != nil {
@@ -336,27 +329,52 @@ func TestRunOnce_SkipsWhenUnmanagedCountExceedsThreshold(t *testing.T) {
 	}
 
 	if state.uploadedSource != "" {
-		t.Errorf("expected no upload when threshold exceeded, got source %q", state.uploadedSource)
+		t.Errorf("expected no upload on drain, got source %q", state.uploadedSource)
 	}
-	if len(state.deletedIDs) != 0 {
-		t.Errorf("expected no deletions when skipping, got %v", state.deletedIDs)
+	if len(state.deletedIDs) != 1 || state.deletedIDs[0] != "own-1" {
+		t.Errorf("expected own-1 to be drained, got deletedIDs=%v", state.deletedIDs)
 	}
 }
 
-func TestRunOnce_ActsWhenUnmanagedCountAtThreshold(t *testing.T) {
-	// One unmanaged image equals threshold=1; scheduler must proceed with upload.
+func TestRunOnce_SkipsWhenUnmanagedCountExceedsThreshold(t *testing.T) {
+	// Unmanaged images present; skip should leave everything untouched.
 	initialImages := []apiImageItem{
 		{ID: "other-1", Source: ""},
+		{ID: "own-1", Source: "test-source"},
 	}
 	srv, state := newGoframeTestServer(initialImages)
 	defer srv.Close()
 
 	cfg := Config{
-		GoframeBaseURL:              srv.URL,
-		SourceName:                  "test-source",
-		KeepCount:                   1,
-		SkipIfUnmanagedImagesExceed: 1, // threshold=1, unmanaged count=1 → act
-		Source:                      &staticSource{name: "test-source", data: minimalPNG()},
+		GoframeBaseURL: srv.URL,
+		SourceName:     "test-source",
+		WhenUnmanaged:  WhenUnmanagedSkip,
+		Source:         &staticSource{name: "test-source", data: minimalPNG()},
+	}
+
+	if err := RunOnce(context.Background(), cfg); err != nil {
+		t.Fatalf("RunOnce error: %v", err)
+	}
+
+	if state.uploadedSource != "" {
+		t.Errorf("expected no upload on skip, got source %q", state.uploadedSource)
+	}
+	if len(state.deletedIDs) != 0 {
+		t.Errorf("expected no deletions on skip, got %v", state.deletedIDs)
+	}
+}
+
+func TestRunOnce_ActsWhenNoUnmanagedImages(t *testing.T) {
+	// No unmanaged images; skip/drain must not trigger.
+	srv, state := newGoframeTestServer(nil)
+	defer srv.Close()
+
+	cfg := Config{
+		GoframeBaseURL: srv.URL,
+		SourceName:     "test-source",
+		KeepCount:      1,
+		WhenUnmanaged:  WhenUnmanagedSkip,
+		Source:         &staticSource{name: "test-source", data: minimalPNG()},
 	}
 
 	if err := RunOnce(context.Background(), cfg); err != nil {
@@ -364,7 +382,7 @@ func TestRunOnce_ActsWhenUnmanagedCountAtThreshold(t *testing.T) {
 	}
 
 	if state.uploadedSource != "test-source" {
-		t.Errorf("expected upload when unmanaged count equals threshold, got %q", state.uploadedSource)
+		t.Errorf("expected upload when no unmanaged images, got %q", state.uploadedSource)
 	}
 }
 
@@ -385,7 +403,7 @@ func TestCountUnmanagedImages_ExcludesGroupMembers(t *testing.T) {
 }
 
 func TestRunOnce_SkipDoesNotCountGroupMemberImages(t *testing.T) {
-	// A group member image must not trigger a skip even at threshold=0.
+	// A group member image must not trigger a skip even at threshold=1.
 	initialImages := []apiImageItem{
 		{ID: "peer-img", Source: "pusheen"}, // group member, not unmanaged
 	}
@@ -393,13 +411,13 @@ func TestRunOnce_SkipDoesNotCountGroupMemberImages(t *testing.T) {
 	defer srv.Close()
 
 	cfg := Config{
-		GoframeBaseURL:              srv.URL,
-		SourceName:                  "xkcd",
-		KeepCount:                   1,
-		SkipIfUnmanagedImagesExceed: 0,
-		ExclusionGroup:              "daily-wallpaper",
-		GroupMembers:                []string{"xkcd", "pusheen"},
-		Source:                      &staticSource{name: "xkcd", data: minimalPNG()},
+		GoframeBaseURL: srv.URL,
+		SourceName:     "xkcd",
+		KeepCount:      1,
+		WhenUnmanaged:  WhenUnmanagedSkip,
+		ExclusionGroup: "daily-wallpaper",
+		GroupMembers:   []string{"xkcd", "pusheen"},
+		Source:         &staticSource{name: "xkcd", data: minimalPNG()},
 	}
 
 	if err := RunOnce(context.Background(), cfg); err != nil {

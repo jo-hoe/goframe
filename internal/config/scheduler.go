@@ -18,9 +18,8 @@ type SchedulerFileConfig struct {
 	Source string `yaml:"source"`
 	// KeepCount is the maximum number of image scheduler-managed images to retain (default: 1).
 	KeepCount int `yaml:"keepCount"`
-	// SkipIfUnmanagedImagesExceed is the max number of images not owned by this scheduler
-	// that still allows the scheduler to act (default: 0, meaning skip if any unmanaged image exists).
-	SkipIfUnmanagedImagesExceed int `yaml:"skipIfUnmanagedImagesExceed"`
+	// WhenUnmanaged controls behaviour when unmanaged images exist: "upload" (default), "skip", or "drain".
+	WhenUnmanaged string `yaml:"whenUnmanaged"`
 	// ExclusionGroup is an optional group name. When set, a successful upload causes all images
 	// owned by other members of the same group to be deleted.
 	ExclusionGroup string `yaml:"exclusionGroup"`
@@ -111,8 +110,11 @@ func applyDefaults(cfg *SchedulerFileConfig) error {
 	if cfg.KeepCount < 1 {
 		cfg.KeepCount = 1
 	}
-	if cfg.SkipIfUnmanagedImagesExceed < 0 {
-		cfg.SkipIfUnmanagedImagesExceed = 0
+	switch cfg.WhenUnmanaged {
+	case "", "upload", "skip", "drain":
+		// valid
+	default:
+		return fmt.Errorf("whenUnmanaged must be upload, skip, or drain (got %q)", cfg.WhenUnmanaged)
 	}
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"

@@ -18,6 +18,19 @@ import (
 	_ "github.com/jo-hoe/goframe/internal/imageprocessing"
 )
 
+// WhenUnmanaged controls scheduler behaviour when unmanaged images exist (images not owned
+// by this scheduler or its group members).
+type WhenUnmanaged string
+
+const (
+	// WhenUnmanagedUpload always uploads (default).
+	WhenUnmanagedUpload WhenUnmanaged = "upload"
+	// WhenUnmanagedSkip skips the run, leaving own images untouched.
+	WhenUnmanagedSkip WhenUnmanaged = "skip"
+	// WhenUnmanagedDrain skips upload and deletes all own images.
+	WhenUnmanagedDrain WhenUnmanaged = "drain"
+)
+
 // Config holds all parameters required for a single image scheduler run.
 type Config struct {
 	// GoframeBaseURL is the base URL of the goframe service (e.g. "http://goframe.default.svc.cluster.local").
@@ -26,10 +39,8 @@ type Config struct {
 	SourceName string
 	// KeepCount is the maximum number of images owned by this image scheduler to retain (must be >= 1).
 	KeepCount int
-	// SkipIfUnmanagedImagesExceed is the maximum number of images not owned by this scheduler
-	// that still allows the image scheduler to act. When the unmanaged count exceeds this value,
-	// the run is skipped entirely and own images are left untouched.
-	SkipIfUnmanagedImagesExceed int
+	// WhenUnmanaged controls what happens when unmanaged images exist. Default: upload.
+	WhenUnmanaged WhenUnmanaged
 	// ExclusionGroup is an optional group name. When non-empty, a successful upload causes all
 	// images owned by other members listed in GroupMembers to be deleted.
 	ExclusionGroup string
@@ -43,14 +54,15 @@ type Config struct {
 }
 
 // RunOnce executes one image scheduler cycle:
-//  1. List images from goframe to count unmanaged images.
-//  2. If unmanaged image count > SkipIfUnmanagedImagesExceed, log and return without changes.
-//  3. Fetch a new image from the configured source.
-//  4. Convert to PNG (always).
-//  5. Apply the configured command pipeline (if any).
-//  6. Upload the processed image to goframe.
-//  7. On success: if ExclusionGroup is set, delete all images owned by other group members.
-//  8. On success: delete own images exceeding KeepCount (oldest first).
+//  1. List images from goframe.
+//  2. If unmanaged images exist and WhenUnmanaged is skip, return without changes.
+//  3. If unmanaged images exist and WhenUnmanaged is drain, delete all own images and return.
+//  4. Fetch a new image from the configured source.
+//  5. Convert to PNG (always).
+//  6. Apply the configured command pipeline (if any).
+//  7. Upload the processed image to goframe.
+//  8. On success: if ExclusionGroup is set, delete all images owned by other group members.
+//  9. On success: delete own images exceeding KeepCount (oldest first).
 func RunOnce(ctx context.Context, cfg Config) error {
 	client := newGoframeClient(cfg.GoframeBaseURL)
 
@@ -59,14 +71,20 @@ func RunOnce(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("listing images: %w", err)
 	}
 
-	unmanagedCount := countUnmanagedImages(images, cfg.SourceName, cfg.GroupMembers)
-	if unmanagedCount > cfg.SkipIfUnmanagedImagesExceed {
-		slog.Info("image-scheduler: unmanaged image threshold exceeded, skipping",
-			"source", cfg.SourceName,
-			"unmanagedCount", unmanagedCount,
-			"threshold", cfg.SkipIfUnmanagedImagesExceed,
-		)
-		return nil
+	if cfg.WhenUnmanaged != WhenUnmanagedUpload && cfg.WhenUnmanaged != "" {
+		unmanagedCount := countUnmanagedImages(images, cfg.SourceName, cfg.GroupMembers)
+		if unmanagedCount > 0 {
+			switch cfg.WhenUnmanaged {
+			case WhenUnmanagedSkip:
+				slog.Info("image-scheduler: unmanaged images present, skipping",
+					"source", cfg.SourceName, "unmanagedCount", unmanagedCount)
+				return nil
+			case WhenUnmanagedDrain:
+				slog.Info("image-scheduler: unmanaged images present, draining own images",
+					"source", cfg.SourceName, "unmanagedCount", unmanagedCount)
+				return pruneOwnImages(ctx, client, images, cfg.SourceName, 0)
+			}
+		}
 	}
 
 	imageData, err := cfg.Source.Fetch(ctx)
@@ -109,7 +127,6 @@ func RunOnce(ctx context.Context, cfg Config) error {
 	return pruneOwnImages(ctx, client, images, cfg.SourceName, cfg.KeepCount)
 }
 
-// countUnmanagedImages counts images not owned by the given source.
 // countUnmanagedImages counts images not owned by sourceName and not owned by any group member.
 // Group member images are excluded because they will be evicted on a successful upload anyway.
 func countUnmanagedImages(images []apiImageItem, sourceName string, groupMembers []string) int {
