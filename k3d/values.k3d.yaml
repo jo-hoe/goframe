@@ -36,6 +36,16 @@ schedulers:
       tag: latest
       pullPolicy: Always
 
+  - name: oatmeal
+    cron: "*/1 * * * *"
+    source: oatmeal
+    keepCount: 1
+    drainIfUnmanagedImagesExceed: 2
+    image:
+      repository: registry.localhost:5000/goframe-image-scheduler
+      tag: latest
+      pullPolicy: Always
+
 ingress:
   enabled: true
   className: traefik

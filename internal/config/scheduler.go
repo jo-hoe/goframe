@@ -32,6 +32,7 @@ type SchedulerFileConfig struct {
 type SchedulerSources struct {
 	XKCD    SchedulerSource `yaml:"xkcd"`
 	Pusheen SchedulerSource `yaml:"pusheen"`
+	Oatmeal SchedulerSource `yaml:"oatmeal"`
 }
 
 // SchedulerSource holds the enabled flag for a single image source.

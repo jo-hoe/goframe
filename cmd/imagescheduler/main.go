@@ -11,6 +11,7 @@ import (
 	"github.com/jo-hoe/goframe/internal/config"
 	"github.com/jo-hoe/goframe/internal/imageprocessing"
 	"github.com/jo-hoe/goframe/internal/scheduler"
+	"github.com/jo-hoe/goframe/internal/scheduler/oatmeal"
 	"github.com/jo-hoe/goframe/internal/scheduler/pusheen"
 	"github.com/jo-hoe/goframe/internal/scheduler/xkcd"
 
@@ -77,6 +78,9 @@ func buildSource(cfg *config.SchedulerFileConfig) scheduler.ImageSource {
 	}
 	if cfg.Sources.Pusheen.Enabled {
 		return pusheen.NewPusheenSource()
+	}
+	if cfg.Sources.Oatmeal.Enabled {
+		return oatmeal.NewOatmealSource()
 	}
 	return nil
 }
