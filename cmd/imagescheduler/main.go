@@ -71,13 +71,14 @@ func main() {
 	}
 
 	runCfg := scheduler.Config{
-		GoframeBaseURL: baseCfg.GoframeURL,
-		SourceName:     baseCfg.SourceName,
-		KeepCount:      baseCfg.KeepCount,
-		ExclusionGroup: baseCfg.ExclusionGroup,
-		GroupMembers:   baseCfg.GroupMembers,
-		Source:         source,
-		Commands:       cmdCfgs,
+		GoframeBaseURL:              baseCfg.GoframeURL,
+		SourceName:                  baseCfg.SourceName,
+		KeepCount:                   baseCfg.KeepCount,
+		SkipIfUnmanagedImagesExceed: baseCfg.SkipIfUnmanagedImagesExceed,
+		ExclusionGroup:              baseCfg.ExclusionGroup,
+		GroupMembers:                baseCfg.GroupMembers,
+		Source:                      source,
+		Commands:                    cmdCfgs,
 	}
 
 	if err := scheduler.RunOnce(context.Background(), runCfg); err != nil {

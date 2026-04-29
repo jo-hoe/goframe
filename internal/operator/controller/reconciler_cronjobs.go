@@ -106,15 +106,16 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		Params map[string]any `yaml:",inline"`
 	}
 	type schedulerConfig struct {
-		GoframeURL     string      `yaml:"goframeURL"`
-		SourceName     string      `yaml:"sourceName"`
-		Source         string      `yaml:"source"`
-		KeepCount      int         `yaml:"keepCount"`
-		ExclusionGroup string      `yaml:"exclusionGroup,omitempty"`
-		GroupMembers   []string    `yaml:"groupMembers,omitempty"`
-		Query          string      `yaml:"query,omitempty"`
-		LogLevel       string      `yaml:"logLevel"`
-		Commands       []cmdConfig `yaml:"commands,omitempty"`
+		GoframeURL                  string      `yaml:"goframeURL"`
+		SourceName                  string      `yaml:"sourceName"`
+		Source                      string      `yaml:"source"`
+		KeepCount                   int         `yaml:"keepCount"`
+		SkipIfUnmanagedImagesExceed int         `yaml:"skipIfUnmanagedImagesExceed,omitempty"`
+		ExclusionGroup              string      `yaml:"exclusionGroup,omitempty"`
+		GroupMembers                []string    `yaml:"groupMembers,omitempty"`
+		Query                       string      `yaml:"query,omitempty"`
+		LogLevel                    string      `yaml:"logLevel"`
+		Commands                    []cmdConfig `yaml:"commands,omitempty"`
 	}
 
 	keepCount := sched.KeepCount
@@ -147,15 +148,16 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 	}
 
 	cfg := schedulerConfig{
-		GoframeURL:     serverURL(gf),
-		SourceName:     sched.Source,
-		Source:         sched.Source,
-		KeepCount:      keepCount,
-		ExclusionGroup: sched.ExclusionGroup,
-		GroupMembers:   groupMembers,
-		Query:          sched.Query,
-		LogLevel:       logLevel,
-		Commands:       cmds,
+		GoframeURL:                  serverURL(gf),
+		SourceName:                  sched.Source,
+		Source:                      sched.Source,
+		KeepCount:                   keepCount,
+		SkipIfUnmanagedImagesExceed: sched.SkipIfUnmanagedImagesExceed,
+		ExclusionGroup:              sched.ExclusionGroup,
+		GroupMembers:                groupMembers,
+		Query:                       sched.Query,
+		LogLevel:                    logLevel,
+		Commands:                    cmds,
 	}
 
 	out, err := yaml.Marshal(cfg)

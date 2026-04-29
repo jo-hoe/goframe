@@ -59,7 +59,7 @@ schedulers:
     # Free-text:
     #   any bare word  — keyword/tag filter, e.g. lofi, landscape, traditionalart
     #                    must be combined with an ordering modifier or the feed errors
-    query: "boost:popular traditionalart"
+    query: "boost:popular traditionalart"  # ordering: all-time popular; keyword: traditionalart category
     keepCount: 1
     exclusionGroup: daily-wallpaper
     image:

@@ -40,6 +40,7 @@ goframeURL: "http://localhost:8080"  # docker-compose: "http://goframe:8080"
 sourceName: xkcd
 source: xkcd
 keepCount: 1
+# skipIfUnmanagedImagesExceed: 0  # skip run if any manually-uploaded image exists (0 = skip if ≥1 unmanaged)
 # exclusionGroup: daily-wallpaper   # schedulers in the same group evict each other's images on upload
 # groupMembers: [xkcd, pusheen]     # populated automatically by the operator; set manually for local runs
 # commands:  # scheduler-specific pipeline (separate from server commands above)
@@ -68,4 +69,4 @@ keepCount: 1
 # Free-text:
 #   any bare word  — keyword/tag filter, e.g. lofi, landscape, traditionalart
 #                    must be combined with an ordering modifier or the feed errors
-# query: "boost:popular traditionalart"
+# query: "boost:popular traditionalart"  # ordering: all-time popular; keyword: traditionalart category
