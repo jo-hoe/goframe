@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/jo-hoe/goframe/internal/scheduler"
 )
 
 func newTestSource(srv *httptest.Server) *OatmealSource {
@@ -24,7 +26,7 @@ func TestFetchBytes_NonOKStatus(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := newTestSource(srv).fetchBytes(context.Background(), srv.URL+"/anything")
+	_, err := scheduler.FetchBytes(context.Background(), srv.Client(), srv.URL+"/anything")
 	if err == nil {
 		t.Fatal("expected error for non-200 status, got nil")
 	}
@@ -101,7 +103,6 @@ func TestFetchSlugsFromURLs_DeduplicatesSlugs(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// Same URL twice — slug should appear only once.
 	slugs, err := newTestSource(srv).fetchSlugsFromURLs(context.Background(), []string{srv.URL, srv.URL})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -136,7 +137,6 @@ func TestFetch_EndToEnd(t *testing.T) {
 
 	src := newTestSource(srv)
 
-	// Fetch slugs from the test server's index pages.
 	indexURLs := []string{srv.URL + "/comics"}
 	for p := 2; p <= pageCount; p++ {
 		indexURLs = append(indexURLs, fmt.Sprintf("%s/c2index/page:%d", srv.URL, p))
@@ -149,12 +149,10 @@ func TestFetch_EndToEnd(t *testing.T) {
 		t.Fatal("expected at least one slug")
 	}
 
-	// Verify the comic page resolves to a single-panel image.
 	imgURL, err := src.fetchSinglePanelImageURL(context.Background(), srv.URL+"/comics/"+slug)
 	if err != nil {
 		t.Fatalf("fetchSinglePanelImageURL: %v", err)
 	}
-	// The returned URL points to the real S3 host — just confirm it's non-empty and well-formed.
 	if imgURL == "" {
 		t.Fatal("expected non-empty image URL")
 	}

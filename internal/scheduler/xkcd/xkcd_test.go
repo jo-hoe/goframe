@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/jo-hoe/goframe/internal/scheduler"
 )
 
 // newTestSource returns an XKCDSource wired to the given test server.
@@ -48,7 +50,7 @@ func TestFetch_Success(t *testing.T) {
 		t.Fatalf("fetchComicMeta comic: %v", err)
 	}
 
-	data, err := source.fetchImageBytes(context.Background(), comic.ImgURL)
+	data, err := scheduler.FetchBytes(context.Background(), source.httpClient, comic.ImgURL)
 	if err != nil {
 		t.Fatalf("fetchImageBytes: %v", err)
 	}
@@ -95,7 +97,7 @@ func TestFetch_ImageDownloadError(t *testing.T) {
 	defer srv.Close()
 
 	source := newTestSource(srv)
-	_, err := source.fetchImageBytes(context.Background(), srv.URL+"/img.png")
+	_, err := scheduler.FetchBytes(context.Background(), source.httpClient, srv.URL+"/img.png")
 	if err == nil {
 		t.Fatal("expected error for image download failure, got nil")
 	}

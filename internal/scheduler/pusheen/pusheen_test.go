@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/jo-hoe/goframe/internal/scheduler"
 )
 
 func newTestSource(srv *httptest.Server) *PusheenSource {
@@ -25,8 +27,7 @@ func TestFetchBytes_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	source := newTestSource(srv)
-	got, err := source.fetchBytes(context.Background(), srv.URL+"/anything")
+	got, err := scheduler.FetchBytes(context.Background(), srv.Client(), srv.URL+"/anything")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -41,15 +42,13 @@ func TestFetchBytes_NonOKStatus(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	source := newTestSource(srv)
-	_, err := source.fetchBytes(context.Background(), srv.URL+"/anything")
+	_, err := scheduler.FetchBytes(context.Background(), srv.Client(), srv.URL+"/anything")
 	if err == nil {
 		t.Fatal("expected error for non-200 status, got nil")
 	}
 }
 
 func TestExtractImageURL_Success(t *testing.T) {
-	// Mirrors the actual wire format: JSON with backslash-escaped quotes in the HTML.
 	body := []byte(`[{"content":{"rendered":"<img src=\"https://pusheen.com/wp-content/uploads/2026/04/Meowdy.gif\" />"}}]`)
 	got, err := extractImageURL(body)
 	if err != nil {
@@ -62,8 +61,6 @@ func TestExtractImageURL_Success(t *testing.T) {
 }
 
 func TestExtractImageURL_EscapedSlashes(t *testing.T) {
-	// The WordPress REST API escapes forward slashes as \/ in the JSON response.
-	// This is the actual wire format returned by pusheen.com.
 	body := []byte(`[{"content":{"rendered":"<img width=\"1080\" height=\"1080\" src=\"https:\/\/pusheen.com\/wp-content\/uploads\/2026\/04\/Meowdy.gif\" \/>"}}]`)
 	got, err := extractImageURL(body)
 	if err != nil {
@@ -106,9 +103,6 @@ func TestFetch_EndToEnd(t *testing.T) {
 		switch r.URL.Path {
 		case "/wp-json/wp/v2/posts":
 			w.Header().Set("Content-Type", "application/json")
-			// Return a payload whose GIF URL points back at the test server.
-			// We use the real pusheen.com domain in the src so the regex matches,
-			// but override imgSrcPattern below to also accept the test server host.
 			_, _ = fmt.Fprintf(w,
 				`[{"content":{"rendered":"<img src=\"https://pusheen.com/wp-content/uploads/2026/04/test.gif\" />"}}]`)
 		case "/wp-content/uploads/2026/04/test.gif":
@@ -122,22 +116,18 @@ func TestFetch_EndToEnd(t *testing.T) {
 
 	source := newTestSource(srv)
 
-	// Fetch the API response and extract the URL.
-	body, err := source.fetchBytes(context.Background(), srv.URL+"/wp-json/wp/v2/posts")
+	body, err := scheduler.FetchBytes(context.Background(), source.httpClient, srv.URL+"/wp-json/wp/v2/posts")
 	if err != nil {
-		t.Fatalf("fetchBytes: %v", err)
+		t.Fatalf("FetchBytes: %v", err)
 	}
-
 	if _, err = extractImageURL(body); err != nil {
 		t.Fatalf("extractImageURL: %v", err)
 	}
 
-	// Redirect the image fetch to the test server.
 	imgURL := srv.URL + "/wp-content/uploads/2026/04/test.gif"
-
-	got, err := source.fetchBytes(context.Background(), imgURL)
+	got, err := scheduler.FetchBytes(context.Background(), source.httpClient, imgURL)
 	if err != nil {
-		t.Fatalf("fetchBytes image: %v", err)
+		t.Fatalf("FetchBytes image: %v", err)
 	}
 	if string(got) != string(imageData) {
 		t.Errorf("expected %q, got %q", imageData, got)

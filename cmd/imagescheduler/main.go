@@ -11,6 +11,7 @@ import (
 	"github.com/jo-hoe/goframe/internal/config"
 	"github.com/jo-hoe/goframe/internal/imageprocessing"
 	"github.com/jo-hoe/goframe/internal/scheduler"
+	"github.com/jo-hoe/goframe/internal/scheduler/deviantart"
 	"github.com/jo-hoe/goframe/internal/scheduler/oatmeal"
 	"github.com/jo-hoe/goframe/internal/scheduler/pusheen"
 	"github.com/jo-hoe/goframe/internal/scheduler/xkcd"
@@ -21,37 +22,60 @@ import (
 
 func main() {
 	path := configFilePath()
-	fileCfg, err := config.LoadSchedulerConfig(path)
+
+	// Peek at the source field before full config load so we know which typed config to use.
+	sourceName, err := config.PeekSource(path)
 	if err != nil {
-		log.Fatalf("image-scheduler: failed to load config from %s: %v", path, err)
+		log.Fatalf("image-scheduler: failed to read source from %s: %v", path, err)
 	}
-	if fileCfg.GoframeURL == "" {
+
+	var (
+		baseCfg *config.SchedulerFileConfig
+		source  scheduler.ImageSource
+	)
+
+	switch strings.ToLower(sourceName) {
+	case "deviantart":
+		daCfg, loadErr := config.LoadDeviantArtConfig(path)
+		if loadErr != nil {
+			log.Fatalf("image-scheduler: failed to load config from %s: %v", path, loadErr)
+		}
+		baseCfg = &daCfg.SchedulerFileConfig
+		source = deviantart.NewDeviantArtSource(daCfg.Query)
+	default:
+		baseCfg, err = config.LoadSchedulerConfig(path)
+		if err != nil {
+			log.Fatalf("image-scheduler: failed to load config from %s: %v", path, err)
+		}
+		source = buildSource(baseCfg.Source)
+	}
+
+	if baseCfg.GoframeURL == "" {
 		log.Fatalf("image-scheduler: goframeURL is required but not set in %s", path)
 	}
-	if fileCfg.SourceName == "" {
+	if baseCfg.SourceName == "" {
 		log.Fatalf("image-scheduler: sourceName is required but not set in %s", path)
 	}
 
-	level := parseLogLevel(fileCfg.LogLevel)
+	level := parseLogLevel(baseCfg.LogLevel)
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})))
 
-	source := buildSource(fileCfg.Source)
 	if source == nil {
 		slog.Info("image-scheduler: no image source configured, nothing to do")
 		return
 	}
 
-	cmdCfgs := make([]imageprocessing.CommandConfig, 0, len(fileCfg.Commands))
-	for _, c := range fileCfg.Commands {
+	cmdCfgs := make([]imageprocessing.CommandConfig, 0, len(baseCfg.Commands))
+	for _, c := range baseCfg.Commands {
 		cmdCfgs = append(cmdCfgs, imageprocessing.CommandConfig{Name: c.Name, Params: c.Params})
 	}
 
 	runCfg := scheduler.Config{
-		GoframeBaseURL: fileCfg.GoframeURL,
-		SourceName:     fileCfg.SourceName,
-		KeepCount:      fileCfg.KeepCount,
-		ExclusionGroup: fileCfg.ExclusionGroup,
-		GroupMembers:   fileCfg.GroupMembers,
+		GoframeBaseURL: baseCfg.GoframeURL,
+		SourceName:     baseCfg.SourceName,
+		KeepCount:      baseCfg.KeepCount,
+		ExclusionGroup: baseCfg.ExclusionGroup,
+		GroupMembers:   baseCfg.GroupMembers,
 		Source:         source,
 		Commands:       cmdCfgs,
 	}

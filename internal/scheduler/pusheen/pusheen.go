@@ -3,18 +3,19 @@ package pusheen
 import (
 	"context"
 	"fmt"
-	"io"
 	"math/rand/v2"
 	"net/http"
 	"regexp"
 	"time"
+
+	"github.com/jo-hoe/goframe/internal/scheduler"
 )
 
 const (
 	// comicsAPIURL fetches a single random comic post from the WordPress REST API.
 	// Category 4 = Comics, 620 total comics.
-	comicsAPIURL  = "https://pusheen.com/wp-json/wp/v2/posts?categories=4&per_page=1&page=%d&_fields=content"
-	comicCount    = 620
+	comicsAPIURL = "https://pusheen.com/wp-json/wp/v2/posts?categories=4&per_page=1&page=%d&_fields=content"
+	comicCount   = 620
 )
 
 // imgSrcPattern extracts the GIF URL from the WordPress REST API content field.
@@ -47,7 +48,7 @@ func (p *PusheenSource) Fetch(ctx context.Context) ([]byte, error) {
 	page := rand.IntN(comicCount) + 1
 	apiURL := fmt.Sprintf(comicsAPIURL, page)
 
-	body, err := p.fetchBytes(ctx, apiURL)
+	body, err := scheduler.FetchBytes(ctx, p.httpClient, apiURL)
 	if err != nil {
 		return nil, fmt.Errorf("fetching pusheen comic list (page %d): %w", page, err)
 	}
@@ -57,30 +58,11 @@ func (p *PusheenSource) Fetch(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("extracting image URL from pusheen page %d: %w", page, err)
 	}
 
-	data, err := p.fetchBytes(ctx, imgURL)
+	data, err := scheduler.FetchBytes(ctx, p.httpClient, imgURL)
 	if err != nil {
 		return nil, fmt.Errorf("downloading pusheen image %s: %w", imgURL, err)
 	}
 	return data, nil
-}
-
-func (p *PusheenSource) fetchBytes(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status %d from %s", resp.StatusCode, url)
-	}
-
-	return io.ReadAll(resp.Body)
 }
 
 func extractImageURL(body []byte) (string, error) {

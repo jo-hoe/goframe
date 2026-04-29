@@ -14,7 +14,7 @@ type SchedulerFileConfig struct {
 	GoframeURL string `yaml:"goframeURL"`
 	// SourceName is the unique identity of this image scheduler instance.
 	SourceName string `yaml:"sourceName"`
-	// Source is the image source identifier (e.g. "xkcd", "pusheen", "oatmeal").
+	// Source is the image source identifier (e.g. "xkcd", "pusheen", "oatmeal", "deviantart").
 	Source string `yaml:"source"`
 	// KeepCount is the maximum number of image scheduler-managed images to retain (default: 1).
 	KeepCount int `yaml:"keepCount"`
@@ -30,12 +30,20 @@ type SchedulerFileConfig struct {
 	Commands []CommandConfig `yaml:"commands"`
 }
 
+// DeviantArtFileConfig is the typed configuration for the deviantart source.
+// It embeds all common scheduler fields and adds a strongly-typed Query field
+// that is validated non-empty at load time.
+type DeviantArtFileConfig struct {
+	SchedulerFileConfig `yaml:",inline"`
+	// Query is a DeviantArt search string, e.g. "boost:popular tag:lofi".
+	Query string `yaml:"query"`
+}
+
 // LoadSchedulerConfig reads and parses a YAML image scheduler config from the given path.
 func LoadSchedulerConfig(path string) (*SchedulerFileConfig, error) {
-	// #nosec G304 -- reading configuration from a user-provided path is intended
-	data, err := os.ReadFile(path)
+	data, err := readConfigFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read image scheduler config %s: %w", path, err)
+		return nil, err
 	}
 
 	var cfg SchedulerFileConfig
@@ -43,6 +51,60 @@ func LoadSchedulerConfig(path string) (*SchedulerFileConfig, error) {
 		return nil, fmt.Errorf("failed to parse image scheduler config %s: %w", path, err)
 	}
 
+	if err := applyDefaults(&cfg); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+// LoadDeviantArtConfig reads and parses a YAML deviantart scheduler config from the given path.
+// Returns an error if the required Query field is empty.
+func LoadDeviantArtConfig(path string) (*DeviantArtFileConfig, error) {
+	data, err := readConfigFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg DeviantArtFileConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse deviantart scheduler config %s: %w", path, err)
+	}
+
+	if err := applyDefaults(&cfg.SchedulerFileConfig); err != nil {
+		return nil, err
+	}
+	if cfg.Query == "" {
+		return nil, fmt.Errorf("deviantart scheduler config %s: query is required", path)
+	}
+	return &cfg, nil
+}
+
+// PeekSource reads only the source field from a scheduler config file without full validation.
+// Used by the binary entry point to determine which typed config loader to use.
+func PeekSource(path string) (string, error) {
+	data, err := readConfigFile(path)
+	if err != nil {
+		return "", err
+	}
+	var peek struct {
+		Source string `yaml:"source"`
+	}
+	if err := yaml.Unmarshal(data, &peek); err != nil {
+		return "", fmt.Errorf("failed to parse source field from %s: %w", path, err)
+	}
+	return peek.Source, nil
+}
+
+func readConfigFile(path string) ([]byte, error) {
+	// #nosec G304 -- reading configuration from a user-provided path is intended
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read image scheduler config %s: %w", path, err)
+	}
+	return data, nil
+}
+
+func applyDefaults(cfg *SchedulerFileConfig) error {
 	if cfg.KeepCount < 1 {
 		cfg.KeepCount = 1
 	}
@@ -51,9 +113,8 @@ func LoadSchedulerConfig(path string) (*SchedulerFileConfig, error) {
 	}
 	for i, cmd := range cfg.Commands {
 		if cmd.Name == "" {
-			return nil, fmt.Errorf("command at index %d has empty name", i)
+			return fmt.Errorf("command at index %d has empty name", i)
 		}
 	}
-
-	return &cfg, nil
+	return nil
 }

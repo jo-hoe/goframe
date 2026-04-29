@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math/rand/v2"
 	"net/http"
 	"time"
+
+	"github.com/jo-hoe/goframe/internal/scheduler"
 )
 
 const (
@@ -50,7 +51,7 @@ func (x *XKCDSource) Fetch(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("fetching xkcd comic %d metadata: %w", comicNum, err)
 	}
 
-	data, err := x.fetchImageBytes(ctx, comic.ImgURL)
+	data, err := scheduler.FetchBytes(ctx, x.httpClient, comic.ImgURL)
 	if err != nil {
 		return nil, fmt.Errorf("downloading xkcd comic %d image: %w", comicNum, err)
 	}
@@ -64,45 +65,16 @@ type comicMeta struct {
 }
 
 func (x *XKCDSource) fetchComicMeta(ctx context.Context, url string) (*comicMeta, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	data, err := scheduler.FetchBytes(ctx, x.httpClient, url)
 	if err != nil {
 		return nil, err
-	}
-
-	resp, err := x.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status %d from %s", resp.StatusCode, url)
 	}
 
 	var meta comicMeta
-	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
+	if err := json.Unmarshal(data, &meta); err != nil {
 		return nil, err
 	}
 	return &meta, nil
-}
-
-func (x *XKCDSource) fetchImageBytes(ctx context.Context, imgURL string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imgURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := x.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status %d fetching image from %s", resp.StatusCode, imgURL)
-	}
-
-	return io.ReadAll(resp.Body)
 }
 
 // randomComicNumber returns a random comic number in [1, latestNum] excluding the missing comic 404.

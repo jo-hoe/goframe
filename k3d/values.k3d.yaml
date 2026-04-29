@@ -36,9 +36,10 @@ schedulers:
       repository: registry.localhost:5000/goframe-image-scheduler
       tag: latest
       pullPolicy: Always
-  - name: oatmeal
+  - name: deviantart
     cron: "2-59/3 * * * *"
-    source: oatmeal
+    source: deviantart
+    query: "traditionalart"
     keepCount: 1
     exclusionGroup: daily-wallpaper
     image:

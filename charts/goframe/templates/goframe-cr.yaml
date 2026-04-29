@@ -47,6 +47,9 @@ spec:
       {{- if .exclusionGroup }}
       exclusionGroup: {{ .exclusionGroup | quote }}
       {{- end }}
+      {{- if .query }}
+      query: {{ .query | quote }}
+      {{- end }}
       {{- if .commands }}
       commands:
         {{- range .commands }}

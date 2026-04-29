@@ -155,7 +155,12 @@ spec:
                       type: string
                     source:
                       description: Source is the image source identifier passed to
-                        the scheduler binary (e.g. "xkcd", "pusheen").
+                        the scheduler binary (e.g. "xkcd", "pusheen", "deviantart").
+                      type: string
+                    query:
+                      description: |-
+                        Query is a source-specific search string. Required when source is "deviantart".
+                        Uses DeviantArt search syntax, e.g. "boost:popular tag:lofi".
                       type: string
                   required:
                   - cron

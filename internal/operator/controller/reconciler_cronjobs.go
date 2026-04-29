@@ -112,6 +112,7 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		KeepCount      int         `yaml:"keepCount"`
 		ExclusionGroup string      `yaml:"exclusionGroup,omitempty"`
 		GroupMembers   []string    `yaml:"groupMembers,omitempty"`
+		Query          string      `yaml:"query,omitempty"`
 		LogLevel       string      `yaml:"logLevel"`
 		Commands       []cmdConfig `yaml:"commands,omitempty"`
 	}
@@ -152,6 +153,7 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		KeepCount:      keepCount,
 		ExclusionGroup: sched.ExclusionGroup,
 		GroupMembers:   groupMembers,
+		Query:          sched.Query,
 		LogLevel:       logLevel,
 		Commands:       cmds,
 	}

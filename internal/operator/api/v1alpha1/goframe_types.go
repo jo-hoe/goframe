@@ -96,8 +96,13 @@ type SchedulerSpec struct {
 	// +optional
 	Commands []CommandSpec `json:"commands,omitempty"`
 
-	// Source is the image source identifier passed to the scheduler binary (e.g. "xkcd", "pusheen").
+	// Source is the image source identifier passed to the scheduler binary (e.g. "xkcd", "pusheen", "deviantart").
 	Source string `json:"source"`
+
+	// Query is a source-specific search string. Required when source is "deviantart".
+	// Uses DeviantArt search syntax, e.g. "boost:popular tag:lofi".
+	// +optional
+	Query string `json:"query,omitempty"`
 
 	// Image configures the container image for the scheduler CronJob.
 	// +optional

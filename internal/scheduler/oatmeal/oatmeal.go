@@ -3,11 +3,12 @@ package oatmeal
 import (
 	"context"
 	"fmt"
-	"io"
 	"math/rand/v2"
 	"net/http"
 	"regexp"
 	"time"
+
+	"github.com/jo-hoe/goframe/internal/scheduler"
 )
 
 const (
@@ -66,7 +67,7 @@ func (o *OatmealSource) Fetch(ctx context.Context) ([]byte, error) {
 			// Multi-panel or unparseable — try next.
 			continue
 		}
-		data, err := o.fetchBytes(ctx, imgURL)
+		data, err := scheduler.FetchBytes(ctx, o.httpClient, imgURL)
 		if err != nil {
 			return nil, fmt.Errorf("downloading oatmeal image %s: %w", imgURL, err)
 		}
@@ -90,7 +91,7 @@ func (o *OatmealSource) fetchSlugsFromURLs(ctx context.Context, urls []string) (
 	seen := make(map[string]struct{})
 	var slugs []string
 	for _, u := range urls {
-		body, err := o.fetchBytes(ctx, u)
+		body, err := scheduler.FetchBytes(ctx, o.httpClient, u)
 		if err != nil {
 			return nil, fmt.Errorf("fetching index page %s: %w", u, err)
 		}
@@ -108,7 +109,7 @@ func (o *OatmealSource) fetchSlugsFromURLs(ctx context.Context, urls []string) (
 // fetchSinglePanelImageURL fetches a comic page and returns the image URL,
 // returning an error if the comic contains multiple panels.
 func (o *OatmealSource) fetchSinglePanelImageURL(ctx context.Context, comicURL string) (string, error) {
-	body, err := o.fetchBytes(ctx, comicURL)
+	body, err := scheduler.FetchBytes(ctx, o.httpClient, comicURL)
 	if err != nil {
 		return "", err
 	}
@@ -120,20 +121,4 @@ func (o *OatmealSource) fetchSinglePanelImageURL(ctx context.Context, comicURL s
 		return "", fmt.Errorf("skipping multi-panel comic at %q (%d panels)", comicURL, len(matches))
 	}
 	return string(matches[0][1]), nil
-}
-
-func (o *OatmealSource) fetchBytes(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := o.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status %d from %s", resp.StatusCode, url)
-	}
-	return io.ReadAll(resp.Body)
 }
