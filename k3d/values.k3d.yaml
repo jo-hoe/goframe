@@ -29,7 +29,8 @@ schedulers:
       pullPolicy: Always
   - name: pusheen
     cron: "1-59/3 * * * *"
-    source: pusheen
+    source: tumblr
+    blog: pusheen
     keepCount: 1
     exclusionGroup: daily-wallpaper
     image:

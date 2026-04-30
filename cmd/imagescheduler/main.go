@@ -14,7 +14,7 @@ import (
 	"github.com/jo-hoe/goframe/internal/scheduler/deviantart"
 	"github.com/jo-hoe/goframe/internal/scheduler/metmuseum"
 	"github.com/jo-hoe/goframe/internal/scheduler/oatmeal"
-	"github.com/jo-hoe/goframe/internal/scheduler/pusheen"
+	"github.com/jo-hoe/goframe/internal/scheduler/tumblr"
 	"github.com/jo-hoe/goframe/internal/scheduler/xkcd"
 
 	// Trigger command registrations.
@@ -50,6 +50,13 @@ func main() {
 		}
 		baseCfg = &mmCfg.SchedulerFileConfig
 		source = metmuseum.NewMetMuseumSource(mmCfg.DepartmentIDs)
+	case "tumblr":
+		tCfg, loadErr := config.LoadTumblrConfig(path)
+		if loadErr != nil {
+			log.Fatalf("image-scheduler: failed to load config from %s: %v", path, loadErr)
+		}
+		baseCfg = &tCfg.SchedulerFileConfig
+		source = tumblr.NewTumblrSource(tCfg.Blog)
 	default:
 		baseCfg, err = config.LoadSchedulerConfig(path)
 		if err != nil {
@@ -110,8 +117,6 @@ func buildSource(name string) scheduler.ImageSource {
 	switch strings.ToLower(name) {
 	case "xkcd":
 		return xkcd.NewXKCDSource()
-	case "pusheen":
-		return pusheen.NewPusheenSource()
 	case "oatmeal":
 		return oatmeal.NewOatmealSource()
 	}

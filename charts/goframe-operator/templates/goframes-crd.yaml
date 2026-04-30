@@ -89,6 +89,11 @@ spec:
                   description: SchedulerSpec defines a single CronJob-based image
                     ingestion source.
                   properties:
+                    blog:
+                      description: |-
+                        Blog is the Tumblr blog name (e.g. "nasa"), without the .tumblr.com suffix.
+                        Required when source is "tumblr".
+                      type: string
                     commands:
                       description: Commands is the image-processing pipeline applied
                         to images fetched by this scheduler.
@@ -168,7 +173,8 @@ spec:
                       type: string
                     source:
                       description: Source is the image source identifier passed to
-                        the scheduler binary (e.g. "xkcd", "pusheen", "deviantart").
+                        the scheduler binary (e.g. "xkcd", "oatmeal", "deviantart",
+                        "metmuseum", "tumblr").
                       type: string
                     whenUnmanaged:
                       description: |-

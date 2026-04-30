@@ -42,7 +42,7 @@ source: xkcd
 keepCount: 1
 # whenUnmanaged: upload  # upload (default), skip (keep own images), drain (delete own images)
 # exclusionGroup: daily-wallpaper   # schedulers in the same group evict each other's images on upload
-# groupMembers: [xkcd, pusheen]     # populated automatically by the operator; set manually for local runs
+# groupMembers: [xkcd, tumblr]     # populated automatically by the operator; set manually for local runs
 # commands:  # scheduler-specific pipeline (separate from server commands above)
 #   - name: ScaleCommand
 #     height: 1200
@@ -70,6 +70,11 @@ keepCount: 1
 #   any bare word  — keyword/tag filter, e.g. lofi, landscape, traditionalart
 #                    must be combined with an ordering modifier or the feed errors
 # query: "boost:popular traditionalart"  # ordering: all-time popular; keyword: traditionalart category
+
+# ---- tumblr source (set source: tumblr to activate) ----
+# Fetches a random image from a public Tumblr blog's RSS feed.
+# blog: required. The blog name without the .tumblr.com suffix (e.g. "nasa").
+# blog: nasa
 
 # ---- metmuseum source (set source: metmuseum to activate) ----
 # Fetches a random highlighted, public-domain artwork from The Metropolitan Museum of Art.

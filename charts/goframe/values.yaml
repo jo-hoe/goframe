@@ -48,7 +48,7 @@ schedulerImage:
 
 # CronJob-based image schedulers (one CronJob per entry).
 # Each entry requires: name, cron, source
-# Supported sources: xkcd, pusheen, oatmeal, deviantart, metmuseum
+# Supported sources: xkcd, oatmeal, deviantart, metmuseum, tumblr
 #
 # exclusionGroup: optional. Schedulers sharing the same group evict each other's images on
 # a successful upload, so only one group member's image is displayed at a time. Use this to
@@ -83,9 +83,10 @@ schedulerImage:
 #     source: xkcd
 #     keepCount: 1
 #     exclusionGroup: daily-wallpaper
-#   - name: weekend-pusheen
+#   - name: weekend-tumblr
 #     cron: "0 8 * * 6,0"
-#     source: pusheen
+#     source: tumblr
+#     blog: pusheen
 #     keepCount: 1
 #     exclusionGroup: daily-wallpaper
 #
@@ -95,6 +96,14 @@ schedulerImage:
 #     cron: "0 8 * * *"
 #     source: deviantart
 #     query: "boost:popular traditionalart"  # ordering: all-time popular; keyword: traditionalart category
+#     keepCount: 1
+#
+# Example — tumblr blog:
+# schedulers:
+#   - name: nasa-tumblr
+#     cron: "0 8 * * *"
+#     source: tumblr
+#     blog: nasa   # blog name without .tumblr.com
 #     keepCount: 1
 #
 # Example — metmuseum with department filter:

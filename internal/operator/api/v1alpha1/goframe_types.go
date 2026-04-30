@@ -102,7 +102,7 @@ type SchedulerSpec struct {
 	// +optional
 	Commands []CommandSpec `json:"commands,omitempty"`
 
-	// Source is the image source identifier passed to the scheduler binary (e.g. "xkcd", "pusheen", "deviantart").
+	// Source is the image source identifier passed to the scheduler binary (e.g. "xkcd", "oatmeal", "deviantart", "metmuseum", "tumblr").
 	Source string `json:"source"`
 
 	// Query is a source-specific search string. Required when source is "deviantart".
@@ -115,6 +115,11 @@ type SchedulerSpec struct {
 	// See https://collectionapi.metmuseum.org/public/collection/v1/departments for valid IDs.
 	// +optional
 	DepartmentIDs []int `json:"departmentIDs,omitempty"`
+
+	// Blog is the Tumblr blog name (e.g. "nasa"), without the .tumblr.com suffix.
+	// Required when source is "tumblr".
+	// +optional
+	Blog string `json:"blog,omitempty"`
 
 	// Image configures the container image for the scheduler CronJob.
 	// +optional

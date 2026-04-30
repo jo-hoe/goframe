@@ -14,7 +14,7 @@ type SchedulerFileConfig struct {
 	GoframeURL string `yaml:"goframeURL"`
 	// SourceName is the unique identity of this image scheduler instance.
 	SourceName string `yaml:"sourceName"`
-	// Source is the image source identifier (e.g. "xkcd", "pusheen", "oatmeal", "deviantart").
+	// Source is the image source identifier (e.g. "xkcd", "oatmeal", "deviantart", "metmuseum", "tumblr").
 	Source string `yaml:"source"`
 	// KeepCount is the maximum number of image scheduler-managed images to retain (default: 1).
 	KeepCount int `yaml:"keepCount"`
@@ -49,6 +49,14 @@ type MetMuseumFileConfig struct {
 	// DepartmentIDs restricts results to the given Met department IDs.
 	// See https://collectionapi.metmuseum.org/public/collection/v1/departments for valid IDs.
 	DepartmentIDs []int `yaml:"departmentIDs"`
+}
+
+// TumblrFileConfig is the typed configuration for the tumblr source.
+// It embeds all common scheduler fields and adds a required Blog field.
+type TumblrFileConfig struct {
+	SchedulerFileConfig `yaml:",inline"`
+	// Blog is the Tumblr blog name (e.g. "nasa"), without the .tumblr.com suffix.
+	Blog string `yaml:"blog"`
 }
 
 // LoadSchedulerConfig reads and parses a YAML image scheduler config from the given path.
@@ -105,6 +113,28 @@ func LoadMetMuseumConfig(path string) (*MetMuseumFileConfig, error) {
 
 	if err := applyDefaults(&cfg.SchedulerFileConfig); err != nil {
 		return nil, err
+	}
+	return &cfg, nil
+}
+
+// LoadTumblrConfig reads and parses a YAML tumblr scheduler config from the given path.
+// Returns an error if the required Blog field is empty.
+func LoadTumblrConfig(path string) (*TumblrFileConfig, error) {
+	data, err := readConfigFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg TumblrFileConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse tumblr scheduler config %s: %w", path, err)
+	}
+
+	if err := applyDefaults(&cfg.SchedulerFileConfig); err != nil {
+		return nil, err
+	}
+	if cfg.Blog == "" {
+		return nil, fmt.Errorf("tumblr scheduler config %s: blog is required", path)
 	}
 	return &cfg, nil
 }
