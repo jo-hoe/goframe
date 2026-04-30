@@ -56,8 +56,11 @@ spec:
         - {{ . }}
         {{- end }}
       {{- end }}
-      {{- if .blog }}
-      blog: {{ .blog | quote }}
+      {{- if .blogs }}
+      blogs:
+        {{- range .blogs }}
+        - {{ . | quote }}
+        {{- end }}
       {{- end }}
       {{- if .commands }}
       commands:

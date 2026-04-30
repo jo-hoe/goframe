@@ -52,11 +52,12 @@ type MetMuseumFileConfig struct {
 }
 
 // TumblrFileConfig is the typed configuration for the tumblr source.
-// It embeds all common scheduler fields and adds a required Blog field.
+// It embeds all common scheduler fields and adds a required Blogs field.
 type TumblrFileConfig struct {
 	SchedulerFileConfig `yaml:",inline"`
-	// Blog is the Tumblr blog name (e.g. "nasa"), without the .tumblr.com suffix.
-	Blog string `yaml:"blog"`
+	// Blogs is the list of Tumblr blog names (e.g. ["nasa", "pusheen"]), without the .tumblr.com suffix.
+	// One blog is picked randomly per run.
+	Blogs []string `yaml:"blogs"`
 }
 
 // LoadSchedulerConfig reads and parses a YAML image scheduler config from the given path.
@@ -118,7 +119,7 @@ func LoadMetMuseumConfig(path string) (*MetMuseumFileConfig, error) {
 }
 
 // LoadTumblrConfig reads and parses a YAML tumblr scheduler config from the given path.
-// Returns an error if the required Blog field is empty.
+// Returns an error if the required Blogs field is empty.
 func LoadTumblrConfig(path string) (*TumblrFileConfig, error) {
 	data, err := readConfigFile(path)
 	if err != nil {
@@ -133,8 +134,8 @@ func LoadTumblrConfig(path string) (*TumblrFileConfig, error) {
 	if err := applyDefaults(&cfg.SchedulerFileConfig); err != nil {
 		return nil, err
 	}
-	if cfg.Blog == "" {
-		return nil, fmt.Errorf("tumblr scheduler config %s: blog is required", path)
+	if len(cfg.Blogs) == 0 {
+		return nil, fmt.Errorf("tumblr scheduler config %s: blogs is required", path)
 	}
 	return &cfg, nil
 }

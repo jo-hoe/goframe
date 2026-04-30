@@ -88,7 +88,7 @@ func TestFetch_FeedError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	source := &TumblrSource{blog: "test", httpClient: srv.Client()}
+	source := &TumblrSource{blogs: []string{"test"}, httpClient: srv.Client()}
 	_, err := source.fetchFeed(context.Background(), srv.URL+"/rss")
 	if err == nil {
 		t.Fatal("expected error for non-200 response, got nil")
@@ -123,7 +123,7 @@ func TestFetch_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	source := &TumblrSource{blog: "test", httpClient: srv.Client()}
+	source := &TumblrSource{blogs: []string{"test"}, httpClient: srv.Client()}
 	urls, err := source.fetchFeed(context.Background(), srv.URL+"/rss")
 	if err != nil {
 		t.Fatalf("fetchFeed error: %v", err)

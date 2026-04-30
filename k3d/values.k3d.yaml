@@ -18,49 +18,12 @@ commands:
     clockwise: true  # optional, default: true
 
 schedulers:
-  - name: xkcd
-    cron: "*/3 * * * *"
-    source: xkcd
-    keepCount: 1
-    exclusionGroup: daily-wallpaper
-    image:
-      repository: registry.localhost:5000/goframe-image-scheduler
-      tag: latest
-      pullPolicy: Always
-  - name: pusheen
-    cron: "1-59/3 * * * *"
+
+  - name: tumblr
+    cron: "* * * * *"
     source: tumblr
-    blog: pusheen
-    keepCount: 1
-    exclusionGroup: daily-wallpaper
-    image:
-      repository: registry.localhost:5000/goframe-image-scheduler
-      tag: latest
-      pullPolicy: Always
-  - name: deviantart
-    cron: "2-59/3 * * * *"
-    source: deviantart
-    # DeviantArt RSS query syntax reference: https://www.deviantart.com/developers/rss
-    # Test queries in browser: https://backend.deviantart.com/rss.xml?type=deviation&q=boost:popular+traditionalart
-    # Multiple modifiers combined with spaces (URL-encoded as +).
-    # A bare keyword without an ordering modifier causes the feed to error.
-    #
-    # Ordering (mutually exclusive) — empirically verified:
-    #   boost:popular  — all-time most-favourited, distinct ranking from sort:popular (confirmed)
-    #   sort:popular   — popular with slightly different ranking than boost:popular (confirmed)
-    #   sort:time      — newest submissions first (confirmed)
-    #   boost:<other>  — all other boost: values (hot, new, recent, rising, trending, …)
-    #                    silently fall back to popular or error; do not use
-    #
-    # Filtering:
-    #   in:cat/subcat  — restrict to a category, e.g. in:digitalart/drawings
-    #                    or in:traditionalart/paintings (confirmed working)
-    #   by:/meta:      — documented but currently error on the backend; do not use
-    #
-    # Free-text:
-    #   any bare word  — keyword/tag filter, e.g. lofi, landscape, traditionalart
-    #                    must be combined with an ordering modifier or the feed errors
-    query: "boost:popular traditionalart"  # ordering: all-time popular; keyword: traditionalart category
+    blogs:
+      - nasa
     keepCount: 1
     exclusionGroup: daily-wallpaper
     image:
@@ -68,16 +31,6 @@ schedulers:
       tag: latest
       pullPolicy: Always
 
-  - name: metmuseum
-    cron: "2-59/3 * * * *"
-    source: metmuseum
-    # departmentIDs: omitted — searches all departments
-    keepCount: 1
-    exclusionGroup: daily-wallpaper
-    image:
-      repository: registry.localhost:5000/goframe-image-scheduler
-      tag: latest
-      pullPolicy: Always
 
 ingress:
   enabled: true

@@ -22,16 +22,16 @@ var srcsetPattern = regexp.MustCompile(`(https?://[^\s,]+)\s+\d+w`)
 // imgSrcPattern extracts the src attribute of an img tag.
 var imgSrcPattern = regexp.MustCompile(`<img[^>]+src="(https?://[^"]+)"`)
 
-// TumblrSource fetches a random image from a public Tumblr blog RSS feed.
+// TumblrSource fetches a random image from one of a list of public Tumblr blog RSS feeds.
 type TumblrSource struct {
-	blog       string
+	blogs      []string
 	httpClient *http.Client
 }
 
-// NewTumblrSource constructs a TumblrSource for the given blog name (e.g. "nasa").
-func NewTumblrSource(blog string) *TumblrSource {
+// NewTumblrSource constructs a TumblrSource that picks randomly from the given blog names (e.g. ["nasa", "pusheen"]).
+func NewTumblrSource(blogs []string) *TumblrSource {
 	return &TumblrSource{
-		blog:       blog,
+		blogs:      blogs,
 		httpClient: &http.Client{Timeout: 15 * time.Second},
 	}
 }
@@ -41,16 +41,21 @@ func (t *TumblrSource) Name() string {
 	return "tumblr"
 }
 
-// Fetch retrieves a random image from the blog's RSS feed.
+// Fetch retrieves a random image from one of the blogs' RSS feeds.
 func (t *TumblrSource) Fetch(ctx context.Context) ([]byte, error) {
-	feedURL := "https://" + t.blog + ".tumblr.com" + rssSuffix
+	if len(t.blogs) == 0 {
+		return nil, fmt.Errorf("tumblr source has no blogs configured")
+	}
+	// #nosec G404 -- math/rand is intentional; blog selection does not require cryptographic randomness
+	blog := t.blogs[rand.IntN(len(t.blogs))]
+	feedURL := "https://" + blog + ".tumblr.com" + rssSuffix
 
 	items, err := t.fetchFeed(ctx, feedURL)
 	if err != nil {
-		return nil, fmt.Errorf("fetching tumblr RSS feed for %q: %w", t.blog, err)
+		return nil, fmt.Errorf("fetching tumblr RSS feed for %q: %w", blog, err)
 	}
 	if len(items) == 0 {
-		return nil, fmt.Errorf("tumblr RSS feed for %q returned no image items", t.blog)
+		return nil, fmt.Errorf("tumblr RSS feed for %q returned no image items", blog)
 	}
 
 	// #nosec G404 -- math/rand is intentional; image selection does not require cryptographic randomness

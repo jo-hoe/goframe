@@ -72,9 +72,11 @@ keepCount: 1
 # query: "boost:popular traditionalart"  # ordering: all-time popular; keyword: traditionalart category
 
 # ---- tumblr source (set source: tumblr to activate) ----
-# Fetches a random image from a public Tumblr blog's RSS feed.
-# blog: required. The blog name without the .tumblr.com suffix (e.g. "nasa").
-# blog: nasa
+# Fetches a random image from one of the listed public Tumblr blogs' RSS feeds.
+# blogs: required. List of blog names without the .tumblr.com suffix. One is picked randomly per run.
+# blogs:
+#   - nasa
+#   - pusheen
 
 # ---- metmuseum source (set source: metmuseum to activate) ----
 # Fetches a random highlighted, public-domain artwork from The Metropolitan Museum of Art.

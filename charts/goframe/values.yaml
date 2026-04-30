@@ -86,7 +86,8 @@ schedulerImage:
 #   - name: weekend-tumblr
 #     cron: "0 8 * * 6,0"
 #     source: tumblr
-#     blog: pusheen
+#     blogs:
+#       - pusheen
 #     keepCount: 1
 #     exclusionGroup: daily-wallpaper
 #
@@ -103,7 +104,9 @@ schedulerImage:
 #   - name: nasa-tumblr
 #     cron: "0 8 * * *"
 #     source: tumblr
-#     blog: nasa   # blog name without .tumblr.com
+#     blogs:
+#       - nasa         # blog name without .tumblr.com
+#       - pusheen      # add more blogs to pick from randomly
 #     keepCount: 1
 #
 # Example — metmuseum with department filter:

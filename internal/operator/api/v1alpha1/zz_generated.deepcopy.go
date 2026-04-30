@@ -198,6 +198,11 @@ func (in *SchedulerSpec) DeepCopyInto(out *SchedulerSpec) {
 		*out = make([]int, len(*in))
 		copy(*out, *in)
 	}
+	if in.Blogs != nil {
+		in, out := &in.Blogs, &out.Blogs
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	out.Image = in.Image
 }
 

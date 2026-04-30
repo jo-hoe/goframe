@@ -56,7 +56,7 @@ func main() {
 			log.Fatalf("image-scheduler: failed to load config from %s: %v", path, loadErr)
 		}
 		baseCfg = &tCfg.SchedulerFileConfig
-		source = tumblr.NewTumblrSource(tCfg.Blog)
+		source = tumblr.NewTumblrSource(tCfg.Blogs)
 	default:
 		baseCfg, err = config.LoadSchedulerConfig(path)
 		if err != nil {

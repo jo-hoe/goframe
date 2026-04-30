@@ -116,10 +116,10 @@ type SchedulerSpec struct {
 	// +optional
 	DepartmentIDs []int `json:"departmentIDs,omitempty"`
 
-	// Blog is the Tumblr blog name (e.g. "nasa"), without the .tumblr.com suffix.
-	// Required when source is "tumblr".
+	// Blogs is a list of Tumblr blog names (e.g. ["nasa", "pusheen"]), without the .tumblr.com suffix.
+	// Required when source is "tumblr". One blog is picked randomly per run.
 	// +optional
-	Blog string `json:"blog,omitempty"`
+	Blogs []string `json:"blogs,omitempty"`
 
 	// Image configures the container image for the scheduler CronJob.
 	// +optional
