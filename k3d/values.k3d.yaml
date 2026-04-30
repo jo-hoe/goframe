@@ -67,6 +67,17 @@ schedulers:
       tag: latest
       pullPolicy: Always
 
+  - name: metmuseum
+    cron: "2-59/3 * * * *"
+    source: metmuseum
+    # departmentIDs: omitted — searches all departments
+    keepCount: 1
+    exclusionGroup: daily-wallpaper
+    image:
+      repository: registry.localhost:5000/goframe-image-scheduler
+      tag: latest
+      pullPolicy: Always
+
 ingress:
   enabled: true
   className: traefik

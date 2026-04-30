@@ -12,6 +12,7 @@ import (
 	"github.com/jo-hoe/goframe/internal/imageprocessing"
 	"github.com/jo-hoe/goframe/internal/scheduler"
 	"github.com/jo-hoe/goframe/internal/scheduler/deviantart"
+	"github.com/jo-hoe/goframe/internal/scheduler/metmuseum"
 	"github.com/jo-hoe/goframe/internal/scheduler/oatmeal"
 	"github.com/jo-hoe/goframe/internal/scheduler/pusheen"
 	"github.com/jo-hoe/goframe/internal/scheduler/xkcd"
@@ -42,6 +43,13 @@ func main() {
 		}
 		baseCfg = &daCfg.SchedulerFileConfig
 		source = deviantart.NewDeviantArtSource(daCfg.Query)
+	case "metmuseum":
+		mmCfg, loadErr := config.LoadMetMuseumConfig(path)
+		if loadErr != nil {
+			log.Fatalf("image-scheduler: failed to load config from %s: %v", path, loadErr)
+		}
+		baseCfg = &mmCfg.SchedulerFileConfig
+		source = metmuseum.NewMetMuseumSource(mmCfg.DepartmentIDs)
 	default:
 		baseCfg, err = config.LoadSchedulerConfig(path)
 		if err != nil {

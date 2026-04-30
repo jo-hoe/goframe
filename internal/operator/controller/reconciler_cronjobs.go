@@ -114,6 +114,7 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		ExclusionGroup string      `yaml:"exclusionGroup,omitempty"`
 		GroupMembers   []string    `yaml:"groupMembers,omitempty"`
 		Query          string      `yaml:"query,omitempty"`
+		DepartmentIDs  []int       `yaml:"departmentIDs,omitempty"`
 		LogLevel       string      `yaml:"logLevel"`
 		Commands       []cmdConfig `yaml:"commands,omitempty"`
 	}
@@ -156,6 +157,7 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		ExclusionGroup: sched.ExclusionGroup,
 		GroupMembers:   groupMembers,
 		Query:          sched.Query,
+		DepartmentIDs:  sched.DepartmentIDs,
 		LogLevel:       logLevel,
 		Commands:       cmds,
 	}

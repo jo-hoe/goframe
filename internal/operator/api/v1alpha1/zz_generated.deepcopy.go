@@ -193,6 +193,11 @@ func (in *SchedulerSpec) DeepCopyInto(out *SchedulerSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.DepartmentIDs != nil {
+		in, out := &in.DepartmentIDs, &out.DepartmentIDs
+		*out = make([]int, len(*in))
+		copy(*out, *in)
+	}
 	out.Image = in.Image
 }
 

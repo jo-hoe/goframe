@@ -110,6 +110,12 @@ type SchedulerSpec struct {
 	// +optional
 	Query string `json:"query,omitempty"`
 
+	// DepartmentIDs restricts Met Museum searches to the given department IDs.
+	// Only used when source is "metmuseum". Omit to search all departments.
+	// See https://collectionapi.metmuseum.org/public/collection/v1/departments for valid IDs.
+	// +optional
+	DepartmentIDs []int `json:"departmentIDs,omitempty"`
+
 	// Image configures the container image for the scheduler CronJob.
 	// +optional
 	Image ImageSpec `json:"image,omitempty"`

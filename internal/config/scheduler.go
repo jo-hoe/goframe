@@ -41,6 +41,16 @@ type DeviantArtFileConfig struct {
 	Query string `yaml:"query"`
 }
 
+// MetMuseumFileConfig is the typed configuration for the metmuseum source.
+// It embeds all common scheduler fields and adds an optional DepartmentIDs field.
+// When DepartmentIDs is empty, all Met departments are searched.
+type MetMuseumFileConfig struct {
+	SchedulerFileConfig `yaml:",inline"`
+	// DepartmentIDs restricts results to the given Met department IDs.
+	// See https://collectionapi.metmuseum.org/public/collection/v1/departments for valid IDs.
+	DepartmentIDs []int `yaml:"departmentIDs"`
+}
+
 // LoadSchedulerConfig reads and parses a YAML image scheduler config from the given path.
 func LoadSchedulerConfig(path string) (*SchedulerFileConfig, error) {
 	data, err := readConfigFile(path)
@@ -77,6 +87,24 @@ func LoadDeviantArtConfig(path string) (*DeviantArtFileConfig, error) {
 	}
 	if cfg.Query == "" {
 		return nil, fmt.Errorf("deviantart scheduler config %s: query is required", path)
+	}
+	return &cfg, nil
+}
+
+// LoadMetMuseumConfig reads and parses a YAML metmuseum scheduler config from the given path.
+func LoadMetMuseumConfig(path string) (*MetMuseumFileConfig, error) {
+	data, err := readConfigFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg MetMuseumFileConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse metmuseum scheduler config %s: %w", path, err)
+	}
+
+	if err := applyDefaults(&cfg.SchedulerFileConfig); err != nil {
+		return nil, err
 	}
 	return &cfg, nil
 }

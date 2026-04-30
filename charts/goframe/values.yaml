@@ -48,7 +48,7 @@ schedulerImage:
 
 # CronJob-based image schedulers (one CronJob per entry).
 # Each entry requires: name, cron, source
-# Supported sources: xkcd, pusheen, oatmeal, deviantart
+# Supported sources: xkcd, pusheen, oatmeal, deviantart, metmuseum
 #
 # exclusionGroup: optional. Schedulers sharing the same group evict each other's images on
 # a successful upload, so only one group member's image is displayed at a time. Use this to
@@ -96,6 +96,25 @@ schedulerImage:
 #     source: deviantart
 #     query: "boost:popular traditionalart"  # ordering: all-time popular; keyword: traditionalart category
 #     keepCount: 1
+#
+# Example — metmuseum with department filter:
+# schedulers:
+#   - name: met-daily
+#     cron: "0 8 * * *"
+#     source: metmuseum
+#     keepCount: 1
+#     # departmentIDs is optional — omit to search all departments.
+#     # Available IDs:
+#     #   1=American Decorative Arts  3=Ancient West Asian Art  4=Arms and Armor
+#     #   5=Arts of Africa, Oceania, and the Americas           6=Asian Art
+#     #   7=The Cloisters             8=The Costume Institute   9=Drawings and Prints
+#     #   10=Egyptian Art             11=European Paintings     12=European Sculpture
+#     #   13=Greek and Roman Art      14=Islamic Art            15=Robert Lehman Collection
+#     #   17=Medieval Art             19=Photographs            21=Modern Art
+#     departmentIDs:
+#       - 6   # Asian Art
+#       - 9   # Drawings and Prints
+#       - 11  # European Paintings
 #
 # Example — single source with per-scheduler processing pipeline:
 # schedulers:

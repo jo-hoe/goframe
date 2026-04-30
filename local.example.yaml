@@ -70,3 +70,33 @@ keepCount: 1
 #   any bare word  — keyword/tag filter, e.g. lofi, landscape, traditionalart
 #                    must be combined with an ordering modifier or the feed errors
 # query: "boost:popular traditionalart"  # ordering: all-time popular; keyword: traditionalart category
+
+# ---- metmuseum source (set source: metmuseum to activate) ----
+# Fetches a random highlighted, public-domain artwork from The Metropolitan Museum of Art.
+# All images are hand-curated by Met art historians — no AI, high-resolution JPEGs.
+# API reference: https://metmuseum.github.io/
+#
+# departmentIDs is optional. Omit (or leave empty) to search all departments.
+# Available department IDs:
+#   1  — American Decorative Arts
+#   3  — Ancient West Asian Art
+#   4  — Arms and Armor
+#   5  — Arts of Africa, Oceania, and the Americas
+#   6  — Asian Art            (Japanese woodblocks, Chinese ink paintings, Indian miniatures)
+#   7  — The Cloisters
+#   8  — The Costume Institute
+#   9  — Drawings and Prints  (watercolors, sketches, engravings)
+#   10 — Egyptian Art
+#   11 — European Paintings   (oil on canvas: Van Dyck, Vermeer, El Greco, …)
+#   12 — European Sculpture and Decorative Arts
+#   13 — Greek and Roman Art
+#   14 — Islamic Art
+#   15 — The Robert Lehman Collection
+#   17 — Medieval Art
+#   19 — Photographs
+#   21 — Modern Art
+#
+# departmentIDs:
+#   - 6   # Asian Art
+#   - 9   # Drawings and Prints
+#   - 11  # European Paintings

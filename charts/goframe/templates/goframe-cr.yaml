@@ -50,6 +50,12 @@ spec:
       {{- if .query }}
       query: {{ .query | quote }}
       {{- end }}
+      {{- if .departmentIDs }}
+      departmentIDs:
+        {{- range .departmentIDs }}
+        - {{ . }}
+        {{- end }}
+      {{- end }}
       {{- if .commands }}
       commands:
         {{- range .commands }}

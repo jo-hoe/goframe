@@ -113,6 +113,14 @@ spec:
                       description: Cron is the schedule in standard cron syntax (e.g.
                         "0 8 * * *").
                       type: string
+                    departmentIDs:
+                      description: |-
+                        DepartmentIDs restricts Met Museum searches to the given department IDs.
+                        Only used when source is "metmuseum". Omit to search all departments.
+                        See https://collectionapi.metmuseum.org/public/collection/v1/departments for valid IDs.
+                      items:
+                        type: integer
+                      type: array
                     exclusionGroup:
                       description: |-
                         ExclusionGroup is an optional group name shared by schedulers that are mutually exclusive.
