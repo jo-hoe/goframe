@@ -15,6 +15,10 @@ import (
 const (
 	defaultSearchURL = "https://collectionapi.metmuseum.org/public/collection/v1/search"
 	defaultObjectURL = "https://collectionapi.metmuseum.org/public/collection/v1/objects/%d"
+
+	// maxFetchAttempts is the number of random objects to try before giving up.
+	// Some highlighted objects have hasImages=true but an empty primaryImage field.
+	maxFetchAttempts = 10
 )
 
 // MetMuseumSource fetches a random highlighted, public-domain artwork image from
@@ -44,6 +48,7 @@ func (m *MetMuseumSource) Name() string {
 }
 
 // Fetch retrieves a random highlighted, public-domain artwork image.
+// It tries up to maxFetchAttempts random objects, skipping any that lack a primaryImage.
 func (m *MetMuseumSource) Fetch(ctx context.Context) ([]byte, error) {
 	ids, err := m.collectObjectIDs(ctx)
 	if err != nil {
@@ -54,18 +59,21 @@ func (m *MetMuseumSource) Fetch(ctx context.Context) ([]byte, error) {
 	}
 
 	// #nosec G404 -- math/rand is intentional; artwork selection does not require cryptographic randomness
-	objectID := ids[rand.IntN(len(ids))]
+	rand.Shuffle(len(ids), func(i, j int) { ids[i], ids[j] = ids[j], ids[i] })
 
-	imageURL, err := m.fetchImageURL(ctx, objectID)
-	if err != nil {
-		return nil, fmt.Errorf("fetching met museum object %d metadata: %w", objectID, err)
+	attempts := min(maxFetchAttempts, len(ids))
+	for _, objectID := range ids[:attempts] {
+		imageURL, err := m.fetchImageURL(ctx, objectID)
+		if err != nil {
+			continue
+		}
+		data, err := scheduler.FetchBytes(ctx, m.httpClient, imageURL)
+		if err != nil {
+			return nil, fmt.Errorf("downloading met museum object %d image: %w", objectID, err)
+		}
+		return data, nil
 	}
-
-	data, err := scheduler.FetchBytes(ctx, m.httpClient, imageURL)
-	if err != nil {
-		return nil, fmt.Errorf("downloading met museum object %d image: %w", objectID, err)
-	}
-	return data, nil
+	return nil, fmt.Errorf("met museum: no object with a primary image found after %d attempts", attempts)
 }
 
 // collectObjectIDs returns the union of object IDs across all configured departments.
