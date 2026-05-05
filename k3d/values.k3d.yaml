@@ -76,6 +76,23 @@ schedulers:
       tag: latest
       pullPolicy: Always
 
+  # - name: s3
+  #   cron: "3-59/4 * * * *"
+  #   source: s3
+  #   keepCount: 1
+  #   exclusionGroup: daily-wallpaper
+  #   s3:
+  #     endpoint: "https://s3.us-east-1.amazonaws.com"  # or "http://rustfs:9000" for RustFS
+  #     bucket: "my-images"
+  #     prefix: "wallpapers/"   # optional; omit to use all objects in the bucket
+  #     region: "us-east-1"     # any non-empty value for RustFS
+  #     accessKey: "AKIAIOSFODNN7EXAMPLE"  # omit for public buckets
+  #     secretKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"  # omit for public buckets
+  #   image:
+  #     repository: registry.localhost:5000/goframe-image-scheduler
+  #     tag: latest
+  #     pullPolicy: Always
+
 
 ingress:
   enabled: true
