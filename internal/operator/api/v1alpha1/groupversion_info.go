@@ -3,21 +3,21 @@
 package v1alpha1
 
 import (
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
 var (
 	// GroupVersion is the API group and version for GoFrame resources.
 	GroupVersion = schema.GroupVersion{Group: "goframe.io", Version: "v1alpha1"}
 
-	// SchemeBuilder registers GoFrame types with a runtime.Scheme.
-	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
+	schemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 
 	// AddToScheme adds the types in this group-version to the given scheme.
-	AddToScheme = SchemeBuilder.AddToScheme
+	AddToScheme = schemeBuilder.AddToScheme
 )
 
-func init() {
-	SchemeBuilder.Register(&GoFrame{}, &GoFrameList{})
+func addKnownTypes(scheme *runtime.Scheme) error {
+	scheme.AddKnownTypes(GroupVersion, &GoFrame{}, &GoFrameList{})
+	return nil
 }
