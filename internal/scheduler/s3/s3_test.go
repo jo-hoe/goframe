@@ -42,6 +42,38 @@ func TestFetch_Success(t *testing.T) {
 	}
 }
 
+func TestFetch_KeyWithPlus(t *testing.T) {
+	imageBytes := []byte("plus-image-data")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Query().Get("list-type") == "2":
+			result := listResult{}
+			result.Contents = []struct {
+				Key string `xml:"Key"`
+			}{{Key: "19+madness+in+the+streets.jpg"}}
+			data, _ := xml.Marshal(result)
+			w.Header().Set("Content-Type", "application/xml")
+			_, _ = w.Write(data)
+		case r.URL.RawPath == "/mybucket/19%2Bmadness%2Bin%2Bthe%2Bstreets.jpg":
+			w.Header().Set("Content-Type", "image/jpeg")
+			_, _ = w.Write(imageBytes)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	source := newTestSource(srv, "mybucket", "")
+	data, err := source.Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("Fetch error: %v", err)
+	}
+	if string(data) != string(imageBytes) {
+		t.Errorf("expected %q, got %q", imageBytes, data)
+	}
+}
+
 func TestFetch_ListError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)

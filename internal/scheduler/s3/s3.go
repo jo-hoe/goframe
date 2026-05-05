@@ -115,7 +115,9 @@ func (s *S3Source) listURL(continuationToken string) string {
 }
 
 func (s *S3Source) getObject(ctx context.Context, key string) ([]byte, error) {
-	rawURL := s.bucketURL() + "/" + url.PathEscape(key)
+	// url.PathEscape leaves '+' unencoded, but AWS SigV4 encodes it as %2B when
+	// computing the canonical URI, causing a signature mismatch (403).
+	rawURL := s.bucketURL() + "/" + strings.ReplaceAll(url.PathEscape(key), "+", "%2B")
 	return s.doSigned(ctx, rawURL)
 }
 
