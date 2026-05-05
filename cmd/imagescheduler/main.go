@@ -69,8 +69,8 @@ func main() {
 			Bucket:    s3Cfg.Bucket,
 			Prefix:    s3Cfg.Prefix,
 			Region:    s3Cfg.Region,
-			AccessKey: s3Cfg.AccessKey,
-			SecretKey: s3Cfg.SecretKey,
+			AccessKey: fileOr(s3CredentialPath("accessKey"), s3Cfg.AccessKey),
+			SecretKey: fileOr(s3CredentialPath("secretKey"), s3Cfg.SecretKey),
 		})
 	default:
 		baseCfg, err = config.LoadSchedulerConfig(path)
@@ -149,4 +149,20 @@ func parseLogLevel(s string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
+}
+
+const s3CredentialsMountPath = "/etc/s3-credentials"
+
+func s3CredentialPath(key string) string {
+	return filepath.Join(s3CredentialsMountPath, key)
+}
+
+// fileOr reads a file and returns its trimmed content, or fallback if the file is absent or empty.
+// strings.TrimSpace strips the trailing newline Kubernetes adds to mounted Secret files.
+func fileOr(path, fallback string) string {
+	data, err := os.ReadFile(path)
+	if err != nil || len(data) == 0 {
+		return fallback
+	}
+	return strings.TrimSpace(string(data))
 }

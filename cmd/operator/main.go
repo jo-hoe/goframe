@@ -24,6 +24,9 @@ var scheme = runtime.NewScheme()
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(goframev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(appsv1.SchemeBuilder.AddToScheme(scheme))
+	utilruntime.Must(batchv1.SchemeBuilder.AddToScheme(scheme))
+	utilruntime.Must(corev1.SchemeBuilder.AddToScheme(scheme))
 }
 
 func main() {
@@ -68,11 +71,6 @@ func main() {
 		log.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
-
-	// Ensure the scheme includes the resource types we own so Owns() watches work.
-	_ = appsv1.SchemeBuilder.AddToScheme(scheme)
-	_ = batchv1.SchemeBuilder.AddToScheme(scheme)
-	_ = corev1.SchemeBuilder.AddToScheme(scheme)
 
 	log.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {

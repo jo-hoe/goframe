@@ -73,8 +73,11 @@ spec:
         prefix: {{ .s3.prefix | quote }}
         {{- end }}
         region: {{ .s3.region | quote }}
-        accessKey: {{ .s3.accessKey | quote }}
-        secretKey: {{ .s3.secretKey | quote }}
+        {{- if .s3.secretRef }}
+        secretRef: {{ .s3.secretRef | quote }}
+        {{- else if and .s3.accessKey .s3.secretKey }}
+        secretRef: {{ printf "%s-sched-%s-s3-credentials" $.Release.Name .name | quote }}
+        {{- end }}
       {{- end }}
       {{- if .commands }}
       commands:

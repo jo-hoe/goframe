@@ -111,12 +111,21 @@ func (s *S3Source) listURL(continuationToken string) string {
 	if continuationToken != "" {
 		params.Set("continuation-token", continuationToken)
 	}
-	return s.cfg.Endpoint + "/" + s.cfg.Bucket + "?" + params.Encode()
+	return s.bucketURL() + "?" + params.Encode()
 }
 
 func (s *S3Source) getObject(ctx context.Context, key string) ([]byte, error) {
-	rawURL := s.cfg.Endpoint + "/" + s.cfg.Bucket + "/" + url.PathEscape(key)
+	rawURL := s.bucketURL() + "/" + url.PathEscape(key)
 	return s.doSigned(ctx, rawURL)
+}
+
+// bucketURL returns the base URL for the bucket, handling both virtual-hosted-style
+// (bucket in hostname) and path-style (bucket in path) endpoints.
+func (s *S3Source) bucketURL() string {
+	if strings.Contains(s.cfg.Endpoint, s.cfg.Bucket+".") {
+		return s.cfg.Endpoint
+	}
+	return s.cfg.Endpoint + "/" + s.cfg.Bucket
 }
 
 // doSigned performs a GET request, signing it when credentials are configured.

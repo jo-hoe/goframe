@@ -175,15 +175,11 @@ type S3Config struct {
 	// For RustFS, any non-empty value is accepted.
 	Region string `json:"region"`
 
-	// AccessKey is the access key ID.
-	// Leave empty for anonymous access to public buckets.
+	// SecretRef is the name of a Kubernetes Secret in the same namespace that holds
+	// the S3 credentials. The Secret must contain the keys "accessKey" and "secretKey".
+	// Omit for anonymous access to public buckets.
 	// +optional
-	AccessKey string `json:"accessKey,omitempty"`
-
-	// SecretKey is the secret access key.
-	// Leave empty for anonymous access to public buckets.
-	// +optional
-	SecretKey string `json:"secretKey,omitempty"`
+	SecretRef string `json:"secretRef,omitempty"`
 }
 
 // ServerSpec configures the goframe server Deployment.

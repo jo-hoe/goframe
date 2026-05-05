@@ -124,8 +124,9 @@ schedulerImage:
 #       bucket: "my-images"
 #       prefix: "wallpapers/"   # optional; omit to use all objects in the bucket
 #       region: "us-east-1"     # any non-empty value for RustFS
-#       accessKey: "AKIAIOSFODNN7EXAMPLE"
-#       secretKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+#       # secretRef names a Kubernetes Secret with keys "accessKey" and "secretKey".
+#       # Omit for anonymous access to public buckets.
+#       secretRef: "my-s3-credentials"
 #
 # Example — single source with per-scheduler processing pipeline:
 # schedulers:

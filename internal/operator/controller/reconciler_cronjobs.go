@@ -19,10 +19,11 @@ import (
 )
 
 const (
-	schedulerInstanceLabel  = "goframe-instance"
-	schedulerNameLabel      = "goframe-scheduler"
-	schedulerConfigMountPath = "/etc/goframe-scheduler"
-	schedulerConfigFileName  = "image-scheduler.yaml"
+	schedulerInstanceLabel       = "goframe-instance"
+	schedulerNameLabel           = "goframe-scheduler"
+	schedulerConfigMountPath     = "/etc/goframe-scheduler"
+	schedulerConfigFileName      = "image-scheduler.yaml"
+	schedulerS3CredentialsMountPath = "/etc/s3-credentials"
 )
 
 // reconcileCronJobs diffs spec.schedulers against existing CronJobs and
@@ -37,11 +38,25 @@ func (r *GoFrameReconciler) reconcileCronJobs(ctx context.Context, gf *goframev1
 		return fmt.Errorf("listing cronjobs: %w", err)
 	}
 
-	// Build a map of existing CronJobs by scheduler name.
+	// List all ConfigMaps owned by this GoFrame CR (one per scheduler).
+	existingCMs := &corev1.ConfigMapList{}
+	if err := r.List(ctx, existingCMs,
+		client.InNamespace(gf.Namespace),
+		client.MatchingLabels{schedulerInstanceLabel: gf.Name},
+	); err != nil {
+		return fmt.Errorf("listing scheduler configmaps: %w", err)
+	}
+
+	// Build maps of existing resources by scheduler name.
 	existingByName := make(map[string]*batchv1.CronJob, len(existing.Items))
 	for i := range existing.Items {
 		name := existing.Items[i].Labels[schedulerNameLabel]
 		existingByName[name] = &existing.Items[i]
+	}
+	existingCMsByName := make(map[string]*corev1.ConfigMap, len(existingCMs.Items))
+	for i := range existingCMs.Items {
+		name := existingCMs.Items[i].Labels[schedulerNameLabel]
+		existingCMsByName[name] = &existingCMs.Items[i]
 	}
 
 	// Build desired set.
@@ -87,11 +102,18 @@ func (r *GoFrameReconciler) reconcileCronJobs(ctx context.Context, gf *goframev1
 		}
 	}
 
-	// Delete CronJobs that are no longer in spec.
+	// Delete CronJobs and ConfigMaps that are no longer in spec.
 	for name, cj := range existingByName {
 		if _, wanted := desiredNames[name]; !wanted {
 			if err := r.Delete(ctx, cj); err != nil && !apierrors.IsNotFound(err) {
 				return fmt.Errorf("deleting cronjob %q: %w", name, err)
+			}
+		}
+	}
+	for name, cm := range existingCMsByName {
+		if _, wanted := desiredNames[name]; !wanted {
+			if err := r.Delete(ctx, cm); err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("deleting configmap for scheduler %q: %w", name, err)
 			}
 		}
 	}
@@ -120,8 +142,6 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		Bucket         string      `yaml:"bucket,omitempty"`
 		Prefix         string      `yaml:"prefix,omitempty"`
 		Region         string      `yaml:"region,omitempty"`
-		AccessKey      string      `yaml:"accessKey,omitempty"`
-		SecretKey      string      `yaml:"secretKey,omitempty"`
 		LogLevel       string      `yaml:"logLevel"`
 		Commands       []cmdConfig `yaml:"commands,omitempty"`
 	}
@@ -158,7 +178,7 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 	var query string
 	var departmentIDs []int
 	var blogs []string
-	var endpoint, bucket, prefix, region, accessKey, secretKey string
+	var endpoint, bucket, prefix, region string
 
 	if sched.DeviantArt != nil {
 		query = sched.DeviantArt.Query
@@ -174,8 +194,6 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		bucket = sched.S3.Bucket
 		prefix = sched.S3.Prefix
 		region = sched.S3.Region
-		accessKey = sched.S3.AccessKey
-		secretKey = sched.S3.SecretKey
 	}
 
 	cfg := schedulerConfig{
@@ -193,8 +211,6 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		Bucket:         bucket,
 		Prefix:         prefix,
 		Region:         region,
-		AccessKey:      accessKey,
-		SecretKey:      secretKey,
 		LogLevel:       logLevel,
 		Commands:       cmds,
 	}
@@ -217,6 +233,10 @@ func (r *GoFrameReconciler) reconcileSchedulerConfigMap(ctx context.Context, gf 
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cmName,
 			Namespace: gf.Namespace,
+			Labels: map[string]string{
+				schedulerInstanceLabel: gf.Name,
+				schedulerNameLabel:     sched.Name,
+			},
 		},
 		Data: map[string]string{
 			schedulerConfigFileName: configData,
@@ -234,8 +254,10 @@ func (r *GoFrameReconciler) reconcileSchedulerConfigMap(ctx context.Context, gf 
 	if err != nil {
 		return err
 	}
-	if !equality.Semantic.DeepEqual(existing.Data, desired.Data) {
+	if !equality.Semantic.DeepEqual(existing.Data, desired.Data) ||
+		!equality.Semantic.DeepEqual(existing.Labels, desired.Labels) {
 		existing.Data = desired.Data
+		existing.Labels = desired.Labels
 		return r.Update(ctx, existing)
 	}
 	return nil
@@ -256,6 +278,49 @@ func (r *GoFrameReconciler) buildCronJob(gf *goframev1alpha1.GoFrame, sched gofr
 	tz := gf.Spec.Timezone
 	if tz == "" {
 		tz = "UTC"
+	}
+
+	envVars := []corev1.EnvVar{
+		{
+			Name:  "IMAGE_SCHEDULER_CONFIG_PATH",
+			Value: configMountPath,
+		},
+	}
+
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      "config",
+			MountPath: schedulerConfigMountPath,
+			ReadOnly:  true,
+		},
+	}
+	volumes := []corev1.Volume{
+		{
+			Name: "config",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: name,
+					},
+				},
+			},
+		},
+	}
+
+	if sched.S3 != nil && sched.S3.SecretRef != "" {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "s3-credentials",
+			MountPath: schedulerS3CredentialsMountPath,
+			ReadOnly:  true,
+		})
+		volumes = append(volumes, corev1.Volume{
+			Name: "s3-credentials",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: sched.S3.SecretRef,
+				},
+			},
+		})
 	}
 
 	return &batchv1.CronJob{
@@ -281,33 +346,11 @@ func (r *GoFrameReconciler) buildCronJob(gf *goframev1alpha1.GoFrame, sched gofr
 									Name:            "scheduler",
 									Image:           img,
 									ImagePullPolicy: imagePullPolicy(sched.Image.PullPolicy),
-									Env: []corev1.EnvVar{
-										{
-											Name:  "IMAGE_SCHEDULER_CONFIG_PATH",
-											Value: configMountPath,
-										},
-									},
-									VolumeMounts: []corev1.VolumeMount{
-										{
-											Name:      "config",
-											MountPath: schedulerConfigMountPath,
-											ReadOnly:  true,
-										},
-									},
+									Env:          envVars,
+									VolumeMounts: volumeMounts,
 								},
 							},
-							Volumes: []corev1.Volume{
-								{
-									Name: "config",
-									VolumeSource: corev1.VolumeSource{
-										ConfigMap: &corev1.ConfigMapVolumeSource{
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: name,
-											},
-										},
-									},
-								},
-							},
+							Volumes: volumes,
 						},
 					},
 				},

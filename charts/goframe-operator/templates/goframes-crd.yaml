@@ -89,13 +89,6 @@ spec:
                   description: SchedulerSpec defines a single CronJob-based image
                     ingestion source.
                   properties:
-                    blogs:
-                      description: |-
-                        Blogs is a list of Tumblr blog names (e.g. ["nasa", "pusheen"]), without the .tumblr.com suffix.
-                        Required when source is "tumblr". One blog is picked randomly per run.
-                      items:
-                        type: string
-                      type: array
                     commands:
                       description: Commands is the image-processing pipeline applied
                         to images fetched by this scheduler.
@@ -120,14 +113,19 @@ spec:
                       description: Cron is the schedule in standard cron syntax (e.g.
                         "0 8 * * *").
                       type: string
-                    departmentIDs:
+                    deviantart:
                       description: |-
-                        DepartmentIDs restricts Met Museum searches to the given department IDs.
-                        Only used when source is "metmuseum". Omit to search all departments.
-                        See https://collectionapi.metmuseum.org/public/collection/v1/departments for valid IDs.
-                      items:
-                        type: integer
-                      type: array
+                        DeviantArt holds configuration for the deviantart source.
+                        Required when source is "deviantart".
+                      properties:
+                        query:
+                          description: |-
+                            Query is the DeviantArt search string, e.g. "boost:popular traditionalart".
+                            Uses DeviantArt RSS query syntax: https://www.deviantart.com/developers/rss
+                          type: string
+                      required:
+                      - query
+                      type: object
                     exclusionGroup:
                       description: |-
                         ExclusionGroup is an optional group name shared by schedulers that are mutually exclusive.
@@ -164,20 +162,77 @@ spec:
                       description: LogLevel sets the scheduler log verbosity (debug,
                         info, warn, error).
                       type: string
+                    metmuseum:
+                      description: MetMuseum holds configuration for the metmuseum
+                        source.
+                      properties:
+                        departmentIDs:
+                          description: |-
+                            DepartmentIDs restricts searches to specific Met department IDs.
+                            Omit to search all departments.
+                            See https://collectionapi.metmuseum.org/public/collection/v1/departments for valid IDs.
+                          items:
+                            type: integer
+                          type: array
+                      type: object
                     name:
                       description: Name uniquely identifies this scheduler within
                         the GoFrame instance.
                       type: string
-                    query:
+                    s3:
                       description: |-
-                        Query is a source-specific search string. Required when source is "deviantart".
-                        Uses DeviantArt search syntax, e.g. "boost:popular tag:lofi".
-                      type: string
+                        S3 holds configuration for the s3 source (AWS S3, RustFS, MinIO, etc.).
+                        Required when source is "s3".
+                      properties:
+                        bucket:
+                          description: Bucket is the name of the bucket to fetch images
+                            from.
+                          type: string
+                        endpoint:
+                          description: |-
+                            Endpoint is the base URL of the S3-compatible service (no trailing slash, no bucket path).
+                            For AWS S3: "https://s3.<region>.amazonaws.com".
+                            For RustFS / MinIO: "http://rustfs:9000".
+                          type: string
+                        prefix:
+                          description: Prefix is an optional key prefix to filter
+                            objects (e.g. "photos/").
+                          type: string
+                        region:
+                          description: |-
+                            Region is the AWS region identifier (e.g. "us-east-1").
+                            For RustFS, any non-empty value is accepted.
+                          type: string
+                        secretRef:
+                          description: |-
+                            SecretRef is the name of a Kubernetes Secret in the same namespace that holds
+                            the S3 credentials. The Secret must contain the keys "accessKey" and "secretKey".
+                            Omit for anonymous access to public buckets.
+                          type: string
+                      required:
+                      - bucket
+                      - endpoint
+                      - region
+                      type: object
                     source:
-                      description: Source is the image source identifier passed to
-                        the scheduler binary (e.g. "xkcd", "oatmeal", "deviantart",
-                        "metmuseum", "tumblr").
+                      description: Source is the image source identifier (e.g. "xkcd",
+                        "oatmeal", "deviantart", "metmuseum", "tumblr", "s3").
                       type: string
+                    tumblr:
+                      description: |-
+                        Tumblr holds configuration for the tumblr source.
+                        Required when source is "tumblr".
+                      properties:
+                        blogs:
+                          description: |-
+                            Blogs is the list of Tumblr blog names (e.g. ["nasa", "pusheen"]), without the .tumblr.com suffix.
+                            One blog is picked randomly per run.
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - blogs
+                      type: object
                     whenUnmanaged:
                       description: |-
                         WhenUnmanaged controls scheduler behaviour when unmanaged images exist.

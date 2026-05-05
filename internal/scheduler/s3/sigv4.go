@@ -38,8 +38,13 @@ func signRequest(req *http.Request, creds credentials, now time.Time) {
 		"x-amz-content-sha256:" + bodyHash + "\n" +
 		"x-amz-date:" + datetime + "\n"
 
+	canonicalURI := req.URL.EscapedPath()
+	if canonicalURI == "" {
+		canonicalURI = "/"
+	}
+
 	canonicalRequest := req.Method + "\n" +
-		req.URL.EscapedPath() + "\n" +
+		canonicalURI + "\n" +
 		req.URL.RawQuery + "\n" +
 		canonicalHeaders + "\n" +
 		signedHeaders + "\n" +
