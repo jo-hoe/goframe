@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"net/url"
@@ -67,6 +68,7 @@ func (s *S3Source) Fetch(ctx context.Context) ([]byte, error) {
 
 	// #nosec G404 -- math/rand is intentional; object selection does not require cryptographic randomness
 	key := keys[rand.IntN(len(keys))]
+	slog.Info("s3: selected object", "key", key, "bucket", s.cfg.Bucket, "totalObjects", len(keys))
 
 	data, err := s.getObject(ctx, key)
 	if err != nil {

@@ -91,6 +91,7 @@ func RunOnce(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("fetching image from source %q: %w", cfg.Source.Name(), err)
 	}
+	slog.Info("image-scheduler: fetched image", "source", cfg.SourceName, "bytes", len(imageData))
 
 	pngCmd, err := imageprocessing.DefaultRegistry.Create("PngConverterCommand", nil)
 	if err != nil {
@@ -100,12 +101,14 @@ func RunOnce(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("converting image to PNG from source %q: %w", cfg.Source.Name(), err)
 	}
+	slog.Info("image-scheduler: converted to PNG", "source", cfg.SourceName, "bytes", len(imageData))
 
 	if len(cfg.Commands) > 0 {
 		imageData, err = imageprocessing.ExecuteCommands(imageData, cfg.Commands)
 		if err != nil {
 			return fmt.Errorf("processing image from source %q: %w", cfg.Source.Name(), err)
 		}
+		slog.Info("image-scheduler: applied command pipeline", "source", cfg.SourceName, "commands", len(cfg.Commands), "bytes", len(imageData))
 	}
 
 	if err := client.uploadImage(ctx, imageData, cfg.SourceName); err != nil {
@@ -170,6 +173,7 @@ func pruneOwnImages(ctx context.Context, client *goframeClient, images []apiImag
 	ownImages := filterBySource(images, sourceName)
 	excess := len(ownImages) - keepCount
 	if excess <= 0 {
+		slog.Info("image-scheduler: no pruning needed", "source", sourceName, "count", len(ownImages), "keepCount", keepCount)
 		return nil
 	}
 
