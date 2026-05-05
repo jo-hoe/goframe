@@ -102,28 +102,88 @@ type SchedulerSpec struct {
 	// +optional
 	Commands []CommandSpec `json:"commands,omitempty"`
 
-	// Source is the image source identifier passed to the scheduler binary (e.g. "xkcd", "oatmeal", "deviantart", "metmuseum", "tumblr").
+	// Source is the image source identifier (e.g. "xkcd", "oatmeal", "deviantart", "metmuseum", "tumblr", "s3").
 	Source string `json:"source"`
 
-	// Query is a source-specific search string. Required when source is "deviantart".
-	// Uses DeviantArt search syntax, e.g. "boost:popular tag:lofi".
+	// DeviantArt holds configuration for the deviantart source.
+	// Required when source is "deviantart".
 	// +optional
-	Query string `json:"query,omitempty"`
+	DeviantArt *DeviantArtConfig `json:"deviantart,omitempty"`
 
-	// DepartmentIDs restricts Met Museum searches to the given department IDs.
-	// Only used when source is "metmuseum". Omit to search all departments.
-	// See https://collectionapi.metmuseum.org/public/collection/v1/departments for valid IDs.
+	// MetMuseum holds configuration for the metmuseum source.
 	// +optional
-	DepartmentIDs []int `json:"departmentIDs,omitempty"`
+	MetMuseum *MetMuseumConfig `json:"metmuseum,omitempty"`
 
-	// Blogs is a list of Tumblr blog names (e.g. ["nasa", "pusheen"]), without the .tumblr.com suffix.
-	// Required when source is "tumblr". One blog is picked randomly per run.
+	// Tumblr holds configuration for the tumblr source.
+	// Required when source is "tumblr".
 	// +optional
-	Blogs []string `json:"blogs,omitempty"`
+	Tumblr *TumblrConfig `json:"tumblr,omitempty"`
+
+	// S3 holds configuration for the s3 source (AWS S3, RustFS, MinIO, etc.).
+	// Required when source is "s3".
+	// +optional
+	S3 *S3Config `json:"s3,omitempty"`
 
 	// Image configures the container image for the scheduler CronJob.
 	// +optional
 	Image ImageSpec `json:"image,omitempty"`
+}
+
+// DeviantArtConfig holds the configuration for the deviantart image source.
+// +kubebuilder:object:generate=true
+type DeviantArtConfig struct {
+	// Query is the DeviantArt search string, e.g. "boost:popular traditionalart".
+	// Uses DeviantArt RSS query syntax: https://www.deviantart.com/developers/rss
+	Query string `json:"query"`
+}
+
+// MetMuseumConfig holds the configuration for the metmuseum image source.
+// +kubebuilder:object:generate=true
+type MetMuseumConfig struct {
+	// DepartmentIDs restricts searches to specific Met department IDs.
+	// Omit to search all departments.
+	// See https://collectionapi.metmuseum.org/public/collection/v1/departments for valid IDs.
+	// +optional
+	DepartmentIDs []int `json:"departmentIDs,omitempty"`
+}
+
+// TumblrConfig holds the configuration for the tumblr image source.
+// +kubebuilder:object:generate=true
+type TumblrConfig struct {
+	// Blogs is the list of Tumblr blog names (e.g. ["nasa", "pusheen"]), without the .tumblr.com suffix.
+	// One blog is picked randomly per run.
+	Blogs []string `json:"blogs"`
+}
+
+// S3Config holds the configuration for the s3 image source.
+// Compatible with AWS S3, RustFS, MinIO, and any S3-compatible storage.
+// +kubebuilder:object:generate=true
+type S3Config struct {
+	// Endpoint is the base URL of the S3-compatible service (no trailing slash, no bucket path).
+	// For AWS S3: "https://s3.<region>.amazonaws.com".
+	// For RustFS / MinIO: "http://rustfs:9000".
+	Endpoint string `json:"endpoint"`
+
+	// Bucket is the name of the bucket to fetch images from.
+	Bucket string `json:"bucket"`
+
+	// Prefix is an optional key prefix to filter objects (e.g. "photos/").
+	// +optional
+	Prefix string `json:"prefix,omitempty"`
+
+	// Region is the AWS region identifier (e.g. "us-east-1").
+	// For RustFS, any non-empty value is accepted.
+	Region string `json:"region"`
+
+	// AccessKey is the access key ID.
+	// Leave empty for anonymous access to public buckets.
+	// +optional
+	AccessKey string `json:"accessKey,omitempty"`
+
+	// SecretKey is the secret access key.
+	// Leave empty for anonymous access to public buckets.
+	// +optional
+	SecretKey string `json:"secretKey,omitempty"`
 }
 
 // ServerSpec configures the goframe server Deployment.

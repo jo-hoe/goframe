@@ -115,7 +115,13 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		GroupMembers   []string    `yaml:"groupMembers,omitempty"`
 		Query          string      `yaml:"query,omitempty"`
 		DepartmentIDs  []int       `yaml:"departmentIDs,omitempty"`
-		Blogs           []string    `yaml:"blogs,omitempty"`
+		Blogs          []string    `yaml:"blogs,omitempty"`
+		Endpoint       string      `yaml:"endpoint,omitempty"`
+		Bucket         string      `yaml:"bucket,omitempty"`
+		Prefix         string      `yaml:"prefix,omitempty"`
+		Region         string      `yaml:"region,omitempty"`
+		AccessKey      string      `yaml:"accessKey,omitempty"`
+		SecretKey      string      `yaml:"secretKey,omitempty"`
 		LogLevel       string      `yaml:"logLevel"`
 		Commands       []cmdConfig `yaml:"commands,omitempty"`
 	}
@@ -149,6 +155,29 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		}
 	}
 
+	var query string
+	var departmentIDs []int
+	var blogs []string
+	var endpoint, bucket, prefix, region, accessKey, secretKey string
+
+	if sched.DeviantArt != nil {
+		query = sched.DeviantArt.Query
+	}
+	if sched.MetMuseum != nil {
+		departmentIDs = sched.MetMuseum.DepartmentIDs
+	}
+	if sched.Tumblr != nil {
+		blogs = sched.Tumblr.Blogs
+	}
+	if sched.S3 != nil {
+		endpoint = sched.S3.Endpoint
+		bucket = sched.S3.Bucket
+		prefix = sched.S3.Prefix
+		region = sched.S3.Region
+		accessKey = sched.S3.AccessKey
+		secretKey = sched.S3.SecretKey
+	}
+
 	cfg := schedulerConfig{
 		GoframeURL:     serverURL(gf),
 		SourceName:     sched.Source,
@@ -157,9 +186,15 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		WhenUnmanaged:  sched.WhenUnmanaged,
 		ExclusionGroup: sched.ExclusionGroup,
 		GroupMembers:   groupMembers,
-		Query:          sched.Query,
-		DepartmentIDs:  sched.DepartmentIDs,
-		Blogs:           sched.Blogs,
+		Query:          query,
+		DepartmentIDs:  departmentIDs,
+		Blogs:          blogs,
+		Endpoint:       endpoint,
+		Bucket:         bucket,
+		Prefix:         prefix,
+		Region:         region,
+		AccessKey:      accessKey,
+		SecretKey:      secretKey,
 		LogLevel:       logLevel,
 		Commands:       cmds,
 	}

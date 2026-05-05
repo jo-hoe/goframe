@@ -14,6 +14,7 @@ import (
 	"github.com/jo-hoe/goframe/internal/scheduler/deviantart"
 	"github.com/jo-hoe/goframe/internal/scheduler/metmuseum"
 	"github.com/jo-hoe/goframe/internal/scheduler/oatmeal"
+	s3source "github.com/jo-hoe/goframe/internal/scheduler/s3"
 	"github.com/jo-hoe/goframe/internal/scheduler/tumblr"
 	"github.com/jo-hoe/goframe/internal/scheduler/xkcd"
 
@@ -57,6 +58,20 @@ func main() {
 		}
 		baseCfg = &tCfg.SchedulerFileConfig
 		source = tumblr.NewTumblrSource(tCfg.Blogs)
+	case "s3":
+		s3Cfg, loadErr := config.LoadS3Config(path)
+		if loadErr != nil {
+			log.Fatalf("image-scheduler: failed to load config from %s: %v", path, loadErr)
+		}
+		baseCfg = &s3Cfg.SchedulerFileConfig
+		source = s3source.NewS3Source(s3source.Config{
+			Endpoint:  s3Cfg.Endpoint,
+			Bucket:    s3Cfg.Bucket,
+			Prefix:    s3Cfg.Prefix,
+			Region:    s3Cfg.Region,
+			AccessKey: s3Cfg.AccessKey,
+			SecretKey: s3Cfg.SecretKey,
+		})
 	default:
 		baseCfg, err = config.LoadSchedulerConfig(path)
 		if err != nil {

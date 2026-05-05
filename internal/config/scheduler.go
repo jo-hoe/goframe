@@ -60,6 +60,28 @@ type TumblrFileConfig struct {
 	Blogs []string `yaml:"blogs"`
 }
 
+// S3FileConfig is the typed configuration for the s3 source.
+// Compatible with AWS S3, RustFS, MinIO, and any S3-compatible storage.
+type S3FileConfig struct {
+	SchedulerFileConfig `yaml:",inline"`
+	// Endpoint is the base URL of the S3-compatible service (no trailing slash, no bucket).
+	// For AWS S3 use "https://s3.<region>.amazonaws.com".
+	// For RustFS/MinIO use e.g. "http://rustfs:9000".
+	Endpoint string `yaml:"endpoint"`
+	// Bucket is the name of the S3 bucket to fetch images from.
+	Bucket string `yaml:"bucket"`
+	// Prefix is an optional key prefix to filter objects (e.g. "photos/").
+	Prefix string `yaml:"prefix"`
+	// Region is the AWS region (e.g. "us-east-1"). Required for AWS S3; for RustFS use any non-empty value.
+	Region string `yaml:"region"`
+	// AccessKey is the AWS access key ID or equivalent credential.
+	// Leave empty for anonymous access to public buckets.
+	AccessKey string `yaml:"accessKey"`
+	// SecretKey is the AWS secret access key or equivalent credential.
+	// Leave empty for anonymous access to public buckets.
+	SecretKey string `yaml:"secretKey"`
+}
+
 // LoadSchedulerConfig reads and parses a YAML image scheduler config from the given path.
 func LoadSchedulerConfig(path string) (*SchedulerFileConfig, error) {
 	data, err := readConfigFile(path)
@@ -136,6 +158,34 @@ func LoadTumblrConfig(path string) (*TumblrFileConfig, error) {
 	}
 	if len(cfg.Blogs) == 0 {
 		return nil, fmt.Errorf("tumblr scheduler config %s: blogs is required", path)
+	}
+	return &cfg, nil
+}
+
+// LoadS3Config reads and parses a YAML s3 scheduler config from the given path.
+// Returns an error if any required field (Endpoint, Bucket, Region, AccessKey, SecretKey) is empty.
+func LoadS3Config(path string) (*S3FileConfig, error) {
+	data, err := readConfigFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg S3FileConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse s3 scheduler config %s: %w", path, err)
+	}
+
+	if err := applyDefaults(&cfg.SchedulerFileConfig); err != nil {
+		return nil, err
+	}
+	if cfg.Endpoint == "" {
+		return nil, fmt.Errorf("s3 scheduler config %s: endpoint is required", path)
+	}
+	if cfg.Bucket == "" {
+		return nil, fmt.Errorf("s3 scheduler config %s: bucket is required", path)
+	}
+	if cfg.Region == "" {
+		return nil, fmt.Errorf("s3 scheduler config %s: region is required", path)
 	}
 	return &cfg, nil
 }

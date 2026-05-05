@@ -112,7 +112,7 @@ func TestFetchSlugsFromURLs_DeduplicatesSlugs(t *testing.T) {
 	}
 }
 
-func TestFetch_EndToEnd(t *testing.T) {
+func TestFetch_Success(t *testing.T) {
 	const slug = "tunashamed"
 	const imgPath = "/theoatmeal-img/comics/tunashamed/tunashamed.png"
 	imageData := []byte("fake-png-bytes")

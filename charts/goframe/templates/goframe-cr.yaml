@@ -48,19 +48,33 @@ spec:
       exclusionGroup: {{ .exclusionGroup | quote }}
       {{- end }}
       {{- if .query }}
-      query: {{ .query | quote }}
+      deviantart:
+        query: {{ .query | quote }}
       {{- end }}
       {{- if .departmentIDs }}
-      departmentIDs:
-        {{- range .departmentIDs }}
-        - {{ . }}
-        {{- end }}
+      metmuseum:
+        departmentIDs:
+          {{- range .departmentIDs }}
+          - {{ . }}
+          {{- end }}
       {{- end }}
       {{- if .blogs }}
-      blogs:
-        {{- range .blogs }}
-        - {{ . | quote }}
+      tumblr:
+        blogs:
+          {{- range .blogs }}
+          - {{ . | quote }}
+          {{- end }}
+      {{- end }}
+      {{- if .s3 }}
+      s3:
+        endpoint: {{ .s3.endpoint | quote }}
+        bucket: {{ .s3.bucket | quote }}
+        {{- if .s3.prefix }}
+        prefix: {{ .s3.prefix | quote }}
         {{- end }}
+        region: {{ .s3.region | quote }}
+        accessKey: {{ .s3.accessKey | quote }}
+        secretKey: {{ .s3.secretKey | quote }}
       {{- end }}
       {{- if .commands }}
       commands:

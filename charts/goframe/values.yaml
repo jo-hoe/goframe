@@ -48,7 +48,7 @@ schedulerImage:
 
 # CronJob-based image schedulers (one CronJob per entry).
 # Each entry requires: name, cron, source
-# Supported sources: xkcd, oatmeal, deviantart, metmuseum, tumblr
+# Supported sources: xkcd, oatmeal, deviantart, metmuseum, tumblr, s3
 #
 # exclusionGroup: optional. Schedulers sharing the same group evict each other's images on
 # a successful upload, so only one group member's image is displayed at a time. Use this to
@@ -56,25 +56,6 @@ schedulerImage:
 #
 # query: required when source is "deviantart".
 # DeviantArt RSS query syntax reference: https://www.deviantart.com/developers/rss
-# Test queries in browser: https://backend.deviantart.com/rss.xml?type=deviation&q=boost:popular+traditionalart
-# Multiple modifiers combined with spaces (URL-encoded as +).
-# A bare keyword without an ordering modifier causes the feed to error.
-#
-# Ordering (mutually exclusive) — empirically verified:
-#   boost:popular  — all-time most-favourited, distinct ranking from sort:popular (confirmed)
-#   sort:popular   — popular with slightly different ranking than boost:popular (confirmed)
-#   sort:time      — newest submissions first (confirmed)
-#   boost:<other>  — all other boost: values (hot, new, recent, rising, trending, …)
-#                    silently fall back to popular or error; do not use
-#
-# Filtering:
-#   in:cat/subcat  — restrict to a category, e.g. in:digitalart/drawings
-#                    or in:traditionalart/paintings (confirmed working)
-#   by:/meta:      — documented but currently error on the backend; do not use
-#
-# Free-text:
-#   any bare word  — keyword/tag filter, e.g. lofi, landscape, traditionalart
-#                    must be combined with an ordering modifier or the feed errors
 #
 # Example — weekday/weekend stagger:
 # schedulers:
@@ -86,28 +67,31 @@ schedulerImage:
 #   - name: weekend-tumblr
 #     cron: "0 8 * * 6,0"
 #     source: tumblr
-#     blogs:
-#       - pusheen
 #     keepCount: 1
 #     exclusionGroup: daily-wallpaper
+#     tumblr:
+#       blogs:
+#         - pusheen
 #
 # Example — deviantart with query:
 # schedulers:
 #   - name: deviantart-daily
 #     cron: "0 8 * * *"
 #     source: deviantart
-#     query: "boost:popular traditionalart"  # ordering: all-time popular; keyword: traditionalart category
 #     keepCount: 1
+#     deviantart:
+#       query: "boost:popular traditionalart"
 #
 # Example — tumblr blog:
 # schedulers:
 #   - name: nasa-tumblr
 #     cron: "0 8 * * *"
 #     source: tumblr
-#     blogs:
-#       - nasa         # blog name without .tumblr.com
-#       - pusheen      # add more blogs to pick from randomly
 #     keepCount: 1
+#     tumblr:
+#       blogs:
+#         - nasa         # blog name without .tumblr.com
+#         - pusheen      # add more blogs to pick from randomly
 #
 # Example — metmuseum with department filter:
 # schedulers:
@@ -115,18 +99,33 @@ schedulerImage:
 #     cron: "0 8 * * *"
 #     source: metmuseum
 #     keepCount: 1
-#     # departmentIDs is optional — omit to search all departments.
-#     # Available IDs:
-#     #   1=American Decorative Arts  3=Ancient West Asian Art  4=Arms and Armor
-#     #   5=Arts of Africa, Oceania, and the Americas           6=Asian Art
-#     #   7=The Cloisters             8=The Costume Institute   9=Drawings and Prints
-#     #   10=Egyptian Art             11=European Paintings     12=European Sculpture
-#     #   13=Greek and Roman Art      14=Islamic Art            15=Robert Lehman Collection
-#     #   17=Medieval Art             19=Photographs            21=Modern Art
-#     departmentIDs:
-#       - 6   # Asian Art
-#       - 9   # Drawings and Prints
-#       - 11  # European Paintings
+#     metmuseum:
+#       # departmentIDs is optional — omit to search all departments.
+#       # Available IDs:
+#       #   1=American Decorative Arts  3=Ancient West Asian Art  4=Arms and Armor
+#       #   5=Arts of Africa, Oceania, and the Americas           6=Asian Art
+#       #   7=The Cloisters             8=The Costume Institute   9=Drawings and Prints
+#       #   10=Egyptian Art             11=European Paintings     12=European Sculpture
+#       #   13=Greek and Roman Art      14=Islamic Art            15=Robert Lehman Collection
+#       #   17=Medieval Art             19=Photographs            21=Modern Art
+#       departmentIDs:
+#         - 6   # Asian Art
+#         - 9   # Drawings and Prints
+#         - 11  # European Paintings
+#
+# Example — s3-compatible source (AWS S3, RustFS, MinIO):
+# schedulers:
+#   - name: s3-daily
+#     cron: "0 8 * * *"
+#     source: s3
+#     keepCount: 1
+#     s3:
+#       endpoint: "https://s3.us-east-1.amazonaws.com"  # or "http://rustfs:9000" for RustFS
+#       bucket: "my-images"
+#       prefix: "wallpapers/"   # optional; omit to use all objects in the bucket
+#       region: "us-east-1"     # any non-empty value for RustFS
+#       accessKey: "AKIAIOSFODNN7EXAMPLE"
+#       secretKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 #
 # Example — single source with per-scheduler processing pipeline:
 # schedulers:
@@ -142,6 +141,7 @@ schedulerImage:
 #       repository: ghcr.io/jo-hoe/goframe-image-scheduler
 #       tag: ""
 #       pullPolicy: IfNotPresent
+#
 schedulers: []
 
 ingress:
