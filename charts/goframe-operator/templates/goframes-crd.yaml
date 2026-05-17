@@ -140,19 +140,6 @@ spec:
                       description: Cron is the schedule in standard cron syntax (e.g.
                         "0 8 * * *").
                       type: string
-                    deviantart:
-                      description: |-
-                        DeviantArt holds configuration for the deviantart source.
-                        Required when source is "deviantart".
-                      properties:
-                        query:
-                          description: |-
-                            Query is the DeviantArt search string, e.g. "boost:popular traditionalart".
-                            Uses DeviantArt RSS query syntax: https://www.deviantart.com/developers/rss
-                          type: string
-                      required:
-                      - query
-                      type: object
                     exclusionGroup:
                       description: |-
                         ExclusionGroup is an optional group name shared by schedulers that are mutually exclusive.
@@ -243,7 +230,7 @@ spec:
                       type: object
                     source:
                       description: Source is the image source identifier (e.g. "xkcd",
-                        "oatmeal", "deviantart", "metmuseum", "tumblr", "s3").
+                        "oatmeal", "metmuseum", "tumblr", "s3").
                       type: string
                     tumblr:
                       description: |-

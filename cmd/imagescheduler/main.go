@@ -10,7 +10,6 @@ import (
 	"github.com/jo-hoe/goframe/internal/config"
 	"github.com/jo-hoe/goframe/internal/imageprocessing"
 	"github.com/jo-hoe/goframe/internal/scheduler"
-	"github.com/jo-hoe/goframe/internal/scheduler/deviantart"
 	"github.com/jo-hoe/goframe/internal/scheduler/metmuseum"
 	"github.com/jo-hoe/goframe/internal/scheduler/oatmeal"
 	s3source "github.com/jo-hoe/goframe/internal/scheduler/s3"
@@ -37,14 +36,6 @@ func main() {
 	)
 
 	switch strings.ToLower(sourceName) {
-	case "deviantart":
-		daCfg, loadErr := config.LoadDeviantArtConfig(path)
-		if loadErr != nil {
-			slog.Error("image-scheduler: failed to load config", "path", path, "error", loadErr)
-			os.Exit(1)
-		}
-		baseCfg = &daCfg.SchedulerFileConfig
-		source = deviantart.NewDeviantArtSource(daCfg.Query)
 	case "metmuseum":
 		mmCfg, loadErr := config.LoadMetMuseumConfig(path)
 		if loadErr != nil {

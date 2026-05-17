@@ -14,7 +14,7 @@ type SchedulerFileConfig struct {
 	GoframeURL string `yaml:"goframeURL"`
 	// SourceName is the unique identity of this image scheduler instance.
 	SourceName string `yaml:"sourceName"`
-	// Source is the image source identifier (e.g. "xkcd", "oatmeal", "deviantart", "metmuseum", "tumblr").
+	// Source is the image source identifier (e.g. "xkcd", "oatmeal", "metmuseum", "tumblr", "s3").
 	Source string `yaml:"source"`
 	// KeepCount is the maximum number of image scheduler-managed images to retain (default: 1).
 	KeepCount int `yaml:"keepCount"`
@@ -30,15 +30,6 @@ type SchedulerFileConfig struct {
 	LogLevel string `yaml:"logLevel"`
 	// Commands is an optional processing pipeline applied to each fetched image before upload.
 	Commands []CommandConfig `yaml:"commands"`
-}
-
-// DeviantArtFileConfig is the typed configuration for the deviantart source.
-// It embeds all common scheduler fields and adds a strongly-typed Query field
-// that is validated non-empty at load time.
-type DeviantArtFileConfig struct {
-	SchedulerFileConfig `yaml:",inline"`
-	// Query is a DeviantArt search string, e.g. "boost:popular tag:lofi".
-	Query string `yaml:"query"`
 }
 
 // MetMuseumFileConfig is the typed configuration for the metmuseum source.
@@ -96,28 +87,6 @@ func LoadSchedulerConfig(path string) (*SchedulerFileConfig, error) {
 
 	if err := applyDefaults(&cfg); err != nil {
 		return nil, err
-	}
-	return &cfg, nil
-}
-
-// LoadDeviantArtConfig reads and parses a YAML deviantart scheduler config from the given path.
-// Returns an error if the required Query field is empty.
-func LoadDeviantArtConfig(path string) (*DeviantArtFileConfig, error) {
-	data, err := readConfigFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	var cfg DeviantArtFileConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse deviantart scheduler config %s: %w", path, err)
-	}
-
-	if err := applyDefaults(&cfg.SchedulerFileConfig); err != nil {
-		return nil, err
-	}
-	if cfg.Query == "" {
-		return nil, fmt.Errorf("deviantart scheduler config %s: query is required", path)
 	}
 	return &cfg, nil
 }

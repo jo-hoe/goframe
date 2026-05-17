@@ -182,7 +182,6 @@ SQLite runs in WAL mode (`PRAGMA journal_mode=WAL`) for Litestream compatibility
 graph TD
     subgraph "Sources"
         XKCD[XKCD API]
-        DA[DeviantArt RSS]
         MET[Met Museum API]
         TUMBLR[Tumblr RSS]
         S3SRC[S3 Bucket]
@@ -193,7 +192,6 @@ graph TD
     end
 
     CJ -->|fetch random image| XKCD
-    CJ -->|fetch random image| DA
     CJ -->|fetch random image| MET
     CJ -->|fetch random image| TUMBLR
     CJ -->|fetch random image| S3SRC

@@ -102,13 +102,8 @@ type SchedulerSpec struct {
 	// +optional
 	Commands []CommandSpec `json:"commands,omitempty"`
 
-	// Source is the image source identifier (e.g. "xkcd", "oatmeal", "deviantart", "metmuseum", "tumblr", "s3").
+	// Source is the image source identifier (e.g. "xkcd", "oatmeal", "metmuseum", "tumblr", "s3").
 	Source string `json:"source"`
-
-	// DeviantArt holds configuration for the deviantart source.
-	// Required when source is "deviantart".
-	// +optional
-	DeviantArt *DeviantArtConfig `json:"deviantart,omitempty"`
 
 	// MetMuseum holds configuration for the metmuseum source.
 	// +optional
@@ -127,14 +122,6 @@ type SchedulerSpec struct {
 	// Image configures the container image for the scheduler CronJob.
 	// +optional
 	Image ImageSpec `json:"image,omitempty"`
-}
-
-// DeviantArtConfig holds the configuration for the deviantart image source.
-// +kubebuilder:object:generate=true
-type DeviantArtConfig struct {
-	// Query is the DeviantArt search string, e.g. "boost:popular traditionalart".
-	// Uses DeviantArt RSS query syntax: https://www.deviantart.com/developers/rss
-	Query string `json:"query"`
 }
 
 // MetMuseumConfig holds the configuration for the metmuseum image source.

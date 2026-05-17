@@ -135,7 +135,6 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		WhenUnmanaged  string      `yaml:"whenUnmanaged,omitempty"`
 		ExclusionGroup string      `yaml:"exclusionGroup,omitempty"`
 		GroupMembers   []string    `yaml:"groupMembers,omitempty"`
-		Query          string      `yaml:"query,omitempty"`
 		DepartmentIDs  []int       `yaml:"departmentIDs,omitempty"`
 		Blogs          []string    `yaml:"blogs,omitempty"`
 		Endpoint       string      `yaml:"endpoint,omitempty"`
@@ -175,14 +174,10 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		}
 	}
 
-	var query string
 	var departmentIDs []int
 	var blogs []string
 	var endpoint, bucket, prefix, region string
 
-	if sched.DeviantArt != nil {
-		query = sched.DeviantArt.Query
-	}
 	if sched.MetMuseum != nil {
 		departmentIDs = sched.MetMuseum.DepartmentIDs
 	}
@@ -204,7 +199,6 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		WhenUnmanaged:  sched.WhenUnmanaged,
 		ExclusionGroup: sched.ExclusionGroup,
 		GroupMembers:   groupMembers,
-		Query:          query,
 		DepartmentIDs:  departmentIDs,
 		Blogs:          blogs,
 		Endpoint:       endpoint,

@@ -73,14 +73,11 @@ schedulerImage:
 
 # CronJob-based image schedulers (one CronJob per entry).
 # Each entry requires: name, cron, source
-# Supported sources: xkcd, oatmeal, deviantart, metmuseum, tumblr, s3
+# Supported sources: xkcd, oatmeal, metmuseum, tumblr, s3
 #
 # exclusionGroup: optional. Schedulers sharing the same group evict each other's images on
 # a successful upload, so only one group member's image is displayed at a time. Use this to
 # stagger different sources across days or time periods.
-#
-# query: required when source is "deviantart".
-# DeviantArt RSS query syntax reference: https://www.deviantart.com/developers/rss
 #
 # Example — weekday/weekend stagger:
 # schedulers:
@@ -97,15 +94,6 @@ schedulerImage:
 #     tumblr:
 #       blogs:
 #         - pusheen
-#
-# Example — deviantart with query:
-# schedulers:
-#   - name: deviantart-daily
-#     cron: "0 8 * * *"
-#     source: deviantart
-#     keepCount: 1
-#     deviantart:
-#       query: "boost:popular traditionalart"
 #
 # Example — tumblr blog:
 # schedulers:
