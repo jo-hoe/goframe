@@ -61,7 +61,7 @@ func (g *goframeTestServer) handler() http.Handler {
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-		if err := r.ParseMultipartForm(1 << 20); err != nil {
+		if err := r.ParseMultipartForm(1 << 20); err != nil { //nolint:gosec // test server with MaxBytesReader
 			http.Error(w, "bad multipart form", http.StatusBadRequest)
 			return
 		}

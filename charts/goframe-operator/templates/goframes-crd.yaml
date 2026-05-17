@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: goframes.goframe.io
 spec:
   group: goframe.io
@@ -70,11 +70,12 @@ spec:
                   type: object
                 type: array
               rustfs:
-                description: RustFS configures the RustFS (S3-compatible) storage
-                  used by the operator and server.
+                description: RustFS configures the RustFS storage used by the operator
+                  and server.
                 properties:
                   bucket:
-                    description: Bucket is the S3 bucket name to use for image storage.
+                    description: |-
+                      Bucket is the S3 bucket name to use for image storage.
                       Defaults to the GoFrame CR name if empty.
                     type: string
                   endpoint:
@@ -82,29 +83,33 @@ spec:
                     example: http://myrelease-rustfs:9000
                     type: string
                   imageBaseURL:
-                    description: ImageBaseURL is the browser-facing URL prefix for
-                      image assets. Defaults to "/images" which is served by the
-                      RustFS ingress.
+                    description: |-
+                      ImageBaseURL is the browser-facing URL prefix for image assets.
+                      Defaults to "/images" which is served by the RustFS ingress.
                     type: string
                   litestreamImage:
-                    description: LitestreamImage selects the Litestream sidecar container
-                      image used for SQLite WAL replication to RustFS.
+                    description: |-
+                      LitestreamImage selects the Litestream sidecar container image used for
+                      SQLite WAL replication to RustFS.
                     properties:
                       pullPolicy:
+                        description: PullPolicy is the Kubernetes image pull policy.
                         enum:
                         - Always
                         - Never
                         - IfNotPresent
                         type: string
                       repository:
+                        description: Repository is the image repository (e.g. "ghcr.io/jo-hoe/goframe").
                         type: string
                       tag:
+                        description: Tag is the image tag (e.g. "latest", "v1.2.3").
                         type: string
                     type: object
                   secretRef:
-                    description: SecretRef is the name of a Kubernetes Secret in
-                      the same namespace that holds the RustFS credentials. The Secret
-                      must contain the keys "accessKey" and "secretKey".
+                    description: |-
+                      SecretRef is the name of a Kubernetes Secret in the same namespace that holds
+                      the RustFS credentials. The Secret must contain the keys "accessKey" and "secretKey".
                     type: string
                 required:
                 - endpoint
@@ -165,15 +170,6 @@ spec:
                           description: Tag is the image tag (e.g. "latest", "v1.2.3").
                           type: string
                       type: object
-                    onExternalImages:
-                      description: |-
-                        OnExternalImages controls what happens when external images exist (images not owned
-                        by this scheduler or any group member). Values: ignore (default), takeover, yield.
-                      enum:
-                      - ignore
-                      - takeover
-                      - yield
-                      type: string
                     logLevel:
                       default: info
                       description: LogLevel sets the scheduler log verbosity (debug,
@@ -195,6 +191,15 @@ spec:
                     name:
                       description: Name uniquely identifies this scheduler within
                         the GoFrame instance.
+                      type: string
+                    onExternalImages:
+                      description: |-
+                        OnExternalImages controls what happens when external images exist (images not owned
+                        by this scheduler or any group member). Values: ignore (default), takeover, yield.
+                      enum:
+                      - ignore
+                      - takeover
+                      - yield
                       type: string
                     s3:
                       description: |-
