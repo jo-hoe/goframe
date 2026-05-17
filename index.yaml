@@ -3,6 +3,22 @@ entries:
   goframe:
   - apiVersion: v2
     appVersion: 12.0.0
+    created: "2026-05-17T13:05:28.435087367Z"
+    description: Helm chart for the goframe image processing web service
+    digest: b6d6b4c0456fbcaa319dcfe6b75a47713fc62a7f1cf31daa3f8c2e474453e7e0
+    keywords:
+    - go
+    - image
+    - web
+    name: goframe
+    sources:
+    - https://github.com/jo-hoe/goframe
+    type: application
+    urls:
+    - https://github.com/jo-hoe/goframe/releases/download/goframe-12.0.1/goframe-12.0.1.tgz
+    version: 12.0.1
+  - apiVersion: v2
+    appVersion: 12.0.0
     created: "2026-05-17T12:25:24.507114577Z"
     description: Helm chart for the goframe image processing web service
     digest: 788ec4c62db7b262870c4b7cfb050b49cde808ffdfb1035a85ce13be94495ac2
@@ -1232,4 +1248,4 @@ entries:
     urls:
     - https://github.com/jo-hoe/goframe/releases/download/goframe-operator-4.0.0/goframe-operator-4.0.0.tgz
     version: 4.0.0
-generated: "2026-05-17T12:25:24.611180216Z"
+generated: "2026-05-17T13:05:28.435559178Z"
