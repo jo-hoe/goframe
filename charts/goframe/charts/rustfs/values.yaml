@@ -6,6 +6,16 @@ image:
 service:
   port: 9000
 
+# Resource limits for the RustFS container.
+# For ~100 images, 128Mi is sufficient.
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
 # Credentials for the built-in RustFS instance.
 # Leave empty to auto-generate a random secret.
 credentials:

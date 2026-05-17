@@ -27,6 +27,10 @@ spec:
             - containerPort: {{ .Values.service.port }}
               name: s3
               protocol: TCP
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           env:
             - name: RUSTFS_ACCESS_KEY
               valueFrom:
