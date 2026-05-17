@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -24,6 +25,29 @@ type DatabaseService interface {
 	UpdateRanks(ctx context.Context, order []string) error
 
 	// GetCurrentImageID returns the ID of the image currently selected for display.
-	// Redis: reads the operator-managed rotation:current-id key (falls back to first image if unset).
 	GetCurrentImageID(ctx context.Context) (string, error)
+
+	// GetCurrentImageURL returns the browser-facing URL for the given image ID and
+	// variant ("original" or "processed"). The URL is routed through the ingress.
+	GetCurrentImageURL(ctx context.Context, id, variant string) (string, error)
+
+	// GetLastRotatedTime returns the timestamp of the last rotation advance.
+	GetLastRotatedTime(ctx context.Context) (time.Time, error)
+
+	// SetRotationKeys atomically writes the current image ID and last-rotated timestamp.
+	SetRotationKeys(ctx context.Context, currentID string, rotatedAt time.Time) error
+}
+
+// NewDatabaseWithNamespace constructs a DatabaseService from the given config.
+// dbType must be "rustfs". endpoint is the RustFS base URL, bucket is the S3
+// bucket name (used as the namespace), accessKey/secretKey are the credentials,
+// dbPath is the local SQLite file path, and imageBaseURL is the browser-facing
+// URL prefix for image assets (e.g. "/images").
+func NewDatabaseWithNamespace(dbType, endpoint, bucket, accessKey, secretKey, dbPath, imageBaseURL string) (DatabaseService, error) {
+	switch dbType {
+	case "rustfs":
+		return NewRustFSDatabase(endpoint, bucket, accessKey, secretKey, "us-east-1", dbPath, imageBaseURL)
+	default:
+		return nil, fmt.Errorf("unsupported database driver: %s", dbType)
+	}
 }

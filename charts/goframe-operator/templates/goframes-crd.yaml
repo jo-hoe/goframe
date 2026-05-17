@@ -69,18 +69,45 @@ spec:
                   - name
                   type: object
                 type: array
-              redis:
-                description: Redis configures the Redis Deployment managed by the
-                  operator.
+              rustfs:
+                description: RustFS configures the RustFS (S3-compatible) storage
+                  used by the operator and server.
                 properties:
-                  address:
-                    description: |-
-                      Address is the Redis connection string (host:port) the operator and server use.
-                      Typically points at a Redis instance deployed via a separate Helm chart.
-                    example: redis-master.default.svc.cluster.local:6379
+                  bucket:
+                    description: Bucket is the S3 bucket name to use for image storage.
+                      Defaults to the GoFrame CR name if empty.
+                    type: string
+                  endpoint:
+                    description: Endpoint is the RustFS base URL (e.g. "http://myrelease-rustfs:9000").
+                    example: http://myrelease-rustfs:9000
+                    type: string
+                  imageBaseURL:
+                    description: ImageBaseURL is the browser-facing URL prefix for
+                      image assets. Defaults to "/images" which is served by the
+                      RustFS ingress.
+                    type: string
+                  litestreamImage:
+                    description: LitestreamImage selects the Litestream sidecar container
+                      image used for SQLite WAL replication to RustFS.
+                    properties:
+                      pullPolicy:
+                        enum:
+                        - Always
+                        - Never
+                        - IfNotPresent
+                        type: string
+                      repository:
+                        type: string
+                      tag:
+                        type: string
+                    type: object
+                  secretRef:
+                    description: SecretRef is the name of a Kubernetes Secret in
+                      the same namespace that holds the RustFS credentials. The Secret
+                      must contain the keys "accessKey" and "secretKey".
                     type: string
                 required:
-                - address
+                - endpoint
                 type: object
               schedulers:
                 description: Schedulers defines one CronJob per entry for automated

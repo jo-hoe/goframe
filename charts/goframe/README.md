@@ -1,6 +1,6 @@
 # goframe
 
-![Version: 10.0.1](https://img.shields.io/badge/Version-10.0.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 10.0.1](https://img.shields.io/badge/AppVersion-10.0.1-informational?style=flat-square)
+![Version: 11.0.0](https://img.shields.io/badge/Version-11.0.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 10.0.0](https://img.shields.io/badge/AppVersion-10.0.0-informational?style=flat-square)
 
 Helm chart for the goframe image processing web service
 
@@ -15,12 +15,28 @@ Helm chart for the goframe image processing web service
 | commands | list | `[]` |  |
 | ingress.annotations | object | `{}` |  |
 | ingress.className | string | `""` |  |
-| ingress.enabled | bool | `false` |  |
-| ingress.hosts[0].host | string | `"goframe.local"` |  |
+| ingress.enabled | bool | `true` |  |
 | ingress.hosts[0].paths[0].path | string | `"/"` |  |
 | ingress.hosts[0].paths[0].pathType | string | `"Prefix"` |  |
 | ingress.tls | list | `[]` |  |
-| redis.address | string | `""` |  |
+| litestream.image.pullPolicy | string | `"IfNotPresent"` |  |
+| litestream.image.repository | string | `"litestream/litestream"` |  |
+| litestream.image.tag | string | `"0.3.13"` |  |
+| rustfs.address | string | `""` |  |
+| rustfs.bucket | string | `""` |  |
+| rustfs.credentials.accessKey | string | `""` |  |
+| rustfs.credentials.secretKey | string | `""` |  |
+| rustfs.image.pullPolicy | string | `"IfNotPresent"` |  |
+| rustfs.image.repository | string | `"rustfs/rustfs"` |  |
+| rustfs.image.tag | string | `"latest"` |  |
+| rustfs.imageBaseURL | string | `""` |  |
+| rustfs.ingress.annotations | object | `{}` |  |
+| rustfs.ingress.className | string | `""` |  |
+| rustfs.ingress.enabled | bool | `true` |  |
+| rustfs.persistence.enabled | bool | `true` |  |
+| rustfs.persistence.size | string | `"1Gi"` |  |
+| rustfs.persistence.storageClass | string | `""` |  |
+| rustfs.secretRef | string | `""` |  |
 | schedulerImage.pullPolicy | string | `"IfNotPresent"` |  |
 | schedulerImage.repository | string | `"ghcr.io/jo-hoe/goframe-image-scheduler"` |  |
 | schedulerImage.tag | string | `""` |  |

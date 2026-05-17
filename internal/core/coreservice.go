@@ -22,7 +22,15 @@ type CoreService struct {
 
 // NewCoreService constructs and initialises a CoreService from the given config.
 func NewCoreService(cfg *config.ServiceConfig) (*CoreService, error) {
-	db, err := database.NewDatabaseWithNamespace(cfg.Database.Type, cfg.Database.ConnectionString, cfg.Database.Namespace)
+	db, err := database.NewDatabaseWithNamespace(
+		cfg.Database.Type,
+		cfg.Database.Endpoint,
+		cfg.Database.Bucket,
+		cfg.Database.AccessKey,
+		cfg.Database.SecretKey,
+		cfg.Database.DBPath,
+		cfg.Database.ImageBaseURL,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("initialising database: %w", err)
 	}
@@ -58,8 +66,6 @@ func (service *CoreService) AddImage(ctx context.Context, image []byte, source s
 		return nil, err
 	}
 
-	// Determine where to insert: immediately after the current image of the day.
-	// Falls back to "" (append to end) if no current image is set yet.
 	afterID, err := service.databaseService.GetCurrentImageID(ctx)
 	if err != nil {
 		afterID = ""
@@ -73,9 +79,15 @@ func (service *CoreService) AddImage(ctx context.Context, image []byte, source s
 	return &common.ApiImage{ID: databaseImageID}, nil
 }
 
-// GetImageById returns a single image by its ID.
+// GetImageById returns a single image's metadata by ID. Blobs are not populated.
 func (service *CoreService) GetImageById(ctx context.Context, id string) (*database.Image, error) {
 	return service.databaseService.GetImageByID(ctx, id)
+}
+
+// GetImageURL returns the browser-facing URL for the given image ID and variant
+// ("original" or "processed"), routed through the ingress.
+func (service *CoreService) GetImageURL(ctx context.Context, id, variant string) (string, error) {
+	return service.databaseService.GetCurrentImageURL(ctx, id, variant)
 }
 
 // DeleteImage removes an image by its ID.
@@ -101,7 +113,6 @@ func (service *CoreService) GetOrderedImages(ctx context.Context) ([]*database.I
 }
 
 // GetImageForTime returns the current image ID from the operator-managed rotation key.
-// The time argument is unused; rotation is driven by the operator writing to Redis.
 func (service *CoreService) GetImageForTime(ctx context.Context, _ time.Time) (string, error) {
 	return service.databaseService.GetCurrentImageID(ctx)
 }
@@ -127,9 +138,6 @@ func (service *CoreService) getOrderedImageIDs(ctx context.Context) ([]string, e
 }
 
 // applyPipeline converts the input image to PNG and applies the configured command pipeline.
-// NormalizeOrientationCommand always runs first on the raw input bytes (before PNG conversion)
-// so that EXIF orientation data is still available. It is a no-op for non-JPEG formats
-// (PNG, SVG, BMP, TIFF, WebP, GIF) since only JPEG carries EXIF orientation in practice.
 func (service *CoreService) applyPipeline(image []byte) (converted []byte, processed []byte, err error) {
 	if image == nil {
 		return nil, nil, fmt.Errorf("input image is nil")

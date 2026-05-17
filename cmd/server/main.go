@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -59,7 +58,7 @@ func main() {
 	configPath := getConfigPath()
 	config, err := config.LoadServerConfig(configPath)
 	if err != nil {
-		log.Printf("failed to load config from %s: %v", configPath, err)
+		slog.Error("failed to load config", "path", configPath, "error", err)
 		panic(err)
 	}
 
@@ -70,7 +69,8 @@ func main() {
 
 	coreService, err := core.NewCoreService(config)
 	if err != nil {
-		log.Fatalf("failed to initialise core service: %v", err)
+		slog.Error("failed to initialise core service", "error", err)
+		os.Exit(1)
 	}
 	server := defineServer()
 
@@ -83,24 +83,24 @@ func main() {
 
 	go func() {
 		if err := server.Start(portString); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("http server error: %v", err)
+			slog.Error("http server error", "error", err)
 		}
 	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
-	log.Printf("shutdown signal received")
+	slog.Info("shutdown signal received")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		log.Printf("server shutdown error: %v", err)
+		slog.Error("server shutdown error", "error", err)
 	}
 
 	if err := coreService.Close(); err != nil {
-		log.Printf("core service close error: %v", err)
+		slog.Error("core service close error", "error", err)
 	}
 }
 
@@ -123,27 +123,27 @@ func defineServer() *echo.Echo {
 		HandleError:  false,
 		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
 			if v.Error != nil {
-				log.Printf("%s %s (route=%s) - Status: %d - Latency: %v - Error: %v - RemoteIP: %s - Host: %s - UA: %s",
-					v.Method,
-					v.URI,
-					v.RoutePath,
-					v.Status,
-					v.Latency,
-					v.Error,
-					v.RemoteIP,
-					v.Host,
-					v.UserAgent,
+				slog.Error("request",
+					"method", v.Method,
+					"uri", v.URI,
+					"route", v.RoutePath,
+					"status", v.Status,
+					"latency", v.Latency,
+					"error", v.Error,
+					"remoteIP", v.RemoteIP,
+					"host", v.Host,
+					"userAgent", v.UserAgent,
 				)
 			} else {
-				log.Printf("%s %s (route=%s) - Status: %d - Latency: %v - RemoteIP: %s - Host: %s - UA: %s",
-					v.Method,
-					v.URI,
-					v.RoutePath,
-					v.Status,
-					v.Latency,
-					v.RemoteIP,
-					v.Host,
-					v.UserAgent,
+				slog.Info("request",
+					"method", v.Method,
+					"uri", v.URI,
+					"route", v.RoutePath,
+					"status", v.Status,
+					"latency", v.Latency,
+					"remoteIP", v.RemoteIP,
+					"host", v.Host,
+					"userAgent", v.UserAgent,
 				)
 			}
 			return nil

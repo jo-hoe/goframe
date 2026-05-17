@@ -10,9 +10,13 @@ thumbnailWidth: 512
 svgFallbackLongSidePixelCount: 4096
 timezone: "UTC"
 database:
-  type: "redis"
-  connectionString: "localhost:6379"  # docker-compose: "redis:6379"
-  namespace: "goframe"
+  type: "rustfs"
+  endpoint: "http://localhost:9000"  # docker-compose: "http://rustfs:9000"
+  bucket: "goframe"
+  accessKey: "minioadmin"
+  secretKey: "minioadmin"
+  dbPath: "/data/goframe.db"         # local file for SQLite; Litestream replicates this to RustFS
+  imageBaseURL: "/images"            # browser-facing URL prefix; served by ingress or reverse proxy
 commands:
   - name: RotationCommand
     steps: 1         # 1=90°, 2=180°, 3=270°

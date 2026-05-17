@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-rustfs
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: rustfs
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  serviceName: {{ .Release.Name }}-rustfs
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rustfs
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rustfs
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: rustfs
+          image: {{ .Values.rustfs.image.repository }}:{{ .Values.rustfs.image.tag }}
+          imagePullPolicy: {{ .Values.rustfs.image.pullPolicy }}
+          ports:
+            - containerPort: 9000
+              name: s3
+              protocol: TCP
+          env:
+            - name: RUSTFS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ if .Values.rustfs.secretRef }}{{ .Values.rustfs.secretRef }}{{ else }}{{ .Release.Name }}-rustfs-credentials{{ end }}
+                  key: accessKey
+            - name: RUSTFS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ if .Values.rustfs.secretRef }}{{ .Values.rustfs.secretRef }}{{ else }}{{ .Release.Name }}-rustfs-credentials{{ end }}
+                  key: secretKey
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - {{ .Values.rustfs.persistence.accessMode | default "ReadWriteOnce" }}
+        {{- if .Values.rustfs.persistence.storageClass }}
+        storageClassName: {{ .Values.rustfs.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.rustfs.persistence.size }}

@@ -1,0 +1,46 @@
+{{- if .Values.rustfs.ingress.enabled }}
+{{- $bucket := .Values.rustfs.bucket | default .Release.Name }}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ .Release.Name }}-rustfs-rewrite
+  namespace: {{ .Release.Namespace }}
+spec:
+  replacePathRegex:
+    regex: "^/images/(.*)"
+    replacement: "/{{ $bucket }}/images/$1"
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-rustfs
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: rustfs
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: {{ .Release.Namespace }}-{{ .Release.Name }}-rustfs-rewrite@kubernetescrd
+    {{- with .Values.rustfs.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- $rustfsClass := .Values.rustfs.ingress.className | default .Values.ingress.className }}
+  {{- if $rustfsClass }}
+  ingressClassName: {{ $rustfsClass }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - {{- if .host }}
+      host: {{ .host | quote }}
+      {{- end }}
+      http:
+        paths:
+          - path: /images
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Release.Name }}-rustfs
+                port:
+                  number: 9000
+    {{- end }}
+{{- end }}

@@ -9,9 +9,13 @@ import (
 
 // Database holds database connection configuration.
 type Database struct {
-	Type             string `yaml:"type"`
-	ConnectionString string `yaml:"connectionString"`
-	Namespace        string `yaml:"namespace"`
+	Type         string `yaml:"type"`
+	Endpoint     string `yaml:"endpoint"`
+	Bucket       string `yaml:"bucket"`
+	AccessKey    string `yaml:"accessKey"`
+	SecretKey    string `yaml:"secretKey"`
+	DBPath       string `yaml:"dbPath"`
+	ImageBaseURL string `yaml:"imageBaseURL"`
 }
 
 // ServiceConfig holds the full server configuration.
@@ -54,6 +58,21 @@ func LoadServerConfig(path string) (*ServiceConfig, error) {
 	}
 	if config.LogLevel == "" {
 		config.LogLevel = "info"
+	}
+	if config.Database.DBPath == "" {
+		config.Database.DBPath = "/data/goframe.db"
+	}
+	if config.Database.AccessKey == "" {
+		config.Database.AccessKey = os.Getenv("RUSTFS_ACCESS_KEY")
+	}
+	if config.Database.SecretKey == "" {
+		config.Database.SecretKey = os.Getenv("RUSTFS_SECRET_KEY")
+	}
+	if config.Database.ImageBaseURL == "" {
+		config.Database.ImageBaseURL = os.Getenv("RUSTFS_IMAGE_BASE_URL")
+	}
+	if config.Database.ImageBaseURL == "" {
+		config.Database.ImageBaseURL = "/images"
 	}
 
 	return &config, nil

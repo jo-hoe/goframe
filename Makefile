@@ -20,7 +20,7 @@ build: ## build goframe binary
 
 .PHONY: lint
 lint: ## run golangci-lint
-	golangci-lint run ${ROOT_DIR}... -E dupl -E gocyclo -E gosec -E misspell -E sqlclosecheck
+	golangci-lint run ${ROOT_DIR}...
 
 .PHONY: install-hooks
 install-hooks: ## install git hooks
@@ -42,11 +42,11 @@ generate-check: generate ## fail if generated files are out of sync with Go type
 	@echo "Generated files are up to date."
 
 .PHONY: start-docker
-start-docker: ## start goframe server + redis via docker compose
-	@docker-compose -f ${ROOT_DIR}docker-compose.yml up --build redis goframe
+start-docker: ## start goframe server + rustfs via docker compose
+	@docker-compose -f ${ROOT_DIR}docker-compose.yml up --build rustfs goframe
 
 .PHONY: start-docker-with-image-scheduler
-start-docker-with-image-scheduler: ## start goframe, redis, and run image scheduler once
+start-docker-with-image-scheduler: ## start goframe, rustfs, and run image scheduler once
 	@docker-compose -f ${ROOT_DIR}docker-compose.yml up --build goframe image-scheduler
 
 .PHONY: run-image-scheduler
@@ -93,29 +93,8 @@ install-operator: ## install goframe-operator chart (CRD + operator deployment)
 		--set image.pullPolicy=Always \
 		--set leaderElection.enabled=false
 
-.PHONY: install-redis
-install-redis: ## install Redis via OCI chart
-	@helm upgrade --install redis oci://registry-1.docker.io/bitnamicharts/redis \
-		--version 25.3.9 \
-		--set architecture=standalone \
-		--set auth.enabled=false \
-		--set master.persistence.enabled=false \
-		--set "master.resources.requests.cpu=50m" \
-		--set "master.resources.requests.memory=64Mi" \
-		--set "master.resources.limits.cpu=100m" \
-		--set "master.resources.limits.memory=300Mi" \
-		--set replica.replicaCount=0 \
-		--set sentinel.enabled=false \
-		--set metrics.enabled=false \
-		--set volumePermissions.enabled=false \
-		--set sysctl.enabled=false \
-		--set "master.extraFlags[0]=--maxmemory 256mb" \
-		--set "master.extraFlags[1]=--maxmemory-policy allkeys-lru" \
-		--set "master.extraFlags[2]=--save ''" \
-		--set "master.extraFlags[3]=--appendonly no"
-
 .PHONY: start-k3d
-start-k3d: start-cluster push-k3d push-k3d-operator install-operator install-redis ## start k3d cluster and deploy operator + GoFrame CR
+start-k3d: start-cluster push-k3d push-k3d-operator install-operator ## start k3d cluster and deploy operator + GoFrame CR
 	@helm upgrade --install ${IMAGE_NAME} ${ROOT_DIR}charts/${IMAGE_NAME} \
 		-f ${ROOT_DIR}k3d/values.k3d.yaml \
 		--set server.image.repository=registry.localhost:5000/${IMAGE_NAME} \

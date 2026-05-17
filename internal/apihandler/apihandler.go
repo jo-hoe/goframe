@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/jo-hoe/goframe/internal/core"
@@ -39,30 +38,21 @@ func (s *APIService) SetRoutes(e *echo.Echo) {
 	e.DELETE("/api/images/:id", s.handleDeleteImageByID)
 }
 
-// writePNG writes a PNG byte slice with consistent headers.
-func (s *APIService) writePNG(ctx echo.Context, png []byte) error {
-	ctx.Response().Header().Set(echo.HeaderContentLength, strconv.Itoa(len(png)))
-	ctx.Response().Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-	ctx.Response().Header().Set("Pragma", "no-cache")
-	ctx.Response().Header().Set("Expires", "0")
-	return ctx.Blob(http.StatusOK, "image/png", png)
-}
-
 func (s *APIService) handleGetCurrentImage(ctx echo.Context) error {
 	now := time.Now()
-	imageId, err := s.coreService.GetImageForTime(ctx.Request().Context(), now)
+	imageID, err := s.coreService.GetImageForTime(ctx.Request().Context(), now)
 	if err != nil {
 		slog.Error("failed to get current image id", "error", err, "at", now, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusInternalServerError, "Failed to get current image")
 	}
 
-	imageData, err := s.coreService.GetImageById(ctx.Request().Context(), imageId)
+	imageURL, err := s.coreService.GetImageURL(ctx.Request().Context(), imageID, "processed")
 	if err != nil {
-		slog.Error("failed to get image data", "imageId", imageId, "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
-		return ctx.String(http.StatusInternalServerError, "Failed to get image data")
+		slog.Error("failed to get image url", "imageId", imageID, "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
+		return ctx.String(http.StatusInternalServerError, "Failed to get image URL")
 	}
 
-	return s.writePNG(ctx, imageData.ProcessedImage)
+	return ctx.Redirect(http.StatusFound, imageURL)
 }
 
 func (s *APIService) handleUploadImage(ctx echo.Context) error {
@@ -114,30 +104,18 @@ func (s *APIService) handleUploadImage(ctx echo.Context) error {
 	})
 }
 
-// getImageBytesByID fetches either processed or original bytes for an image ID.
-func (s *APIService) getImageBytesByID(ctx echo.Context, id string, processed bool) ([]byte, error) {
-	img, err := s.coreService.GetImageById(ctx.Request().Context(), id)
-	if err != nil {
-		return nil, err
-	}
-	if processed {
-		return img.ProcessedImage, nil
-	}
-	return img.OriginalImage, nil
-}
-
 func (s *APIService) handleGetProcessedImageByID(ctx echo.Context) error {
 	id := ctx.Param("id")
 	if id == "" {
 		slog.Info("missing image id parameter", "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusBadRequest, "Missing image id")
 	}
-	data, err := s.getImageBytesByID(ctx, id, true)
+	imageURL, err := s.coreService.GetImageURL(ctx.Request().Context(), id, "processed")
 	if err != nil {
 		slog.Info("processed image not found", "imageId", id, "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusNotFound, "Image not found")
 	}
-	return s.writePNG(ctx, data)
+	return ctx.Redirect(http.StatusFound, imageURL)
 }
 
 func (s *APIService) handleGetOriginalImageByID(ctx echo.Context) error {
@@ -146,12 +124,12 @@ func (s *APIService) handleGetOriginalImageByID(ctx echo.Context) error {
 		slog.Info("missing image id parameter", "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusBadRequest, "Missing image id")
 	}
-	data, err := s.getImageBytesByID(ctx, id, false)
+	imageURL, err := s.coreService.GetImageURL(ctx.Request().Context(), id, "original")
 	if err != nil {
 		slog.Info("original image not found", "imageId", id, "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
 		return ctx.String(http.StatusNotFound, "Image not found")
 	}
-	return s.writePNG(ctx, data)
+	return ctx.Redirect(http.StatusFound, imageURL)
 }
 
 type imageListItem struct {
@@ -170,11 +148,13 @@ func (s *APIService) handleListImages(ctx echo.Context) error {
 	}
 	items := make([]imageListItem, 0, len(images))
 	for _, img := range images {
+		processedURL, _ := s.coreService.GetImageURL(ctx.Request().Context(), img.ID, "processed")
+		originalURL, _ := s.coreService.GetImageURL(ctx.Request().Context(), img.ID, "original")
 		items = append(items, imageListItem{
 			ID:           img.ID,
 			CreatedAt:    img.CreatedAt,
-			ProcessedURL: "/api/images/" + img.ID + "/processed.png",
-			OriginalURL:  "/api/images/" + img.ID + "/original.png",
+			ProcessedURL: processedURL,
+			OriginalURL:  originalURL,
 			Source:       img.Source,
 		})
 	}

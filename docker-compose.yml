@@ -1,22 +1,19 @@
 services:
-  redis:
-    image: redis:7-alpine
-    command: >
-      redis-server
-      --bind 0.0.0.0
-      --protected-mode no
-      --maxmemory 32mb
-      --maxmemory-policy allkeys-lru
-      --save ""
-      --appendonly no
+  rustfs:
+    image: rustfs/rustfs:latest
+    environment:
+      RUSTFS_ACCESS_KEY: minioadmin
+      RUSTFS_SECRET_KEY: minioadmin
     ports:
-      - "6379:6379"
+      - "9000:9000"
+    volumes:
+      - rustfs-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/probe || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 10
-      start_period: 3s
+      start_period: 5s
 
   goframe:
     build:
@@ -32,8 +29,9 @@ services:
         source: ./local.yaml
         target: /local.yaml
         read_only: true
+      - goframe-data:/data
     depends_on:
-      redis:
+      rustfs:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/probe || exit 1"]
@@ -62,3 +60,6 @@ services:
     # Set sources.xkcd.enabled: true in image-scheduler.yaml to trigger a real image fetch on startup.
     restart: "no"
 
+volumes:
+  rustfs-data:
+  goframe-data:

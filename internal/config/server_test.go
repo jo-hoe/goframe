@@ -12,10 +12,13 @@ func TestLoadServerConfig_Success(t *testing.T) {
 
 	configContent := `
 port: 8080
-imageTargetType: "png"
 database:
-  type: "redis"
-  connectionString: "test-connection-string"`
+  type: "rustfs"
+  endpoint: "http://rustfs:9000"
+  bucket: "goframe"
+  accessKey: "minioadmin"
+  secretKey: "minioadmin"
+`
 	err := os.WriteFile(configPath, []byte(configContent), 0600)
 	if err != nil {
 		t.Fatalf("Failed to create test config file: %v", err)
@@ -34,12 +37,16 @@ database:
 		t.Errorf("Expected port to be 8080, got %d", config.Port)
 	}
 
-	if config.Database.ConnectionString != "test-connection-string" {
-		t.Errorf("Expected connectionString to be 'test-connection-string', got '%s'", config.Database.ConnectionString)
+	if config.Database.Endpoint != "http://rustfs:9000" {
+		t.Errorf("Expected endpoint to be 'http://rustfs:9000', got '%s'", config.Database.Endpoint)
 	}
 
-	if config.Database.Type != "redis" {
-		t.Errorf("Expected database type to be 'redis', got '%s'", config.Database.Type)
+	if config.Database.Type != "rustfs" {
+		t.Errorf("Expected database type to be 'rustfs', got '%s'", config.Database.Type)
+	}
+
+	if config.Database.DBPath != "/data/goframe.db" {
+		t.Errorf("Expected default dbPath to be '/data/goframe.db', got '%s'", config.Database.DBPath)
 	}
 }
 
@@ -62,7 +69,6 @@ func TestLoadServerConfig_WithCommands(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
 	configContent := `port: 8080
-connectionString: "test-connection-string"
 commands:
   - name: OrientationCommand
     orientation: portrait
@@ -107,7 +113,6 @@ func TestLoadServerConfig_EmptyCommandName(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
 	configContent := `port: 8080
-connectionString: "test-connection-string"
 commands:
   - name: ""
     orientation: portrait`
@@ -128,7 +133,6 @@ func TestLoadServerConfig_DuplicateCommandName(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
 	configContent := `port: 8080
-connectionString: "test-connection-string"
 commands:
   - name: OrientationCommand
     orientation: portrait
@@ -151,7 +155,6 @@ func TestLoadServerConfig_InvalidYAML(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
 	configContent := `port: 8080
-connectionString: "test-connection-string"
 commands:
   - name: OrientationCommand
     orientation: portrait

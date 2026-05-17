@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -29,10 +30,16 @@ func serverName(gf *goframev1alpha1.GoFrame) string {
 	return gf.Name + "-server"
 }
 
-// reconcileServer ensures the server Deployment, Service, and ConfigMap exist and match the CR spec.
+// reconcileServer ensures the server Deployment, Service, ConfigMap, Litestream ConfigMap, and data PVC exist and match the CR spec.
 func (r *GoFrameReconciler) reconcileServer(ctx context.Context, gf *goframev1alpha1.GoFrame) error {
 	configData, err := r.reconcileServerConfigMap(ctx, gf)
 	if err != nil {
+		return err
+	}
+	if err := r.reconcileLitestreamConfigMap(ctx, gf); err != nil {
+		return err
+	}
+	if err := r.reconcileDataPVC(ctx, gf); err != nil {
 		return err
 	}
 	if err := r.reconcileServerDeployment(ctx, gf, configData); err != nil {
@@ -44,9 +51,13 @@ func (r *GoFrameReconciler) reconcileServer(ctx context.Context, gf *goframev1al
 // buildServerConfig renders the server config.yaml content for the given GoFrame spec.
 func buildServerConfig(gf *goframev1alpha1.GoFrame) (string, error) {
 	type dbConfig struct {
-		Type             string `yaml:"type"`
-		ConnectionString string `yaml:"connectionString"`
-		Namespace        string `yaml:"namespace"`
+		Type         string `yaml:"type"`
+		Endpoint     string `yaml:"endpoint"`
+		Bucket       string `yaml:"bucket"`
+		AccessKey    string `yaml:"accessKey,omitempty"`
+		SecretKey    string `yaml:"secretKey,omitempty"`
+		DBPath       string `yaml:"dbPath"`
+		ImageBaseURL string `yaml:"imageBaseURL,omitempty"`
 	}
 	type cmdConfig struct {
 		Name   string         `yaml:"name"`
@@ -84,6 +95,11 @@ func buildServerConfig(gf *goframev1alpha1.GoFrame) (string, error) {
 		tz = "UTC"
 	}
 
+	bucket := spec.RustFS.Bucket
+	if bucket == "" {
+		bucket = gf.Name
+	}
+
 	cmds := make([]cmdConfig, 0, len(spec.Commands))
 	for _, c := range spec.Commands {
 		cc := cmdConfig{Name: c.Name}
@@ -102,9 +118,11 @@ func buildServerConfig(gf *goframev1alpha1.GoFrame) (string, error) {
 		SvgFallbackLongSidePixelCount: svgFallback,
 		Timezone:                      tz,
 		Database: dbConfig{
-			Type:             "redis",
-			ConnectionString: gf.Spec.Redis.Address,
-			Namespace:        gf.Name,
+			Type:         "rustfs",
+			Endpoint:     spec.RustFS.Endpoint,
+			Bucket:       bucket,
+			DBPath:       "/data/goframe.db",
+			ImageBaseURL: spec.RustFS.ImageBaseURL,
 		},
 		Commands: cmds,
 	}
@@ -160,6 +178,10 @@ func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *g
 
 	configHash := fmt.Sprintf("%x", sha256.Sum256([]byte(configData)))
 
+	litestreamImg := litestreamImageRef(gf)
+	dataVolumeName := serverName(gf) + "-data"
+
+
 	desired := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      serverName(gf),
@@ -187,12 +209,21 @@ func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *g
 								{ContainerPort: port, Protocol: corev1.ProtocolTCP},
 							},
 							Args: []string{"--config", "/etc/goframe/config.yaml"},
+							Env:  rustfsServerEnvVars(gf),
 							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "config",
-									MountPath: "/etc/goframe",
-									ReadOnly:  true,
-								},
+								{Name: "config", MountPath: "/etc/goframe", ReadOnly: true},
+								{Name: dataVolumeName, MountPath: "/data"},
+							},
+						},
+						{
+							Name:            "litestream",
+							Image:           litestreamImg,
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Args:            []string{"replicate", "-config", "/etc/litestream/litestream.yml"},
+							Env:             litestreamEnvVars(gf),
+							VolumeMounts: []corev1.VolumeMount{
+								{Name: dataVolumeName, MountPath: "/data"},
+								{Name: "litestream-config", MountPath: "/etc/litestream", ReadOnly: true},
 							},
 						},
 					},
@@ -201,9 +232,23 @@ func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *g
 							Name: "config",
 							VolumeSource: corev1.VolumeSource{
 								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: serverName(gf),
-									},
+									LocalObjectReference: corev1.LocalObjectReference{Name: serverName(gf)},
+								},
+							},
+						},
+						{
+							Name: "litestream-config",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{Name: serverName(gf) + "-litestream"},
+								},
+							},
+						},
+						{
+							Name: dataVolumeName,
+							VolumeSource: corev1.VolumeSource{
+								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+									ClaimName: dataVolumeName,
 								},
 							},
 						},
@@ -228,11 +273,13 @@ func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *g
 	existingContainer := &existing.Spec.Template.Spec.Containers[0]
 	desiredContainer := &desired.Spec.Template.Spec.Containers[0]
 	existingHash := existing.Spec.Template.Annotations["checksum/config"]
-	if existingContainer.Image != desiredContainer.Image ||
+	needsUpdate := existingContainer.Image != desiredContainer.Image ||
 		existingContainer.ImagePullPolicy != desiredContainer.ImagePullPolicy ||
-		existingHash != configHash {
-		existingContainer.Image = desiredContainer.Image
-		existingContainer.ImagePullPolicy = desiredContainer.ImagePullPolicy
+		existingHash != configHash ||
+		!equality.Semantic.DeepEqual(existingContainer.Env, desiredContainer.Env) ||
+		!equality.Semantic.DeepEqual(existing.Spec.Template.Spec.Containers, desired.Spec.Template.Spec.Containers)
+	if needsUpdate {
+		existing.Spec.Template.Spec = desired.Spec.Template.Spec
 		if existing.Spec.Template.Annotations == nil {
 			existing.Spec.Template.Annotations = map[string]string{}
 		}
@@ -314,4 +361,147 @@ func imagePullPolicy(policy string) corev1.PullPolicy {
 	default:
 		return corev1.PullIfNotPresent
 	}
+}
+
+func litestreamImageRef(gf *goframev1alpha1.GoFrame) string {
+	img := gf.Spec.RustFS.LitestreamImage
+	repo := img.Repository
+	if repo == "" {
+		repo = "litestream/litestream"
+	}
+	tag := img.Tag
+	if tag == "" {
+		tag = "0.3.13"
+	}
+	return repo + ":" + tag
+}
+
+// litestreamEnvVars returns env vars for Litestream S3 credentials.
+// When no SecretRef is configured, returns nil (anonymous / no-credential access).
+func litestreamEnvVars(gf *goframev1alpha1.GoFrame) []corev1.EnvVar {
+	ref := gf.Spec.RustFS.SecretRef
+	if ref == "" {
+		return nil
+	}
+	return []corev1.EnvVar{
+		{
+			Name: "LITESTREAM_ACCESS_KEY_ID",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: ref},
+					Key:                  "accessKey",
+				},
+			},
+		},
+		{
+			Name: "LITESTREAM_SECRET_ACCESS_KEY",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: ref},
+					Key:                  "secretKey",
+				},
+			},
+		},
+	}
+}
+
+// rustfsServerEnvVars returns RUSTFS_ACCESS_KEY/RUSTFS_SECRET_KEY env vars
+// for the goframe server container, read from the RustFS credentials Secret.
+func rustfsServerEnvVars(gf *goframev1alpha1.GoFrame) []corev1.EnvVar {
+	ref := gf.Spec.RustFS.SecretRef
+	if ref == "" {
+		return nil
+	}
+	return []corev1.EnvVar{
+		{
+			Name: "RUSTFS_ACCESS_KEY",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: ref},
+					Key:                  "accessKey",
+				},
+			},
+		},
+		{
+			Name: "RUSTFS_SECRET_KEY",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: ref},
+					Key:                  "secretKey",
+				},
+			},
+		},
+	}
+}
+
+// reconcileLitestreamConfigMap ensures the Litestream replication config exists.
+func (r *GoFrameReconciler) reconcileLitestreamConfigMap(ctx context.Context, gf *goframev1alpha1.GoFrame) error {
+	bucket := gf.Spec.RustFS.Bucket
+	if bucket == "" {
+		bucket = gf.Name
+	}
+
+	litestreamCfg := fmt.Sprintf(`dbs:
+  - path: /data/goframe.db
+    replicas:
+      - url: s3://%s/litestream
+        endpoint: %s
+        force-path-style: true
+`, bucket, gf.Spec.RustFS.Endpoint)
+
+	desired := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serverName(gf) + "-litestream",
+			Namespace: gf.Namespace,
+		},
+		Data: map[string]string{
+			"litestream.yml": litestreamCfg,
+		},
+	}
+	if err := ctrl.SetControllerReference(gf, desired, r.Scheme); err != nil {
+		return err
+	}
+
+	existing := &corev1.ConfigMap{}
+	err := r.Get(ctx, types.NamespacedName{Name: desired.Name, Namespace: desired.Namespace}, existing)
+	if apierrors.IsNotFound(err) {
+		return r.Create(ctx, desired)
+	}
+	if err != nil {
+		return err
+	}
+	if !equality.Semantic.DeepEqual(existing.Data, desired.Data) {
+		existing.Data = desired.Data
+		return r.Update(ctx, existing)
+	}
+	return nil
+}
+
+// reconcileDataPVC ensures the PVC for SQLite data (/data) exists.
+func (r *GoFrameReconciler) reconcileDataPVC(ctx context.Context, gf *goframev1alpha1.GoFrame) error {
+	name := serverName(gf) + "-data"
+	desired := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: gf.Namespace,
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("100Mi"),
+				},
+			},
+		},
+	}
+	if err := ctrl.SetControllerReference(gf, desired, r.Scheme); err != nil {
+		return err
+	}
+
+	existing := &corev1.PersistentVolumeClaim{}
+	err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: gf.Namespace}, existing)
+	if apierrors.IsNotFound(err) {
+		return r.Create(ctx, desired)
+	}
+	return err
 }

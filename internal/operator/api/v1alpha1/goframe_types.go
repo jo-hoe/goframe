@@ -48,9 +48,9 @@ type GoFrameSpec struct {
 	// +optional
 	Server ServerSpec `json:"server,omitempty"`
 
-	// Redis configures the Redis Deployment managed by the operator.
+	// RustFS configures the RustFS storage used by the operator and server.
 	// +optional
-	Redis RedisSpec `json:"redis,omitempty"`
+	RustFS RustFSSpec `json:"rustfs,omitempty"`
 }
 
 // CommandSpec describes a single image-processing command in the pipeline.
@@ -216,13 +216,32 @@ type ServerSpec struct {
 	ServiceType string `json:"serviceType,omitempty"`
 }
 
-// RedisSpec configures the Redis connection used by the operator.
+// RustFSSpec configures the RustFS (S3-compatible) storage connection.
 // +kubebuilder:object:generate=true
-type RedisSpec struct {
-	// Address is the Redis connection string (host:port) the operator and server use.
-	// Typically points at a Redis instance deployed via a separate Helm chart.
-	// +kubebuilder:example="redis-master.default.svc.cluster.local:6379"
-	Address string `json:"address"`
+type RustFSSpec struct {
+	// Endpoint is the RustFS base URL (e.g. "http://myrelease-rustfs:9000").
+	// +kubebuilder:example="http://myrelease-rustfs:9000"
+	Endpoint string `json:"endpoint"`
+
+	// Bucket is the S3 bucket name to use for image storage.
+	// Defaults to the GoFrame CR name if empty.
+	// +optional
+	Bucket string `json:"bucket,omitempty"`
+
+	// SecretRef is the name of a Kubernetes Secret in the same namespace that holds
+	// the RustFS credentials. The Secret must contain the keys "accessKey" and "secretKey".
+	// +optional
+	SecretRef string `json:"secretRef,omitempty"`
+
+	// ImageBaseURL is the browser-facing URL prefix for image assets.
+	// Defaults to "/images" which is served by the RustFS ingress.
+	// +optional
+	ImageBaseURL string `json:"imageBaseURL,omitempty"`
+
+	// LitestreamImage selects the Litestream sidecar container image used for
+	// SQLite WAL replication to RustFS.
+	// +optional
+	LitestreamImage ImageSpec `json:"litestreamImage,omitempty"`
 }
 
 // ImageSpec selects a container image.

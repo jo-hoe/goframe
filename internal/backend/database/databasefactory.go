@@ -2,7 +2,7 @@ package database
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 )
 
 func NewDatabase(databaseType, connectionString string) (database DatabaseService, err error) {
@@ -16,8 +16,7 @@ func NewDatabase(databaseType, connectionString string) (database DatabaseServic
 		return nil, fmt.Errorf("unsupported database driver: %s", databaseType)
 	}
 
-	// Ensure database schema exists (idempotent), important for in-memory SQLite
-	log.Printf("initializing database schema (ensuring tables exist) - driver=%s dsn=%q", databaseType, connectionString)
+	slog.Info("initializing database schema", "driver", databaseType, "dsn", connectionString)
 	err = database.CreateDatabase()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create database: %w", err)

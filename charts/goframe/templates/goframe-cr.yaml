@@ -6,12 +6,27 @@ metadata:
 spec:
   timezone: {{ .Values.timezone | quote }}
 
-  redis:
-    {{- if .Values.redis.address }}
-    address: {{ .Values.redis.address | quote }}
+  rustfs:
+    {{- if .Values.rustfs.address }}
+    endpoint: {{ .Values.rustfs.address | quote }}
     {{- else }}
-    address: {{ printf "redis-master.%s.svc.cluster.local:6379" .Release.Namespace | quote }}
+    endpoint: {{ printf "http://%s-rustfs.%s.svc.cluster.local:9000" .Release.Name .Release.Namespace | quote }}
     {{- end }}
+    {{- if .Values.rustfs.bucket }}
+    bucket: {{ .Values.rustfs.bucket | quote }}
+    {{- end }}
+    {{- if .Values.rustfs.secretRef }}
+    secretRef: {{ .Values.rustfs.secretRef | quote }}
+    {{- else }}
+    secretRef: {{ printf "%s-rustfs-credentials" .Release.Name | quote }}
+    {{- end }}
+    {{- if .Values.rustfs.imageBaseURL }}
+    imageBaseURL: {{ .Values.rustfs.imageBaseURL | quote }}
+    {{- end }}
+    litestreamImage:
+      repository: {{ .Values.litestream.image.repository | quote }}
+      tag: {{ .Values.litestream.image.tag | quote }}
+      pullPolicy: {{ .Values.litestream.image.pullPolicy | quote }}
 
   server:
     image:

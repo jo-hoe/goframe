@@ -23,7 +23,7 @@ const (
 	schedulerNameLabel           = "goframe-scheduler"
 	schedulerConfigMountPath     = "/etc/goframe-scheduler"
 	schedulerConfigFileName      = "image-scheduler.yaml"
-	schedulerS3CredentialsMountPath = "/etc/s3-credentials"
+	schedulerS3CredentialsMountPath = "/etc/s3-credentials" //nolint:gosec // mount path, not a credential
 )
 
 // reconcileCronJobs diffs spec.schedulers against existing CronJobs and

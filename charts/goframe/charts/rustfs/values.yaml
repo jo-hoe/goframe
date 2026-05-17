@@ -1,0 +1,20 @@
+image:
+  repository: rustfs/rustfs
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+service:
+  port: 9000
+
+# Credentials for the built-in RustFS instance.
+# Leave empty to auto-generate a random secret.
+credentials:
+  existingSecret: ""   # name of a pre-existing Secret with keys accessKey and secretKey
+  accessKey: ""        # ignored when existingSecret is set; auto-generated when both are empty
+  secretKey: ""        # ignored when existingSecret is set; auto-generated when both are empty
+
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClass: ""     # empty = cluster default
+  accessMode: ReadWriteOnce

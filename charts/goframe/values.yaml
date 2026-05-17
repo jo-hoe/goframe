@@ -1,11 +1,36 @@
 # Timezone for image rotation midnight detection (IANA timezone name)
 timezone: "UTC"
 
-# Redis connection address passed to the GoFrame CR.
-# Defaults to the Redis service deployed alongside this chart.
-# Override to point at your own Redis instance.
-redis:
-  address: ""
+# RustFS connection configuration.
+# Leave address empty to use the bundled RustFS subchart.
+# Set address to connect to an external RustFS or MinIO instance instead.
+rustfs:
+  address: ""          # e.g. "http://my-rustfs:9000"; empty = use bundled subchart
+  bucket: ""           # defaults to the Helm release name
+  secretRef: ""        # K8s Secret with keys accessKey and secretKey; auto-created when empty
+  imageBaseURL: ""     # browser-facing URL prefix for images; defaults to "/images"
+  image:
+    repository: rustfs/rustfs
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  persistence:
+    enabled: true
+    size: 1Gi          # scale with image_count × avg_size_MB × 1.5
+    storageClass: ""   # empty = cluster default
+  credentials:
+    accessKey: ""      # auto-generated when empty
+    secretKey: ""      # auto-generated when empty
+  ingress:
+    enabled: true      # expose RustFS images via K8s Ingress for direct browser access
+    className: ""      # ingressClassName; empty = cluster default
+    annotations: {}    # e.g. nginx.ingress.kubernetes.io/rewrite-target: /$1
+
+# Litestream sidecar image for SQLite WAL replication to RustFS.
+litestream:
+  image:
+    repository: litestream/litestream
+    tag: "0.3.13"
+    pullPolicy: IfNotPresent
 
 server:
   image:
@@ -146,12 +171,11 @@ schedulerImage:
 schedulers: []
 
 ingress:
-  enabled: false
+  enabled: true
   className: ""
   annotations: {}
   hosts:
-    - host: goframe.local
-      paths:
+    - paths:
         - path: /
           pathType: Prefix
   tls: []

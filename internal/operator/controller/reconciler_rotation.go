@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -14,11 +13,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// redisRequeueOnNotReady is the requeue interval when Redis is not yet reachable.
-const redisRequeueOnNotReady = 15 * time.Second
+// rustfsRequeueOnNotReady is the requeue interval when RustFS is not yet reachable.
+const rustfsRequeueOnNotReady = 15 * time.Second
 
 // reconcileRotation performs timezone-aware midnight rotation and writes the
-// resulting current image ID to the Redis key that the server reads.
+// resulting current image ID to rotation.json in RustFS, which the server also reads.
 // It returns the duration until the next midnight (for RequeueAfter).
 func (r *GoFrameReconciler) reconcileRotation(ctx context.Context, gf *goframev1alpha1.GoFrame) (time.Duration, error) {
 	logger := log.FromContext(ctx)
@@ -36,68 +35,59 @@ func (r *GoFrameReconciler) reconcileRotation(ctx context.Context, gf *goframev1
 	now := time.Now().In(loc)
 	nextMidnight := durationUntilNextMidnight(now, loc)
 
-	// Connect to Redis for this CR instance.
-	db, err := database.NewRedisDatabase(gf.Spec.Redis.Address, "", 0, gf.Name)
-	if err != nil {
-		// Redis may not be ready yet (e.g. first reconcile). Requeue quickly.
-		logger.Info("redis not yet reachable, requeuing", "addr", gf.Spec.Redis.Address, "err", err)
-		return redisRequeueOnNotReady, nil
+	bucket := gf.Spec.RustFS.Bucket
+	if bucket == "" {
+		bucket = gf.Name
 	}
-	defer func() {
-		if cerr := db.Close(); cerr != nil {
-			slog.Warn("reconcileRotation: failed to close Redis connection", "err", cerr)
-		}
-	}()
 
-	// Advance the rotation by elapsed days.
-	if err := advanceRotation(ctx, db, now, gf); err != nil {
+	accessKey, secretKey, err := r.readRustFSCredentials(ctx, gf)
+	if err != nil {
+		logger.Info("could not read RustFS credentials, requeuing", "err", err)
+		return rustfsRequeueOnNotReady, nil
+	}
+
+	rc, err := database.NewRotationStateClient(gf.Spec.RustFS.Endpoint, bucket, accessKey, secretKey)
+	if err != nil {
+		logger.Info("could not create rotation state client, requeuing", "endpoint", gf.Spec.RustFS.Endpoint, "err", err)
+		return rustfsRequeueOnNotReady, nil
+	}
+
+	if err := advanceRotation(ctx, rc, now, gf); err != nil {
 		return nextMidnight, fmt.Errorf("advancing rotation: %w", err)
 	}
 
-	// Read the current first image.
-	currentID, err := db.GetCurrentImageID(ctx)
-	if err != nil {
-		// No images yet — nothing to rotate.
-		logger.Info("no images in database yet, skipping rotation key write")
+	ids, err := rc.GetOrderedIDs(ctx)
+	if err != nil || len(ids) == 0 {
+		logger.Info("no images in rotation state yet, skipping status update")
 		return nextMidnight, nil
 	}
 
-	// Update status with current image and rotation time.
+	currentID := ids[0]
+
 	now2 := metav1.Now()
 	gf.Status.CurrentImageID = currentID
 	gf.Status.LastRotationTime = &now2
 
 	if err := r.Status().Update(ctx, gf); err != nil {
 		logger.Error(err, "failed to update GoFrame status after rotation")
-		// Non-fatal.
 	}
 
 	logger.Info("rotation reconciled", "currentImageID", currentID, "nextIn", nextMidnight)
 	return nextMidnight, nil
 }
 
-// advanceRotation checks if any days have elapsed since the last-rotated key in Redis and,
+// advanceRotation checks if any days have elapsed since the last-rotated key and,
 // if so, rotates the image order by the appropriate number of positions.
-func advanceRotation(ctx context.Context, db database.DatabaseService, now time.Time, gf *goframev1alpha1.GoFrame) error {
-	images, err := db.GetImages(ctx, "id")
-	if err != nil || len(images) == 0 {
+func advanceRotation(ctx context.Context, rc *database.RotationStateClient, now time.Time, gf *goframev1alpha1.GoFrame) error {
+	ids, err := rc.GetOrderedIDs(ctx)
+	if err != nil || len(ids) == 0 {
 		return nil
 	}
 
-	ids := make([]string, 0, len(images))
-	for _, img := range images {
-		ids = append(ids, img.ID)
-	}
-
-	rdb, ok := db.(*database.RedisDatabase)
-	if !ok {
-		return nil
-	}
-
-	lastRotated, err := rdb.GetLastRotatedTime(ctx)
+	lastRotated, err := rc.GetLastRotatedTime(ctx)
 	if err != nil {
 		// Key not yet set — first reconcile. Initialise and return.
-		return rdb.SetRotationKeys(ctx, ids[0], now)
+		return rc.SetRotationKeys(ctx, ids[0], now, ids)
 	}
 
 	tz := gf.Spec.Timezone
@@ -121,13 +111,10 @@ func advanceRotation(ctx context.Context, db database.DatabaseService, now time.
 		k := days % len(ids)
 		newOrder := append([]string{}, ids[k:]...)
 		newOrder = append(newOrder, ids[:k]...)
-		if err := db.UpdateRanks(ctx, newOrder); err != nil {
-			return fmt.Errorf("updating ranks: %w", err)
-		}
 		ids = newOrder
 	}
 
-	return rdb.SetRotationKeys(ctx, ids[0], now)
+	return rc.SetRotationKeys(ctx, ids[0], now, ids)
 }
 
 // durationUntilNextMidnight returns how long until 00:00 in the given location.
@@ -157,3 +144,4 @@ func (r *GoFrameReconciler) updateStatus(ctx context.Context, gf *goframev1alpha
 
 	return r.Status().Update(ctx, gf)
 }
+

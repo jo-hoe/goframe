@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -28,7 +27,8 @@ func main() {
 	// Peek at the source field before full config load so we know which typed config to use.
 	sourceName, err := config.PeekSource(path)
 	if err != nil {
-		log.Fatalf("image-scheduler: failed to read source from %s: %v", path, err)
+		slog.Error("image-scheduler: failed to read source", "path", path, "error", err)
+		os.Exit(1)
 	}
 
 	var (
@@ -40,28 +40,32 @@ func main() {
 	case "deviantart":
 		daCfg, loadErr := config.LoadDeviantArtConfig(path)
 		if loadErr != nil {
-			log.Fatalf("image-scheduler: failed to load config from %s: %v", path, loadErr)
+			slog.Error("image-scheduler: failed to load config", "path", path, "error", loadErr)
+			os.Exit(1)
 		}
 		baseCfg = &daCfg.SchedulerFileConfig
 		source = deviantart.NewDeviantArtSource(daCfg.Query)
 	case "metmuseum":
 		mmCfg, loadErr := config.LoadMetMuseumConfig(path)
 		if loadErr != nil {
-			log.Fatalf("image-scheduler: failed to load config from %s: %v", path, loadErr)
+			slog.Error("image-scheduler: failed to load config", "path", path, "error", loadErr)
+			os.Exit(1)
 		}
 		baseCfg = &mmCfg.SchedulerFileConfig
 		source = metmuseum.NewMetMuseumSource(mmCfg.DepartmentIDs)
 	case "tumblr":
 		tCfg, loadErr := config.LoadTumblrConfig(path)
 		if loadErr != nil {
-			log.Fatalf("image-scheduler: failed to load config from %s: %v", path, loadErr)
+			slog.Error("image-scheduler: failed to load config", "path", path, "error", loadErr)
+			os.Exit(1)
 		}
 		baseCfg = &tCfg.SchedulerFileConfig
 		source = tumblr.NewTumblrSource(tCfg.Blogs)
 	case "s3":
 		s3Cfg, loadErr := config.LoadS3Config(path)
 		if loadErr != nil {
-			log.Fatalf("image-scheduler: failed to load config from %s: %v", path, loadErr)
+			slog.Error("image-scheduler: failed to load config", "path", path, "error", loadErr)
+			os.Exit(1)
 		}
 		baseCfg = &s3Cfg.SchedulerFileConfig
 		source = s3source.NewS3Source(s3source.Config{
@@ -75,16 +79,19 @@ func main() {
 	default:
 		baseCfg, err = config.LoadSchedulerConfig(path)
 		if err != nil {
-			log.Fatalf("image-scheduler: failed to load config from %s: %v", path, err)
+			slog.Error("image-scheduler: failed to load config", "path", path, "error", err)
+			os.Exit(1)
 		}
 		source = buildSource(baseCfg.Source)
 	}
 
 	if baseCfg.GoframeURL == "" {
-		log.Fatalf("image-scheduler: goframeURL is required but not set in %s", path)
+		slog.Error("image-scheduler: goframeURL is required but not set", "path", path)
+		os.Exit(1)
 	}
 	if baseCfg.SourceName == "" {
-		log.Fatalf("image-scheduler: sourceName is required but not set in %s", path)
+		slog.Error("image-scheduler: sourceName is required but not set", "path", path)
+		os.Exit(1)
 	}
 
 	level := parseLogLevel(baseCfg.LogLevel)
@@ -112,7 +119,8 @@ func main() {
 	}
 
 	if err := scheduler.RunOnce(context.Background(), runCfg); err != nil {
-		log.Fatalf("image-scheduler: run failed: %v", err)
+		slog.Error("image-scheduler: run failed", "error", err)
+		os.Exit(1)
 	}
 }
 
@@ -151,7 +159,7 @@ func parseLogLevel(s string) slog.Level {
 	}
 }
 
-const s3CredentialsMountPath = "/etc/s3-credentials"
+const s3CredentialsMountPath = "/etc/s3-credentials" //nolint:gosec // mount path, not a credential
 
 func s3CredentialPath(key string) string {
 	return filepath.Join(s3CredentialsMountPath, key)
@@ -160,7 +168,7 @@ func s3CredentialPath(key string) string {
 // fileOr reads a file and returns its trimmed content, or fallback if the file is absent or empty.
 // strings.TrimSpace strips the trailing newline Kubernetes adds to mounted Secret files.
 func fileOr(path, fallback string) string {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is built from a known constant prefix
 	if err != nil || len(data) == 0 {
 		return fallback
 	}
