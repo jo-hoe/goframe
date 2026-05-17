@@ -18,6 +18,10 @@ RustFS S3-compatible object storage subchart for goframe
 | persistence.enabled | bool | `true` |  |
 | persistence.size | string | `"1Gi"` |  |
 | persistence.storageClass | string | `""` |  |
+| resources.limits.cpu | string | `"100m"` |  |
+| resources.limits.memory | string | `"128Mi"` |  |
+| resources.requests.cpu | string | `"25m"` |  |
+| resources.requests.memory | string | `"64Mi"` |  |
 | service.port | int | `9000` |  |
 
 ----------------------------------------------
