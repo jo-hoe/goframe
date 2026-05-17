@@ -198,14 +198,14 @@ graph TD
 
     CJ -->|"POST /api/image<br/>(with source label)"| SRV[GoFrame Server]
 
-    SRV -->|"if exclusionGroup:<br/>delete other group members' images"| SRV
+    SRV -->|"if group:<br/>delete other group members' images"| SRV
 ```
 
 Each scheduler is configured with:
 - **cron**: When to run (timezone-aware)
 - **source**: Which image source to use
-- **keepCount**: Maximum images to retain from this source
-- **exclusionGroup**: Mutually exclusive scheduling (e.g., weekday vs weekend)
+- **group**: Mutually exclusive scheduling (e.g., weekday vs weekend)
+- **onExternalImages**: Policy for non-group images (`ignore`, `takeover`, `yield`)
 - **commands**: Optional per-scheduler image processing pipeline
 
 ---
