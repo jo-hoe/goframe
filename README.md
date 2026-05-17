@@ -5,91 +5,76 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/jo-hoe/goframe)](https://goreportcard.com/report/github.com/jo-hoe/goframe)
 [![Coverage Status](https://coveralls.io/repos/github/jo-hoe/goframe/badge.svg?branch=main)](https://coveralls.io/github/jo-hoe/goframe?branch=main)
 
-Image processing web service written in Go. The services is used for e-ink photo frames that display a different image each day from a curated set.
+Image processing web service written in Go. The service is used for e-ink photo frames that display a different image each day from a curated set.
 
 The service provides a web UI to upload and manage images, applies a configurable processing pipeline to each image, and serves the currently scheduled image via an API endpoint. Images are rotated daily based on a timezone-aware schedule.
 
-## Supported commands and parameters
+## Architecture
 
-Configure the processing pipeline via the `commands` section in `config.yaml`.
+Images are stored in RustFS (S3-compatible object storage). Metadata is kept in SQLite, replicated to RustFS via Litestream. The server returns 302 redirects to RustFS URLs for image delivery.
 
-Refer to `config.example.yaml` for a full example including a custom palette for dithering.
+A Kubernetes operator manages:
+- RustFS (StatefulSet + Service + Secret)
+- goframe server (Deployment + Service + ConfigMap)
+- CronJob per scheduler entry
+
+See [docs/architecture.md](docs/architecture.md) for detailed diagrams.
 
 ## Configuration
 
 The server reads configuration from a YAML file:
 
-- Default path: `./config.yaml` (in current working directory)
+- Default path: `./local.yaml` (in current working directory)
 - Override via environment: `CONFIG_PATH=/path/to/config.yaml`
 
-Required and optional fields:
-
-- port: int (server port, default 8080)
-- database:
-  - type: string (e.g. "redis")
-  - connectionString: string (e.g. "localhost:6379")
-  - namespace: string (key namespace, e.g. "goframe")
-- timezone: string (IANA TZ, default "UTC") — used for daily image rotation and CronJob scheduling
-- commands: list of command definitions (see above)
+See `local.example.yaml` for all available fields.
 
 ## Quick start (local)
 
 Prerequisites:
 
 - Go 1.26+
-- Redis (or use `make start-docker` to run via docker-compose)
+- Docker (for RustFS via docker-compose)
 
 Steps:
 
-1. Copy `config.example.yaml` to `config.yaml` and adjust as needed
-2. Run the server:
-   - go run ./cmd/server
-   - or build first: `go build ./...` then run the built binary
-3. Open the UI: <http://localhost:8080/>
-   - Upload an image
-   - See current image thumbnail and the schedule list
-   - Delete images if needed
+1. Copy `local.example.yaml` to `local.yaml` and adjust as needed
+2. Start RustFS: `make start-docker`
+3. Run the server: `go run ./cmd/server`
+4. Open the UI: <http://localhost:8080/>
 
 API test:
 
 - Health: `curl http://localhost:8080/probe`
 - Current processed image (PNG): `curl -s http://localhost:8080/api/image.png -o current.png`
-- Upload an image (multipart/form-data, field "image"): `curl -s -X POST -F "image=@/path/to/your/image.png" http://localhost:8080/api/image`
-- List images (IDs and URLs): `curl http://localhost:8080/api/images`
-- Download processed by ID: `curl -s http://localhost:8080/api/images/<id>/processed.png -o processed.png`
-- Download original by ID: `curl -s http://localhost:8080/api/images/<id>/original.png -o original.png`
+- Upload an image: `curl -s -X POST -F "image=@/path/to/image.png" http://localhost:8080/api/image`
+- List images: `curl http://localhost:8080/api/images`
 - Delete by ID: `curl -X DELETE http://localhost:8080/api/images/<id> -i`
 
 ## Helm
 
-The chart is located in `charts/goframe`. It depends on the [Bitnami Redis chart](https://charts.bitnami.com/bitnami), which must be fetched before installing:
+The chart is located in `charts/goframe`. Install with:
 
 ```bash
-helm repo add bitnami https://charts.bitnami.com/bitnami
 helm dependency build charts/goframe
 helm install goframe charts/goframe
 ```
 
-## Redis sizing
+The operator chart (`charts/goframe-operator`) must be installed first to register the GoFrame CRD.
 
-Images are stored in Redis as base64-encoded strings (original + processed). Use this rule of thumb to size `maxmemory`:
+## Schedulers
 
-```
-maxmemory ≈ image_count × avg_original_size_MB × 1.5
-```
+CronJob-based image schedulers fetch images from external sources automatically.
 
-Example: 100 images with a 3 MB average original → ~450 MB → set `maxmemory` to 512mb.
+Supported sources: `xkcd`, `oatmeal`, `metmuseum`, `tumblr`, `s3`
 
-Set the container memory limit about 20% above `maxmemory` to leave room for Redis overhead (e.g. 512mb maxmemory → 640Mi container limit).
+Key configuration:
+- **group**: Schedulers sharing a group evict each other's images on upload (mutual exclusion)
+- **onExternalImages**: Policy when non-group images exist (`ignore`, `takeover`, `yield`)
 
-Recommended flags:
+Each scheduler always keeps exactly one image per source.
 
-```
---maxmemory <size>
---maxmemory-policy allkeys-lru
-```
-
-With `allkeys-lru`, Redis evicts the least-recently-used images when memory is full instead of returning an error. If you prefer hard failures over silent eviction, use `noeviction` and size `maxmemory` generously.
+See `charts/goframe/values.yaml` for full examples.
 
 ## Make
 
