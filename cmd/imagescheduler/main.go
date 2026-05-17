@@ -99,14 +99,13 @@ func main() {
 	}
 
 	runCfg := scheduler.Config{
-		GoframeBaseURL: baseCfg.GoframeURL,
-		SourceName:     baseCfg.SourceName,
-		KeepCount:      baseCfg.KeepCount,
-		WhenUnmanaged:  scheduler.WhenUnmanaged(baseCfg.WhenUnmanaged),
-		ExclusionGroup: baseCfg.ExclusionGroup,
-		GroupMembers:   baseCfg.GroupMembers,
-		Source:         source,
-		Commands:       cmdCfgs,
+		GoframeBaseURL:   baseCfg.GoframeURL,
+		SourceName:       baseCfg.SourceName,
+		Group:            baseCfg.Group,
+		GroupMembers:     baseCfg.GroupMembers,
+		OnExternalImages: scheduler.OnExternalImages(baseCfg.OnExternalImages),
+		Source:           source,
+		Commands:         cmdCfgs,
 	}
 
 	if err := scheduler.RunOnce(context.Background(), runCfg); err != nil {

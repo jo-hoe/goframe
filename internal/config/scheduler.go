@@ -16,16 +16,15 @@ type SchedulerFileConfig struct {
 	SourceName string `yaml:"sourceName"`
 	// Source is the image source identifier (e.g. "xkcd", "oatmeal", "metmuseum", "tumblr", "s3").
 	Source string `yaml:"source"`
-	// KeepCount is the maximum number of image scheduler-managed images to retain (default: 1).
-	KeepCount int `yaml:"keepCount"`
-	// WhenUnmanaged controls behaviour when unmanaged images exist: "upload" (default), "skip", or "drain".
-	WhenUnmanaged string `yaml:"whenUnmanaged"`
-	// ExclusionGroup is an optional group name. When set, a successful upload causes all images
-	// owned by other members of the same group to be deleted.
-	ExclusionGroup string `yaml:"exclusionGroup"`
-	// GroupMembers lists the source names of all schedulers in the same ExclusionGroup,
-	// including this scheduler's own SourceName. Populated by the operator at config-render time.
+	// Group is an optional group name shared by schedulers that are mutually exclusive.
+	// When a scheduler in a group uploads, all images owned by other group members are deleted.
+	Group string `yaml:"group"`
+	// GroupMembers lists the source names of all schedulers sharing Group, including self.
+	// Populated by the operator; not set by users directly.
 	GroupMembers []string `yaml:"groupMembers"`
+	// OnExternalImages controls what happens when external images exist (images not owned
+	// by this scheduler or any group member). Values: "ignore" (default), "takeover", "yield".
+	OnExternalImages string `yaml:"onExternalImages"`
 	// LogLevel controls verbosity (debug, info, warn, error).
 	LogLevel string `yaml:"logLevel"`
 	// Commands is an optional processing pipeline applied to each fetched image before upload.
@@ -185,14 +184,11 @@ func readConfigFile(path string) ([]byte, error) {
 }
 
 func applyDefaults(cfg *SchedulerFileConfig) error {
-	if cfg.KeepCount < 1 {
-		cfg.KeepCount = 1
-	}
-	switch cfg.WhenUnmanaged {
-	case "", "upload", "skip", "drain":
+	switch cfg.OnExternalImages {
+	case "", "ignore", "takeover", "yield":
 		// valid
 	default:
-		return fmt.Errorf("whenUnmanaged must be upload, skip, or drain (got %q)", cfg.WhenUnmanaged)
+		return fmt.Errorf("onExternalImages must be ignore, takeover, or yield (got %q)", cfg.OnExternalImages)
 	}
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"

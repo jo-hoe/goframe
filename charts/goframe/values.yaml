@@ -75,22 +75,28 @@ schedulerImage:
 # Each entry requires: name, cron, source
 # Supported sources: xkcd, oatmeal, metmuseum, tumblr, s3
 #
-# exclusionGroup: optional. Schedulers sharing the same group evict each other's images on
+# group: optional. Schedulers sharing the same group evict each other's images on
 # a successful upload, so only one group member's image is displayed at a time. Use this to
 # stagger different sources across days or time periods.
+#
+# onExternalImages: optional (default: ignore). Controls what happens when images
+# not owned by this scheduler or any group member exist:
+#   ignore   — upload normally, leave external images untouched
+#   takeover — delete all external images after uploading
+#   yield    — delete own images, skip upload
 #
 # Example — weekday/weekend stagger:
 # schedulers:
 #   - name: weekday-xkcd
 #     cron: "0 8 * * 1-5"
 #     source: xkcd
-#     keepCount: 1
-#     exclusionGroup: daily-wallpaper
+#     group: daily-wallpaper
+#     onExternalImages: takeover
 #   - name: weekend-tumblr
 #     cron: "0 8 * * 6,0"
 #     source: tumblr
-#     keepCount: 1
-#     exclusionGroup: daily-wallpaper
+#     group: daily-wallpaper
+#     onExternalImages: ignore
 #     tumblr:
 #       blogs:
 #         - pusheen
@@ -100,7 +106,6 @@ schedulerImage:
 #   - name: nasa-tumblr
 #     cron: "0 8 * * *"
 #     source: tumblr
-#     keepCount: 1
 #     tumblr:
 #       blogs:
 #         - nasa         # blog name without .tumblr.com
@@ -111,7 +116,6 @@ schedulerImage:
 #   - name: met-daily
 #     cron: "0 8 * * *"
 #     source: metmuseum
-#     keepCount: 1
 #     metmuseum:
 #       # departmentIDs is optional — omit to search all departments.
 #       # Available IDs:
@@ -131,7 +135,6 @@ schedulerImage:
 #   - name: s3-daily
 #     cron: "0 8 * * *"
 #     source: s3
-#     keepCount: 1
 #     s3:
 #       endpoint: "https://s3.us-east-1.amazonaws.com"  # or "http://rustfs:9000" for RustFS
 #       bucket: "my-images"
@@ -146,7 +149,6 @@ schedulerImage:
 #   - name: xkcd
 #     cron: "0 8 * * *"
 #     source: xkcd
-#     keepCount: 1
 #     commands:
 #       - name: ScaleCommand
 #         height: 1600

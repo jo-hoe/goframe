@@ -128,27 +128,22 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		Params map[string]any `yaml:",inline"`
 	}
 	type schedulerConfig struct {
-		GoframeURL     string      `yaml:"goframeURL"`
-		SourceName     string      `yaml:"sourceName"`
-		Source         string      `yaml:"source"`
-		KeepCount      int         `yaml:"keepCount"`
-		WhenUnmanaged  string      `yaml:"whenUnmanaged,omitempty"`
-		ExclusionGroup string      `yaml:"exclusionGroup,omitempty"`
-		GroupMembers   []string    `yaml:"groupMembers,omitempty"`
-		DepartmentIDs  []int       `yaml:"departmentIDs,omitempty"`
-		Blogs          []string    `yaml:"blogs,omitempty"`
-		Endpoint       string      `yaml:"endpoint,omitempty"`
-		Bucket         string      `yaml:"bucket,omitempty"`
-		Prefix         string      `yaml:"prefix,omitempty"`
-		Region         string      `yaml:"region,omitempty"`
-		LogLevel       string      `yaml:"logLevel"`
-		Commands       []cmdConfig `yaml:"commands,omitempty"`
+		GoframeURL       string      `yaml:"goframeURL"`
+		SourceName       string      `yaml:"sourceName"`
+		Source           string      `yaml:"source"`
+		Group            string      `yaml:"group,omitempty"`
+		GroupMembers     []string    `yaml:"groupMembers,omitempty"`
+		OnExternalImages string      `yaml:"onExternalImages,omitempty"`
+		DepartmentIDs    []int       `yaml:"departmentIDs,omitempty"`
+		Blogs            []string    `yaml:"blogs,omitempty"`
+		Endpoint         string      `yaml:"endpoint,omitempty"`
+		Bucket           string      `yaml:"bucket,omitempty"`
+		Prefix           string      `yaml:"prefix,omitempty"`
+		Region           string      `yaml:"region,omitempty"`
+		LogLevel         string      `yaml:"logLevel"`
+		Commands         []cmdConfig `yaml:"commands,omitempty"`
 	}
 
-	keepCount := sched.KeepCount
-	if keepCount < 1 {
-		keepCount = 1
-	}
 	logLevel := sched.LogLevel
 	if logLevel == "" {
 		logLevel = defaultLogLevel
@@ -166,9 +161,9 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 	}
 
 	var groupMembers []string
-	if sched.ExclusionGroup != "" {
+	if sched.Group != "" {
 		for _, s := range gf.Spec.Schedulers {
-			if s.ExclusionGroup == sched.ExclusionGroup {
+			if s.Group == sched.Group {
 				groupMembers = append(groupMembers, s.Source)
 			}
 		}
@@ -192,21 +187,20 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 	}
 
 	cfg := schedulerConfig{
-		GoframeURL:     serverURL(gf),
-		SourceName:     sched.Source,
-		Source:         sched.Source,
-		KeepCount:      keepCount,
-		WhenUnmanaged:  sched.WhenUnmanaged,
-		ExclusionGroup: sched.ExclusionGroup,
-		GroupMembers:   groupMembers,
-		DepartmentIDs:  departmentIDs,
-		Blogs:          blogs,
-		Endpoint:       endpoint,
-		Bucket:         bucket,
-		Prefix:         prefix,
-		Region:         region,
-		LogLevel:       logLevel,
-		Commands:       cmds,
+		GoframeURL:       serverURL(gf),
+		SourceName:       sched.Source,
+		Source:           sched.Source,
+		Group:            sched.Group,
+		GroupMembers:     groupMembers,
+		OnExternalImages: sched.OnExternalImages,
+		DepartmentIDs:    departmentIDs,
+		Blogs:            blogs,
+		Endpoint:         endpoint,
+		Bucket:           bucket,
+		Prefix:           prefix,
+		Region:           region,
+		LogLevel:         logLevel,
+		Commands:         cmds,
 	}
 
 	out, err := yaml.Marshal(cfg)

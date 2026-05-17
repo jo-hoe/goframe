@@ -74,24 +74,18 @@ type SchedulerSpec struct {
 	// Cron is the schedule in standard cron syntax (e.g. "0 8 * * *").
 	Cron string `json:"cron"`
 
-	// KeepCount is the maximum number of images to retain from this source.
-	// Older images beyond this count are deleted after each run.
-	// +kubebuilder:default=1
-	// +optional
-	KeepCount int `json:"keepCount,omitempty"`
-
-	// WhenUnmanaged controls scheduler behaviour when unmanaged images exist.
-	// Valid values: upload (default), skip, drain.
-	// +kubebuilder:validation:Enum=upload;skip;drain
-	// +optional
-	WhenUnmanaged string `json:"whenUnmanaged,omitempty"`
-
-	// ExclusionGroup is an optional group name shared by schedulers that are mutually exclusive.
+	// Group is an optional group name shared by schedulers that are mutually exclusive.
 	// When a scheduler in a group successfully uploads an image, all images owned by other
-	// members of the same group are deleted. This enables day-of-week or time-period routing
-	// where only one scheduler's images should be present at a time.
+	// members of the same group are deleted. This enables day-of-week routing where only
+	// one scheduler's images should be present at a time.
 	// +optional
-	ExclusionGroup string `json:"exclusionGroup,omitempty"`
+	Group string `json:"group,omitempty"`
+
+	// OnExternalImages controls what happens when external images exist (images not owned
+	// by this scheduler or any group member). Values: ignore (default), takeover, yield.
+	// +kubebuilder:validation:Enum=ignore;takeover;yield
+	// +optional
+	OnExternalImages string `json:"onExternalImages,omitempty"`
 
 	// LogLevel sets the scheduler log verbosity (debug, info, warn, error).
 	// +kubebuilder:default="info"

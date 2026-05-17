@@ -56,23 +56,25 @@ spec:
     - name: {{ .name | quote }}
       cron: {{ .cron | quote }}
       source: {{ .source | quote }}
-      {{- if .keepCount }}
-      keepCount: {{ .keepCount }}
+      {{- if .group }}
+      group: {{ .group | quote }}
       {{- end }}
-      {{- if .exclusionGroup }}
-      exclusionGroup: {{ .exclusionGroup | quote }}
+      {{- if .onExternalImages }}
+      onExternalImages: {{ .onExternalImages | quote }}
       {{- end }}
-      {{- if .departmentIDs }}
+      {{- if .metmuseum }}
       metmuseum:
+        {{- if .metmuseum.departmentIDs }}
         departmentIDs:
-          {{- range .departmentIDs }}
+          {{- range .metmuseum.departmentIDs }}
           - {{ . }}
           {{- end }}
+        {{- end }}
       {{- end }}
-      {{- if .blogs }}
+      {{- if .tumblr }}
       tumblr:
         blogs:
-          {{- range .blogs }}
+          {{- range .tumblr.blogs }}
           - {{ . | quote }}
           {{- end }}
       {{- end }}

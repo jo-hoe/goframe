@@ -108,7 +108,6 @@ func TestRunOnce_Uploads(t *testing.T) {
 	cfg := Config{
 		GoframeBaseURL: srv.URL,
 		SourceName:     "test-source",
-		KeepCount:      1,
 		Source:         &staticSource{name: "test-source", data: minimalPNG()},
 	}
 
@@ -125,7 +124,7 @@ func TestRunOnce_Uploads(t *testing.T) {
 }
 
 func TestRunOnce_PrunesExcessOwnImages(t *testing.T) {
-	// Two existing own images; keepCount=1 → oldest should be pruned after upload.
+	// Two existing own images; always keeps 1 → oldest should be pruned after upload.
 	initialImages := []apiImageItem{
 		{ID: "sched-old-1", Source: "test-source"},
 		{ID: "sched-old-2", Source: "test-source"},
@@ -136,7 +135,6 @@ func TestRunOnce_PrunesExcessOwnImages(t *testing.T) {
 	cfg := Config{
 		GoframeBaseURL: srv.URL,
 		SourceName:     "test-source",
-		KeepCount:      1,
 		Source:         &staticSource{name: "test-source", data: minimalPNG()},
 	}
 
@@ -144,7 +142,7 @@ func TestRunOnce_PrunesExcessOwnImages(t *testing.T) {
 		t.Fatalf("RunOnce error: %v", err)
 	}
 
-	// After upload there are 3 own images; keepCount=1 means 2 should be deleted.
+	// After upload there are 3 own images; keeps 1 means 2 should be deleted.
 	if len(state.deletedIDs) != 2 {
 		t.Errorf("expected 2 deletions, got %d: %v", len(state.deletedIDs), state.deletedIDs)
 	}
@@ -154,9 +152,9 @@ func TestRunOnce_PrunesExcessOwnImages(t *testing.T) {
 }
 
 func TestRunOnce_OnlyPrunesOwnImages(t *testing.T) {
-	// Unmanaged images must not be touched during own-image pruning (skip/drain disabled).
+	// External images must not be touched during own-image pruning (onExternalImages=ignore).
 	initialImages := []apiImageItem{
-		{ID: "unmanaged-1", Source: ""},
+		{ID: "external-1", Source: ""},
 		{ID: "other-source-1", Source: "other"},
 		{ID: "sched-1", Source: "test-source"},
 	}
@@ -164,18 +162,17 @@ func TestRunOnce_OnlyPrunesOwnImages(t *testing.T) {
 	defer srv.Close()
 
 	cfg := Config{
-		GoframeBaseURL: srv.URL,
-		SourceName:     "test-source",
-		KeepCount:      1,
-		Source:         &staticSource{name: "test-source", data: minimalPNG()},
-		// SkipIfUnmanagedImagesExceed and DrainIfUnmanagedImagesExceed both 0 = disabled
+		GoframeBaseURL:   srv.URL,
+		SourceName:       "test-source",
+		OnExternalImages: OnExternalImagesIgnore,
+		Source:           &staticSource{name: "test-source", data: minimalPNG()},
 	}
 
 	if err := RunOnce(context.Background(), cfg); err != nil {
 		t.Fatalf("RunOnce error: %v", err)
 	}
 
-	// After upload: 2 test-source images, keepCount=1 → 1 pruned, and it must be the original own image.
+	// After upload: 2 test-source images, keeps 1 → 1 pruned, and it must be the original own image.
 	if len(state.deletedIDs) != 1 {
 		t.Errorf("expected 1 deletion (own image only), got %d: %v", len(state.deletedIDs), state.deletedIDs)
 	}
@@ -185,7 +182,6 @@ func TestRunOnce_OnlyPrunesOwnImages(t *testing.T) {
 }
 
 func TestRunOnce_SourceFetchError(t *testing.T) {
-	// Source returns an error — RunOnce should propagate it without uploading or deleting.
 	srv, state := newGoframeTestServer(nil)
 	defer srv.Close()
 
@@ -204,7 +200,7 @@ func TestRunOnce_SourceFetchError(t *testing.T) {
 	}
 }
 
-func TestRunOnce_ExclusionGroup_EvictsPeers(t *testing.T) {
+func TestRunOnce_Group_EvictsPeers(t *testing.T) {
 	// On successful upload, all images from other group members should be deleted.
 	initialImages := []apiImageItem{
 		{ID: "peer-img-1", Source: "pusheen"},
@@ -217,8 +213,7 @@ func TestRunOnce_ExclusionGroup_EvictsPeers(t *testing.T) {
 	cfg := Config{
 		GoframeBaseURL: srv.URL,
 		SourceName:     "xkcd",
-		KeepCount:      1,
-		ExclusionGroup: "daily-wallpaper",
+		Group:          "daily-wallpaper",
 		GroupMembers:   []string{"xkcd", "pusheen", "oatmeal"},
 		Source:         &staticSource{name: "xkcd", data: minimalPNG()},
 	}
@@ -230,7 +225,7 @@ func TestRunOnce_ExclusionGroup_EvictsPeers(t *testing.T) {
 	if state.uploadedSource != "xkcd" {
 		t.Errorf("expected upload from xkcd, got %q", state.uploadedSource)
 	}
-	// peer-img-1 (pusheen) and peer-img-2 (oatmeal) must be evicted; own-img-1 pruned to keepCount=1.
+	// peer-img-1 (pusheen) and peer-img-2 (oatmeal) must be evicted; own-img-1 pruned (keep 1).
 	if len(state.deletedIDs) != 3 {
 		t.Errorf("expected 3 deletions (2 peers + 1 own excess), got %d: %v", len(state.deletedIDs), state.deletedIDs)
 	}
@@ -245,11 +240,11 @@ func TestRunOnce_ExclusionGroup_EvictsPeers(t *testing.T) {
 		t.Error("expected peer-img-2 (oatmeal) to be evicted")
 	}
 	if !deletedSet["own-img-1"] {
-		t.Error("expected own-img-1 to be pruned (exceeds keepCount=1)")
+		t.Error("expected own-img-1 to be pruned")
 	}
 }
 
-func TestRunOnce_ExclusionGroup_DoesNotEvictNonMembers(t *testing.T) {
+func TestRunOnce_Group_DoesNotEvictNonMembers(t *testing.T) {
 	// Images from sources outside the group must not be touched.
 	initialImages := []apiImageItem{
 		{ID: "peer-img-1", Source: "pusheen"},
@@ -261,8 +256,7 @@ func TestRunOnce_ExclusionGroup_DoesNotEvictNonMembers(t *testing.T) {
 	cfg := Config{
 		GoframeBaseURL: srv.URL,
 		SourceName:     "xkcd",
-		KeepCount:      1,
-		ExclusionGroup: "daily-wallpaper",
+		Group:          "daily-wallpaper",
 		GroupMembers:   []string{"xkcd", "pusheen"},
 		Source:         &staticSource{name: "xkcd", data: minimalPNG()},
 	}
@@ -283,8 +277,8 @@ func TestRunOnce_ExclusionGroup_DoesNotEvictNonMembers(t *testing.T) {
 	}
 }
 
-func TestRunOnce_NoExclusionGroup_DoesNotEvictPeers(t *testing.T) {
-	// Without an exclusion group, images from other sources are left alone.
+func TestRunOnce_NoGroup_DoesNotEvictPeers(t *testing.T) {
+	// Without a group, images from other sources are left alone.
 	initialImages := []apiImageItem{
 		{ID: "other-img", Source: "pusheen"},
 	}
@@ -303,25 +297,25 @@ func TestRunOnce_NoExclusionGroup_DoesNotEvictPeers(t *testing.T) {
 
 	for _, id := range state.deletedIDs {
 		if id == "other-img" {
-			t.Error("other-img must not be deleted when no exclusion group is set")
+			t.Error("other-img must not be deleted when no group is set")
 		}
 	}
 }
 
-func TestRunOnce_DrainsOwnImagesWhenUnmanagedCountExceedsThreshold(t *testing.T) {
-	// Unmanaged images present; drain should delete own image without uploading.
+func TestRunOnce_Yield_DeletesOwnAndSkipsUpload(t *testing.T) {
+	// External images present + yield → delete own images, don't upload.
 	initialImages := []apiImageItem{
-		{ID: "other-1", Source: ""},
+		{ID: "external-1", Source: "manual-upload"},
 		{ID: "own-1", Source: "test-source"},
 	}
 	srv, state := newGoframeTestServer(initialImages)
 	defer srv.Close()
 
 	cfg := Config{
-		GoframeBaseURL: srv.URL,
-		SourceName:     "test-source",
-		WhenUnmanaged:  WhenUnmanagedDrain,
-		Source:         &staticSource{name: "test-source", data: minimalPNG()},
+		GoframeBaseURL:   srv.URL,
+		SourceName:       "test-source",
+		OnExternalImages: OnExternalImagesYield,
+		Source:           &staticSource{name: "test-source", data: minimalPNG()},
 	}
 
 	if err := RunOnce(context.Background(), cfg); err != nil {
@@ -329,52 +323,27 @@ func TestRunOnce_DrainsOwnImagesWhenUnmanagedCountExceedsThreshold(t *testing.T)
 	}
 
 	if state.uploadedSource != "" {
-		t.Errorf("expected no upload on drain, got source %q", state.uploadedSource)
+		t.Errorf("expected no upload on yield, got source %q", state.uploadedSource)
 	}
 	if len(state.deletedIDs) != 1 || state.deletedIDs[0] != "own-1" {
-		t.Errorf("expected own-1 to be drained, got deletedIDs=%v", state.deletedIDs)
+		t.Errorf("expected own-1 to be deleted on yield, got deletedIDs=%v", state.deletedIDs)
 	}
 }
 
-func TestRunOnce_SkipsWhenUnmanagedCountExceedsThreshold(t *testing.T) {
-	// Unmanaged images present; skip should leave everything untouched.
+func TestRunOnce_Takeover_DeletesExternalImages(t *testing.T) {
+	// External images present + takeover → upload and delete all external images.
 	initialImages := []apiImageItem{
-		{ID: "other-1", Source: ""},
-		{ID: "own-1", Source: "test-source"},
+		{ID: "external-1", Source: "manual-upload"},
+		{ID: "external-2", Source: "unknown"},
 	}
 	srv, state := newGoframeTestServer(initialImages)
 	defer srv.Close()
 
 	cfg := Config{
-		GoframeBaseURL: srv.URL,
-		SourceName:     "test-source",
-		WhenUnmanaged:  WhenUnmanagedSkip,
-		Source:         &staticSource{name: "test-source", data: minimalPNG()},
-	}
-
-	if err := RunOnce(context.Background(), cfg); err != nil {
-		t.Fatalf("RunOnce error: %v", err)
-	}
-
-	if state.uploadedSource != "" {
-		t.Errorf("expected no upload on skip, got source %q", state.uploadedSource)
-	}
-	if len(state.deletedIDs) != 0 {
-		t.Errorf("expected no deletions on skip, got %v", state.deletedIDs)
-	}
-}
-
-func TestRunOnce_ActsWhenNoUnmanagedImages(t *testing.T) {
-	// No unmanaged images; skip/drain must not trigger.
-	srv, state := newGoframeTestServer(nil)
-	defer srv.Close()
-
-	cfg := Config{
-		GoframeBaseURL: srv.URL,
-		SourceName:     "test-source",
-		KeepCount:      1,
-		WhenUnmanaged:  WhenUnmanagedSkip,
-		Source:         &staticSource{name: "test-source", data: minimalPNG()},
+		GoframeBaseURL:   srv.URL,
+		SourceName:       "test-source",
+		OnExternalImages: OnExternalImagesTakeover,
+		Source:           &staticSource{name: "test-source", data: minimalPNG()},
 	}
 
 	if err := RunOnce(context.Background(), cfg); err != nil {
@@ -382,42 +351,56 @@ func TestRunOnce_ActsWhenNoUnmanagedImages(t *testing.T) {
 	}
 
 	if state.uploadedSource != "test-source" {
-		t.Errorf("expected upload when no unmanaged images, got %q", state.uploadedSource)
+		t.Errorf("expected upload on takeover, got %q", state.uploadedSource)
+	}
+	deletedSet := make(map[string]bool, len(state.deletedIDs))
+	for _, id := range state.deletedIDs {
+		deletedSet[id] = true
+	}
+	if !deletedSet["external-1"] {
+		t.Error("expected external-1 to be deleted on takeover")
+	}
+	if !deletedSet["external-2"] {
+		t.Error("expected external-2 to be deleted on takeover")
 	}
 }
 
-// --- Helper function tests ---
+func TestRunOnce_Yield_NoExternalImages_UploadsNormally(t *testing.T) {
+	// No external images; yield should not trigger — upload normally.
+	srv, state := newGoframeTestServer(nil)
+	defer srv.Close()
 
-func TestCountUnmanagedImages_ExcludesGroupMembers(t *testing.T) {
-	// Images from group members must not count as unmanaged.
-	images := []apiImageItem{
-		{ID: "1", Source: "xkcd"},
-		{ID: "2", Source: "pusheen"}, // group member
-		{ID: "3", Source: "manual"},  // truly unmanaged
-		{ID: "4", Source: ""},        // truly unmanaged
+	cfg := Config{
+		GoframeBaseURL:   srv.URL,
+		SourceName:       "test-source",
+		OnExternalImages: OnExternalImagesYield,
+		Source:           &staticSource{name: "test-source", data: minimalPNG()},
 	}
-	got := countUnmanagedImages(images, "xkcd", []string{"xkcd", "pusheen"})
-	if got != 2 {
-		t.Errorf("expected 2 unmanaged (manual + empty), got %d", got)
+
+	if err := RunOnce(context.Background(), cfg); err != nil {
+		t.Fatalf("RunOnce error: %v", err)
+	}
+
+	if state.uploadedSource != "test-source" {
+		t.Errorf("expected upload when no external images, got %q", state.uploadedSource)
 	}
 }
 
-func TestRunOnce_SkipDoesNotCountGroupMemberImages(t *testing.T) {
-	// A group member image must not trigger a skip even at threshold=1.
+func TestRunOnce_Yield_GroupMembersNotExternal(t *testing.T) {
+	// A group member image must not trigger yield.
 	initialImages := []apiImageItem{
-		{ID: "peer-img", Source: "pusheen"}, // group member, not unmanaged
+		{ID: "peer-img", Source: "pusheen"}, // group member, not external
 	}
 	srv, state := newGoframeTestServer(initialImages)
 	defer srv.Close()
 
 	cfg := Config{
-		GoframeBaseURL: srv.URL,
-		SourceName:     "xkcd",
-		KeepCount:      1,
-		WhenUnmanaged:  WhenUnmanagedSkip,
-		ExclusionGroup: "daily-wallpaper",
-		GroupMembers:   []string{"xkcd", "pusheen"},
-		Source:         &staticSource{name: "xkcd", data: minimalPNG()},
+		GoframeBaseURL:   srv.URL,
+		SourceName:       "xkcd",
+		Group:            "daily-wallpaper",
+		GroupMembers:     []string{"xkcd", "pusheen"},
+		OnExternalImages: OnExternalImagesYield,
+		Source:           &staticSource{name: "xkcd", data: minimalPNG()},
 	}
 
 	if err := RunOnce(context.Background(), cfg); err != nil {
@@ -425,7 +408,24 @@ func TestRunOnce_SkipDoesNotCountGroupMemberImages(t *testing.T) {
 	}
 
 	if state.uploadedSource != "xkcd" {
-		t.Errorf("expected upload despite peer image (group member should not count), got %q", state.uploadedSource)
+		t.Errorf("expected upload despite peer image (group member should not count as external), got %q", state.uploadedSource)
+	}
+}
+
+// --- Helper function tests ---
+
+func TestHasExternalImages(t *testing.T) {
+	images := []apiImageItem{
+		{ID: "1", Source: "xkcd"},
+		{ID: "2", Source: "pusheen"},
+		{ID: "3", Source: "manual"},
+		{ID: "4", Source: ""},
+	}
+	if !hasExternalImages(images, "xkcd", []string{"xkcd", "pusheen"}) {
+		t.Error("expected external images (manual + empty), got false")
+	}
+	if hasExternalImages(images[:2], "xkcd", []string{"xkcd", "pusheen"}) {
+		t.Error("expected no external images with only group members, got true")
 	}
 }
 

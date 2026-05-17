@@ -21,8 +21,7 @@ schedulers:
   - name: xkcd
     cron: "*/4 * * * *"
     source: xkcd
-    keepCount: 1
-    exclusionGroup: daily-wallpaper
+    group: daily-wallpaper
     image:
       repository: registry.localhost:5000/goframe-image-scheduler
       tag: latest
@@ -30,8 +29,7 @@ schedulers:
   - name: tumblr
     cron: "1-59/4 * * * *"
     source: tumblr
-    keepCount: 1
-    exclusionGroup: daily-wallpaper
+    group: daily-wallpaper
     tumblr:
       blogs:
         - nasa
@@ -43,8 +41,7 @@ schedulers:
   - name: metmuseum
     cron: "3-59/4 * * * *"
     source: metmuseum
-    keepCount: 1
-    exclusionGroup: daily-wallpaper
+    group: daily-wallpaper
     # metmuseum.departmentIDs: omitted — searches all departments
     image:
       repository: registry.localhost:5000/goframe-image-scheduler
@@ -54,8 +51,7 @@ schedulers:
   # - name: s3
   #   cron: "3-59/4 * * * *"
   #   source: s3
-  #   keepCount: 1
-  #   exclusionGroup: daily-wallpaper
+  #   group: daily-wallpaper
   #   s3:
   #     endpoint: "https://s3.us-east-1.amazonaws.com"  # or "http://rustfs:9000" for RustFS
   #     bucket: "my-images"
