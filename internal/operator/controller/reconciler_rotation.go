@@ -17,7 +17,8 @@ import (
 const rustfsRequeueOnNotReady = 15 * time.Second
 
 // reconcileRotation performs timezone-aware midnight rotation and writes the
-// resulting current image ID to rotation.json in RustFS, which the server also reads.
+// resulting ordered_ids list to rotation.json in RustFS, which the server also reads.
+// The current image is always ordered_ids[0].
 // It returns the duration until the next midnight (for RequeueAfter).
 func (r *GoFrameReconciler) reconcileRotation(ctx context.Context, gf *goframev1alpha1.GoFrame) (time.Duration, error) {
 	logger := log.FromContext(ctx)
@@ -87,7 +88,7 @@ func advanceRotation(ctx context.Context, rc *database.RotationStateClient, now 
 	lastRotated, err := rc.GetLastRotatedTime(ctx)
 	if err != nil {
 		// Key not yet set — first reconcile. Initialise and return.
-		return rc.SetRotationKeys(ctx, ids[0], now, ids)
+		return rc.SetRotationKeys(ctx, now, ids)
 	}
 
 	tz := gf.Spec.Timezone
@@ -114,7 +115,7 @@ func advanceRotation(ctx context.Context, rc *database.RotationStateClient, now 
 		ids = newOrder
 	}
 
-	return rc.SetRotationKeys(ctx, ids[0], now, ids)
+	return rc.SetRotationKeys(ctx, now, ids)
 }
 
 // durationUntilNextMidnight returns how long until 00:00 in the given location.

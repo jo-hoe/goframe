@@ -97,7 +97,7 @@ sequenceDiagram
 
     B->>I: GET /api/image.png
     I->>S: forward to server
-    S->>R: Read rotation.json (current_id)
+    S->>R: Read rotation.json (ordered_ids[0])
     S-->>B: 302 /images/{id}/processed.png
 
     B->>I: GET /images/{id}/processed.png
@@ -214,10 +214,10 @@ Each scheduler is configured with:
 
 The operator performs timezone-aware midnight rotation:
 
-1. Read `rotation.json` from RustFS (`ordered_ids`, `current_id`, `last_rotated`)
+1. Read `rotation.json` from RustFS (`ordered_ids`, `last_rotated`)
 2. Compare current day (in configured timezone) to `last_rotated` day
 3. If new day: rotate `ordered_ids` by number of elapsed days
-4. Write updated state back to `rotation.json`
+4. Write updated `ordered_ids` and `last_rotated` back to `rotation.json`
 5. Requeue reconciliation for next midnight
 
-The server reads `rotation.json` on each request to determine which image to display, ensuring operator and server stay in sync without direct communication.
+The server reads `rotation.json` on each request and serves `ordered_ids[0]` as the current image, ensuring operator and server stay in sync without direct communication.

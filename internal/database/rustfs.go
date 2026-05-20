@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	// modernc pure-Go SQLite driver; blank import registers the "sqlite" driver.
@@ -84,8 +85,8 @@ const rotationStateKey = "rotation.json"
 
 // rotationState is the JSON structure stored as rotation.json in RustFS.
 // It is the single source of truth for rotation shared between the server and the operator.
+// The current image is always OrderedIDs[0]; there is no separate current_id pointer.
 type rotationState struct {
-	CurrentID   string    `json:"current_id"`
 	LastRotated time.Time `json:"last_rotated"`
 	OrderedIDs  []string  `json:"ordered_ids"`
 }
@@ -230,9 +231,6 @@ func (r *RustFSDatabase) CreateImage(ctx context.Context, original []byte, proce
 		return id, fmt.Errorf("rustfs: reading rotation state after create: %w", err)
 	}
 	rs.OrderedIDs = insertIDAfter(rs.OrderedIDs, id, afterID)
-	if rs.CurrentID == "" && len(rs.OrderedIDs) > 0 {
-		rs.CurrentID = rs.OrderedIDs[0]
-	}
 	if err := r.putRotationState(ctx, rs); err != nil {
 		return id, fmt.Errorf("rustfs: updating rotation state after create: %w", err)
 	}
@@ -272,15 +270,7 @@ func (r *RustFSDatabase) GetImages(ctx context.Context, fields ...string) ([]*Im
 
 	wantAll := len(fields) == 0
 	want := func(f string) bool {
-		if wantAll {
-			return true
-		}
-		for _, v := range fields {
-			if v == f {
-				return true
-			}
-		}
-		return false
+		return wantAll || slices.Contains(fields, f)
 	}
 
 	var images []*Image
@@ -353,13 +343,6 @@ func (r *RustFSDatabase) DeleteImage(ctx context.Context, id string) error {
 		return fmt.Errorf("rustfs: reading rotation state after delete: %w", err)
 	}
 	rs.OrderedIDs = removeID(rs.OrderedIDs, id)
-	if rs.CurrentID == id {
-		if len(rs.OrderedIDs) > 0 {
-			rs.CurrentID = rs.OrderedIDs[0]
-		} else {
-			rs.CurrentID = ""
-		}
-	}
 	if err := r.putRotationState(ctx, rs); err != nil {
 		return fmt.Errorf("rustfs: updating rotation state after delete: %w", err)
 	}
@@ -433,14 +416,11 @@ func (r *RustFSDatabase) UpdateRanks(ctx context.Context, order []string) error 
 }
 
 // GetCurrentImageID returns the ID of the image currently selected for display.
-// Falls back to the first image in rotation.json's ordered list if current_id is unset.
+// The current image is always the first entry in ordered_ids.
 func (r *RustFSDatabase) GetCurrentImageID(ctx context.Context) (string, error) {
 	rs, err := r.getRotationState(ctx)
 	if err != nil {
 		return "", err
-	}
-	if rs.CurrentID != "" {
-		return rs.CurrentID, nil
 	}
 	if len(rs.OrderedIDs) > 0 {
 		return rs.OrderedIDs[0], nil
@@ -472,14 +452,13 @@ func (r *RustFSDatabase) GetLastRotatedTime(ctx context.Context) (time.Time, err
 	return rs.LastRotated, nil
 }
 
-// SetRotationKeys atomically writes the current image ID and last-rotated timestamp
-// to rotation.json in RustFS.
-func (r *RustFSDatabase) SetRotationKeys(ctx context.Context, currentID string, rotatedAt time.Time) error {
+// SetRotationKeys atomically writes the last-rotated timestamp
+// to rotation.json in RustFS. The current image is always ordered_ids[0].
+func (r *RustFSDatabase) SetRotationKeys(ctx context.Context, rotatedAt time.Time) error {
 	rs, err := r.getRotationState(ctx)
 	if err != nil {
 		return err
 	}
-	rs.CurrentID = currentID
 	rs.LastRotated = rotatedAt.UTC()
 	return r.putRotationState(ctx, rs)
 }
@@ -549,11 +528,10 @@ func (c *RotationStateClient) GetLastRotatedTime(ctx context.Context) (time.Time
 	return rs.LastRotated, nil
 }
 
-// SetRotationKeys writes current_id, last_rotated, and the new ordered ID list
-// to rotation.json in a single PUT.
-func (c *RotationStateClient) SetRotationKeys(ctx context.Context, currentID string, rotatedAt time.Time, orderedIDs []string) error {
+// SetRotationKeys writes last_rotated and the new ordered ID list
+// to rotation.json in a single PUT. The current image is always ordered_ids[0].
+func (c *RotationStateClient) SetRotationKeys(ctx context.Context, rotatedAt time.Time, orderedIDs []string) error {
 	rs := rotationState{
-		CurrentID:   currentID,
 		LastRotated: rotatedAt.UTC(),
 		OrderedIDs:  orderedIDs,
 	}

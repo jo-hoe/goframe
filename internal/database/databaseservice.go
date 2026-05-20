@@ -34,8 +34,8 @@ type DatabaseService interface {
 	// GetLastRotatedTime returns the timestamp of the last rotation advance.
 	GetLastRotatedTime(ctx context.Context) (time.Time, error)
 
-	// SetRotationKeys atomically writes the current image ID and last-rotated timestamp.
-	SetRotationKeys(ctx context.Context, currentID string, rotatedAt time.Time) error
+	// SetRotationKeys atomically writes the last-rotated timestamp. The current image is always ordered_ids[0].
+	SetRotationKeys(ctx context.Context, rotatedAt time.Time) error
 }
 
 // NewDatabaseWithNamespace constructs a DatabaseService from the given config.
