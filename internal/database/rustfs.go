@@ -93,9 +93,10 @@ type rotationState struct {
 
 // RustFSDatabase implements DatabaseService using RustFS (S3-compatible) for
 // image blobs and rotation state, and SQLite for ordered metadata.
+// It embeds RotationStateClient to share the rotation.json read/write logic.
 type RustFSDatabase struct {
+	*RotationStateClient
 	db           *sql.DB
-	s3           *s3Client
 	bucket       string
 	imageBaseURL string
 }
@@ -136,7 +137,12 @@ func NewRustFSDatabase(endpoint, bucket, accessKey, secretKey, region, dbPath, i
 		slog.Warn("rustfs: could not set public read policy (anonymous image access may not work via ingress)", "error", err)
 	}
 
-	return &RustFSDatabase{db: sqlDB, s3: s3, bucket: bucket, imageBaseURL: imageBaseURL}, nil
+	return &RustFSDatabase{
+		RotationStateClient: &RotationStateClient{s3: s3},
+		db:                  sqlDB,
+		bucket:              bucket,
+		imageBaseURL:        imageBaseURL,
+	}, nil
 }
 
 // Close shuts down the SQLite connection.
@@ -150,33 +156,9 @@ func imageOriginalKey(id string) string { return "images/" + id + "/original.png
 // imageProcessedKey returns the S3 object key for the processed image.
 func imageProcessedKey(id string) string { return "images/" + id + "/processed.png" }
 
-// getRotationState reads rotation.json from RustFS.
-// Returns an empty state (not an error) when the object does not yet exist.
-func (r *RustFSDatabase) getRotationState(ctx context.Context) (rotationState, error) {
-	data, err := r.s3.GetObject(ctx, rotationStateKey)
-	if err != nil {
-		return rotationState{}, fmt.Errorf("s3: reading rotation state: %w", err)
-	}
-	if data == nil {
-		return rotationState{}, nil
-	}
-	var rs rotationState
-	if err := json.Unmarshal(data, &rs); err != nil {
-		return rotationState{}, fmt.Errorf("s3: parsing rotation state: %w", err)
-	}
-	return rs, nil
-}
-
-// putRotationState writes the rotation state to rotation.json in RustFS.
-func (r *RustFSDatabase) putRotationState(ctx context.Context, rs rotationState) error {
-	data, err := json.Marshal(rs)
-	if err != nil {
-		return fmt.Errorf("s3: marshalling rotation state: %w", err)
-	}
-	return r.s3.PutObject(ctx, rotationStateKey, "application/json", data)
-}
-
 // CreateImage stores original and processed blobs in RustFS and records
+// metadata in SQLite. When afterID is empty the image is appended; when set
+// it is inserted immediately after that image using midpoint scoring. stores original and processed blobs in RustFS and records
 // metadata in SQLite. When afterID is empty the image is appended; when set
 // it is inserted immediately after that image using midpoint scoring.
 func (r *RustFSDatabase) CreateImage(ctx context.Context, original []byte, processed []byte, createdAt time.Time, source string, afterID string) (string, error) {
