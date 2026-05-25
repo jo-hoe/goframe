@@ -42,7 +42,12 @@ func (r *GoFrameReconciler) reconcileServer(ctx context.Context, gf *goframev1al
 	if err := r.reconcileDataPVC(ctx, gf); err != nil {
 		return err
 	}
-	if err := r.reconcileServerDeployment(ctx, gf, configData); err != nil {
+	accessKey, secretKey, err := r.readRustFSCredentials(ctx, gf)
+	if err != nil {
+		return err
+	}
+	credHash := fmt.Sprintf("%x", sha256.Sum256([]byte(accessKey+":"+secretKey)))
+	if err := r.reconcileServerDeployment(ctx, gf, configData, credHash); err != nil {
 		return err
 	}
 	return r.reconcileServerService(ctx, gf)
@@ -168,7 +173,7 @@ func (r *GoFrameReconciler) reconcileServerConfigMap(ctx context.Context, gf *go
 	return configData, nil
 }
 
-func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *goframev1alpha1.GoFrame, configData string) error {
+func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *goframev1alpha1.GoFrame, configData string, credHash string) error {
 	replicas := int32(1)
 	img := serverImageRef(gf)
 	port := gf.Spec.Server.Port
@@ -196,7 +201,8 @@ func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *g
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: serverLabels(gf),
 					Annotations: map[string]string{
-						"checksum/config": configHash,
+						"checksum/config":      configHash,
+						"checksum/credentials": credHash,
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -273,9 +279,11 @@ func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *g
 	existingContainer := &existing.Spec.Template.Spec.Containers[0]
 	desiredContainer := &desired.Spec.Template.Spec.Containers[0]
 	existingHash := existing.Spec.Template.Annotations["checksum/config"]
+	existingCredHash := existing.Spec.Template.Annotations["checksum/credentials"]
 	needsUpdate := existingContainer.Image != desiredContainer.Image ||
 		existingContainer.ImagePullPolicy != desiredContainer.ImagePullPolicy ||
 		existingHash != configHash ||
+		existingCredHash != credHash ||
 		!equality.Semantic.DeepEqual(existingContainer.Env, desiredContainer.Env) ||
 		!equality.Semantic.DeepEqual(existing.Spec.Template.Spec.Containers, desired.Spec.Template.Spec.Containers)
 	if needsUpdate {
@@ -284,6 +292,7 @@ func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *g
 			existing.Spec.Template.Annotations = map[string]string{}
 		}
 		existing.Spec.Template.Annotations["checksum/config"] = configHash
+		existing.Spec.Template.Annotations["checksum/credentials"] = credHash
 		return r.Update(ctx, existing)
 	}
 	return nil

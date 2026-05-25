@@ -18,6 +18,12 @@ spec:
       labels:
         app.kubernetes.io/name: rustfs
         app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        {{- $secretName := ternary .Values.rustfs.secretRef (printf "%s-rustfs-credentials" .Release.Name) (ne .Values.rustfs.secretRef "") }}
+        {{- $secret := lookup "v1" "Secret" .Release.Namespace $secretName }}
+        {{- if $secret }}
+        checksum/credentials: {{ printf "%s:%s" (index $secret.data "accessKey") (index $secret.data "secretKey") | sha256sum }}
+        {{- end }}
     spec:
       containers:
         - name: rustfs

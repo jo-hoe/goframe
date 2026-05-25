@@ -10,9 +10,12 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	goframev1alpha1 "github.com/jo-hoe/goframe/internal/operator/api/v1alpha1"
 )
@@ -24,6 +27,7 @@ import (
 // +kubebuilder:rbac:groups=goframe.io,resources=goframes/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
 type GoFrameReconciler struct {
 	client.Client
@@ -33,12 +37,30 @@ type GoFrameReconciler struct {
 // SetupWithManager registers the reconciler with the controller-runtime manager
 // and declares ownership over the resources it manages.
 func (r *GoFrameReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// Enqueue the GoFrame that references a Secret when that Secret changes.
+	secretToGoFrame := handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+		gfList := &goframev1alpha1.GoFrameList{}
+		if err := r.List(ctx, gfList, client.InNamespace(obj.GetNamespace())); err != nil {
+			return nil
+		}
+		var reqs []reconcile.Request
+		for _, gf := range gfList.Items {
+			if gf.Spec.RustFS.SecretRef == obj.GetName() {
+				reqs = append(reqs, reconcile.Request{
+					NamespacedName: types.NamespacedName{Name: gf.Name, Namespace: gf.Namespace},
+				})
+			}
+		}
+		return reqs
+	})
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&goframev1alpha1.GoFrame{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&batchv1.CronJob{}).
+		Watches(&corev1.Secret{}, secretToGoFrame).
 		Complete(r)
 }
 
