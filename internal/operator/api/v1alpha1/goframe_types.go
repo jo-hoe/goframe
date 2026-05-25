@@ -221,6 +221,7 @@ type RustFSSpec struct {
 
 	// LitestreamImage selects the Litestream sidecar container image used for
 	// SQLite WAL replication to RustFS.
+	// +kubebuilder:default={repository: "litestream/litestream", tag: "0.3.13"}
 	// +optional
 	LitestreamImage ImageSpec `json:"litestreamImage,omitempty"`
 }

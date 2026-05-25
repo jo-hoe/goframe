@@ -374,15 +374,7 @@ func imagePullPolicy(policy string) corev1.PullPolicy {
 
 func litestreamImageRef(gf *goframev1alpha1.GoFrame) string {
 	img := gf.Spec.RustFS.LitestreamImage
-	repo := img.Repository
-	if repo == "" {
-		repo = "litestream/litestream"
-	}
-	tag := img.Tag
-	if tag == "" {
-		tag = "0.3.13"
-	}
-	return repo + ":" + tag
+	return img.Repository + ":" + img.Tag
 }
 
 // litestreamEnvVars returns env vars for Litestream S3 credentials.

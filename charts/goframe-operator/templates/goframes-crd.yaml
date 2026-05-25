@@ -88,6 +88,9 @@ spec:
                       Defaults to "/images" which is served by the RustFS ingress.
                     type: string
                   litestreamImage:
+                    default:
+                      repository: litestream/litestream
+                      tag: 0.3.13
                     description: |-
                       LitestreamImage selects the Litestream sidecar container image used for
                       SQLite WAL replication to RustFS.
