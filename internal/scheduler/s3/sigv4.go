@@ -38,7 +38,13 @@ func signRequest(req *http.Request, creds credentials, now time.Time) {
 		"x-amz-content-sha256:" + bodyHash + "\n" +
 		"x-amz-date:" + datetime + "\n"
 
-	canonicalURI := req.URL.EscapedPath()
+	// Use RawPath when set so that already-encoded sequences (e.g. %2B for '+')
+	// are not double-encoded by EscapedPath(), which would produce a different
+	// canonical URI than the one AWS validates the signature against.
+	canonicalURI := req.URL.RawPath
+	if canonicalURI == "" {
+		canonicalURI = req.URL.EscapedPath()
+	}
 	if canonicalURI == "" {
 		canonicalURI = "/"
 	}
