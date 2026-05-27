@@ -1,18 +1,26 @@
 image:
+  # -- goframe-operator container image repository
   repository: ghcr.io/jo-hoe/goframe-operator
+  # -- goframe-operator image tag. Defaults to the chart appVersion when empty.
   tag: ""
+  # -- Image pull policy for the goframe-operator container
   pullPolicy: IfNotPresent
 
 leaderElection:
+  # -- Enable leader election for the operator (required when replicaCount > 1)
   enabled: true
 
 resources:
   requests:
+    # -- CPU request for the operator pod
     cpu: 50m
+    # -- Memory request for the operator pod
     memory: 64Mi
   limits:
+    # -- CPU limit for the operator pod
     cpu: 200m
+    # -- Memory limit for the operator pod
     memory: 128Mi
 
-# Number of operator replicas (>1 requires leaderElection.enabled: true)
+# -- Number of operator replicas. Values greater than 1 require leaderElection.enabled: true.
 replicaCount: 1

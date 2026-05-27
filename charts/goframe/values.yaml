@@ -1,51 +1,75 @@
-# Timezone for image rotation midnight detection (IANA timezone name)
+# -- Timezone for image rotation midnight detection (IANA timezone name)
 timezone: "UTC"
 
 # RustFS connection configuration.
 # Leave address empty to use the bundled RustFS subchart.
 # Set address to connect to an external RustFS or MinIO instance instead.
 rustfs:
-  address: ""          # e.g. "http://my-rustfs:9000"; empty = use bundled subchart
-  bucket: ""           # defaults to the Helm release name
-  secretRef: ""        # K8s Secret with keys accessKey and secretKey; auto-created when empty
-  imageBaseURL: ""     # browser-facing URL prefix for images; defaults to "/images"
+  # -- Base URL of an external RustFS or MinIO instance (e.g. "http://my-rustfs:9000"). Empty = use bundled subchart.
+  address: ""
+  # -- S3 bucket name. Defaults to the Helm release name when empty.
+  bucket: ""
+  # -- Name of a Kubernetes Secret with keys `accessKey` and `secretKey`. Auto-created when empty.
+  secretRef: ""
+  # -- Browser-facing URL prefix for served images. Defaults to "/images" when empty.
+  imageBaseURL: ""
   image:
+    # -- RustFS container image repository
     repository: rustfs/rustfs
+    # -- RustFS container image tag
     tag: "latest"
+    # -- Image pull policy for the RustFS container
     pullPolicy: IfNotPresent
   persistence:
+    # -- Enable persistent storage for RustFS
     enabled: true
-    size: 1Gi          # scale with image_count × avg_size_MB × 1.5
-    storageClass: ""   # empty = cluster default
+    # -- Persistent volume size. Scale with image_count × avg_size_MB × 1.5.
+    size: 1Gi
+    # -- StorageClass for the persistent volume. Empty = cluster default.
+    storageClass: ""
   credentials:
-    accessKey: ""      # auto-generated when empty
-    secretKey: ""      # auto-generated when empty
+    # -- RustFS access key. Auto-generated when empty.
+    accessKey: ""
+    # -- RustFS secret key. Auto-generated when empty.
+    secretKey: ""
   ingress:
-    enabled: true      # expose RustFS images via K8s Ingress for direct browser access
-    className: ""      # ingressClassName; empty = cluster default
-    annotations: {}    # e.g. nginx.ingress.kubernetes.io/rewrite-target: /$1
+    # -- Expose RustFS images via Kubernetes Ingress for direct browser access
+    enabled: true
+    # -- IngressClass name for RustFS ingress. Empty = cluster default.
+    className: ""
+    # -- Annotations for the RustFS Ingress resource
+    annotations: {}
 
-# Litestream sidecar image for SQLite WAL replication to RustFS.
+# -- Litestream sidecar configuration for SQLite WAL replication to RustFS
 litestream:
   image:
+    # -- Litestream container image repository
     repository: litestream/litestream
+    # -- Litestream container image tag
     tag: "0.3.13"
+    # -- Image pull policy for the Litestream container
     pullPolicy: IfNotPresent
 
 server:
   image:
+    # -- goframe server container image repository
     repository: ghcr.io/jo-hoe/goframe
+    # -- goframe server image tag. Defaults to the chart appVersion when empty.
     tag: ""
+    # -- Image pull policy for the goframe server container
     pullPolicy: IfNotPresent
+  # -- Port the goframe server listens on
   port: 8080
+  # -- Width in pixels for generated thumbnails
   thumbnailWidth: 512
+  # -- Log verbosity level (debug, info, warn, error)
   logLevel: "info"
+  # -- Long-side pixel count used when converting SVGs to raster fallbacks
   svgFallbackLongSidePixelCount: 4096
-  # serviceType controls how the server Service is exposed.
-  # Valid values: ClusterIP, NodePort, LoadBalancer
+  # -- How the server Service is exposed. Valid values: ClusterIP, NodePort, LoadBalancer.
   serviceType: "ClusterIP"
 
-# Image processing pipeline applied to every ingested image.
+# -- Image processing pipeline applied to every ingested image.
 # Supported commands: OrientationCommand, ScaleCommand, PixelScaleCommand,
 #                     CropCommand, PngConverterCommand, DitherCommand
 # Examples (uncomment to use):
@@ -65,15 +89,18 @@ server:
 #         - [[255, 255, 255],[232, 232, 232]]
 commands: []
 
-# Default image used for scheduler CronJobs when no per-scheduler image is specified.
+# -- Default image used for scheduler CronJobs when no per-scheduler image is specified
 schedulerImage:
+  # -- Scheduler container image repository
   repository: ghcr.io/jo-hoe/goframe-image-scheduler
+  # -- Scheduler image tag. Defaults to the chart appVersion when empty.
   tag: ""
+  # -- Image pull policy for the scheduler container
   pullPolicy: IfNotPresent
 
-# CronJob-based image schedulers (one CronJob per entry).
-# Each entry requires: name, cron, source
-# Supported sources: xkcd, oatmeal, metmuseum, tumblr, s3
+# -- CronJob-based image schedulers (one CronJob per entry).
+# Each entry requires: name, cron, source.
+# Supported sources: xkcd, oatmeal, metmuseum, tumblr, s3.
 #
 # group: optional. Schedulers sharing the same group evict each other's images on
 # a successful upload, so only one group member's image is displayed at a time. Use this to
@@ -138,7 +165,9 @@ schedulerImage:
 #     s3:
 #       endpoint: "https://s3.us-east-1.amazonaws.com"  # or "http://rustfs:9000" for RustFS
 #       bucket: "my-images"
-#       prefix: "wallpapers/"   # optional; omit to use all objects in the bucket
+#       prefix: "wallpapers/"   # optional; omit to use all objects in the bucket.
+#                                # listing is fully recursive — sub-sub-folders are included
+#                                # automatically (no S3 delimiter is used).
 #       region: "us-east-1"     # any non-empty value for RustFS
 #       # secretRef names a Kubernetes Secret with keys "accessKey" and "secretKey".
 #       # Omit for anonymous access to public buckets.
@@ -161,11 +190,16 @@ schedulerImage:
 schedulers: []
 
 ingress:
+  # -- Enable Kubernetes Ingress for the goframe server
   enabled: true
+  # -- IngressClass name. Empty = cluster default.
   className: ""
+  # -- Annotations for the goframe Ingress resource
   annotations: {}
+  # -- Ingress host rules
   hosts:
     - paths:
         - path: /
           pathType: Prefix
+  # -- TLS configuration for the goframe Ingress
   tls: []

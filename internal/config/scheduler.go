@@ -60,7 +60,10 @@ type S3FileConfig struct {
 	Endpoint string `yaml:"endpoint"`
 	// Bucket is the name of the S3 bucket to fetch images from.
 	Bucket string `yaml:"bucket"`
-	// Prefix is an optional key prefix to filter objects (e.g. "photos/").
+	// Prefix is an optional key prefix to filter objects (e.g. "photos/" or "photos/nature/").
+	// Listing is fully recursive: all objects under the prefix are returned regardless of
+	// nesting depth. This is because no S3 delimiter is used, so sub-sub-folders are included
+	// automatically. A random image is then selected from the full flat list.
 	Prefix string `yaml:"prefix"`
 	// Region is the AWS region (e.g. "us-east-1"). Required for AWS S3; for RustFS use any non-empty value.
 	Region string `yaml:"region"`
