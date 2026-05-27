@@ -55,7 +55,49 @@ func TestFetch_KeyWithPlus(t *testing.T) {
 			data, _ := xml.Marshal(result)
 			w.Header().Set("Content-Type", "application/xml")
 			_, _ = w.Write(data)
-		case r.URL.RawPath == "/mybucket/19%2Bmadness%2Bin%2Bthe%2Bstreets.jpg":
+		case r.URL.RawPath == "/mybucket/19%2Bmadness%2Bin%2Bthe%2Bstreets.jpg" ||
+			r.URL.Path == "/mybucket/19+madness+in+the+streets.jpg":
+			w.Header().Set("Content-Type", "image/jpeg")
+			_, _ = w.Write(imageBytes)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	source := newTestSource(srv, "mybucket", "")
+	data, err := source.Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("Fetch error: %v", err)
+	}
+	if string(data) != string(imageBytes) {
+		t.Errorf("expected %q, got %q", imageBytes, data)
+	}
+}
+
+// TestFetch_SubfolderWithPlus is the regression test for the exact production failure:
+// keys with a subfolder prefix AND '+' in the filename were failing with 403 because
+// url.PathEscape encodes '/' as %2F, making AWS treat the whole thing as one path
+// segment instead of a real subfolder.
+func TestFetch_SubfolderWithPlus(t *testing.T) {
+	imageBytes := []byte("subfolder-plus-image-data")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Query().Get("list-type") == "2":
+			result := listResult{}
+			result.Contents = []struct {
+				Key string `xml:"Key"`
+			}{{Key: "dinosaurs-attack/34+animal+wars.jpg"}}
+			data, _ := xml.Marshal(result)
+			w.Header().Set("Content-Type", "application/xml")
+			_, _ = w.Write(data)
+		case r.URL.Path == "/mybucket/dinosaurs-attack/34+animal+wars.jpg":
+			// slash must be a real '/', plus signs must be encoded as %2B
+			if r.URL.RawPath != "" && r.URL.RawPath != "/mybucket/dinosaurs-attack/34%2Banimal%2Bwars.jpg" {
+				http.Error(w, "wrong encoding: "+r.URL.RawPath, http.StatusForbidden)
+				return
+			}
 			w.Header().Set("Content-Type", "image/jpeg")
 			_, _ = w.Write(imageBytes)
 		default:

@@ -12,11 +12,11 @@ var testCreds = credentials{accessKey: "AKIATEST", secretKey: "testsecret", regi
 var testTime = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
 // TestSignRequest_PlusInKey is the regression test for the double-encoding bug:
-// keys containing '+' were encoded as %2B in the request URL, but EscapedPath()
-// would then re-encode that to %252B in the canonical URI, causing a signature
-// mismatch (403) against AWS which expects single-encoded %2B.
+// keys containing '+' must be encoded as %2B in both the request URL and the
+// canonical URI used for signing. Subfolder slashes must remain as literal '/'.
 func TestSignRequest_PlusInKey(t *testing.T) {
-	rawURL := "https://s3.eu-central-1.amazonaws.com/goframe/dinosaurs-attack%2F31%2Bour%2Bforces%2B-%2Bflattened.jpg"
+	// Correct URL: slash preserved as '/', '+' encoded as %2B per segment
+	rawURL := "https://s3.eu-central-1.amazonaws.com/goframe/dinosaurs-attack/31%2Bour%2Bforces%2B-%2Bflattened.jpg"
 	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
 	if err != nil {
 		t.Fatalf("building request: %v", err)
@@ -28,7 +28,7 @@ func TestSignRequest_PlusInKey(t *testing.T) {
 	if auth == "" {
 		t.Fatal("Authorization header not set")
 	}
-	expectedSig := signatureForURI("/goframe/dinosaurs-attack%2F31%2Bour%2Bforces%2B-%2Bflattened.jpg", testCreds, testTime)
+	expectedSig := signatureForURI("/goframe/dinosaurs-attack/31%2Bour%2Bforces%2B-%2Bflattened.jpg", testCreds, testTime)
 	if !strings.Contains(auth, "Signature="+expectedSig) {
 		t.Errorf("Authorization header has wrong signature.\ngot:  %s\nwant Signature=%s", auth, expectedSig)
 	}
