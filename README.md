@@ -11,7 +11,7 @@ The service provides a web UI to upload and manage images, applies a configurabl
 
 ## Architecture
 
-Images are stored in RustFS (S3-compatible object storage). Metadata is kept in SQLite, replicated to RustFS via Litestream. The server returns 302 redirects to RustFS URLs for image delivery.
+Images are stored in RustFS (S3-compatible object storage). Metadata and rotation state are stored alongside blobs in RustFS as `rotation.json` — no local database or PVC required. The server is stateless. The server returns 302 redirects to RustFS URLs for image delivery.
 
 A Kubernetes operator manages:
 - RustFS (StatefulSet + Service + Secret)
