@@ -18,10 +18,6 @@ Helm chart for the goframe image processing web service
 | ingress.enabled | bool | `true` | Enable Kubernetes Ingress for the goframe server |
 | ingress.hosts | list | `[{"paths":[{"path":"/","pathType":"Prefix"}]}]` | Ingress host rules |
 | ingress.tls | list | `[]` | TLS configuration for the goframe Ingress |
-| litestream | object | `{"image":{"pullPolicy":"IfNotPresent","repository":"litestream/litestream","tag":"0.3.13"}}` | Litestream sidecar configuration for SQLite WAL replication to RustFS |
-| litestream.image.pullPolicy | string | `"IfNotPresent"` | Image pull policy for the Litestream container |
-| litestream.image.repository | string | `"litestream/litestream"` | Litestream container image repository |
-| litestream.image.tag | string | `"0.3.13"` | Litestream container image tag |
 | rustfs.address | string | `""` | Base URL of an external RustFS or MinIO instance (e.g. "http://my-rustfs:9000"). Empty = use bundled subchart. |
 | rustfs.bucket | string | `""` | S3 bucket name. Defaults to the Helm release name when empty. |
 | rustfs.credentials.accessKey | string | `""` | RustFS access key. Auto-generated when empty. |

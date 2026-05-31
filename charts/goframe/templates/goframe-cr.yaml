@@ -23,10 +23,6 @@ spec:
     {{- if .Values.rustfs.imageBaseURL }}
     imageBaseURL: {{ .Values.rustfs.imageBaseURL | quote }}
     {{- end }}
-    litestreamImage:
-      repository: {{ .Values.litestream.image.repository | quote }}
-      tag: {{ .Values.litestream.image.tag | quote }}
-      pullPolicy: {{ .Values.litestream.image.pullPolicy | quote }}
 
   server:
     image:

@@ -40,16 +40,6 @@ rustfs:
     # -- Annotations for the RustFS Ingress resource
     annotations: {}
 
-# -- Litestream sidecar configuration for SQLite WAL replication to RustFS
-litestream:
-  image:
-    # -- Litestream container image repository
-    repository: litestream/litestream
-    # -- Litestream container image tag
-    tag: "0.3.13"
-    # -- Image pull policy for the Litestream container
-    pullPolicy: IfNotPresent
-
 server:
   image:
     # -- goframe server container image repository

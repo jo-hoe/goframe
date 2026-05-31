@@ -2,7 +2,7 @@
 
 ## Overview
 
-GoFrame is a Kubernetes-native image rotation system. A custom operator manages the lifecycle of all components: a web server, S3-compatible storage (RustFS), SQLite with WAL replication (Litestream), and CronJob-based image schedulers.
+GoFrame is a Kubernetes-native image rotation system. A custom operator manages the lifecycle of all components: a stateless web server, S3-compatible storage (RustFS), and CronJob-based image schedulers.
 
 ```mermaid
 graph TD
@@ -13,7 +13,6 @@ graph TD
 
     subgraph "Data Plane"
         SRV[GoFrame Server]
-        LS[Litestream Sidecar]
         RUSTFS[RustFS StatefulSet]
     end
 
@@ -34,9 +33,7 @@ graph TD
     OP -->|reconciles| CJ1
     OP -->|reconciles| CJ2
 
-    SRV -->|stores blobs| RUSTFS
-    SRV -->|reads/writes SQLite| SQLite[(SQLite /data/goframe.db)]
-    LS -->|replicates WAL| RUSTFS
+    SRV -->|stores blobs + metadata| RUSTFS
 
     CJ1 -->|POST /api/image| SRV
     CJ2 -->|POST /api/image| SRV
@@ -53,9 +50,8 @@ graph TD
 | Component | Kind | Port | Purpose |
 |-----------|------|------|---------|
 | GoFrame Operator | Deployment | 8082/8083 | Reconciles GoFrame CRs |
-| GoFrame Server | Deployment (2 containers) | 8080 | Web UI, API, image processing |
-| Litestream | Sidecar in Server Pod | - | SQLite WAL replication to RustFS |
-| RustFS | StatefulSet | 9000 | S3-compatible blob storage |
+| GoFrame Server | Deployment | 8080 | Web UI, API, image processing |
+| RustFS | StatefulSet | 9000 | S3-compatible blob + metadata storage |
 | Image Schedulers | CronJob (one per source) | - | Fetch images from external sources |
 | Server Ingress | Ingress | 80/443 | Routes UI/API traffic |
 | RustFS Ingress | Ingress + Middleware | 80/443 | Direct browser access to images |
@@ -70,17 +66,14 @@ sequenceDiagram
     participant I as Ingress
     participant S as GoFrame Server
     participant R as RustFS
-    participant L as Litestream
 
     B->>I: POST /api/image (multipart)
     I->>S: forward request
     S->>S: Process image pipeline<br/>(rotate, scale, crop, dither)
     S->>R: PUT images/{id}/original.png
     S->>R: PUT images/{id}/processed.png
-    S->>S: INSERT INTO SQLite<br/>(id, rank, source, created_at)
-    S->>R: PUT rotation.json<br/>(update ordered_ids)
+    S->>R: PUT rotation.json<br/>(update ordered_ids + images map)
     S-->>B: 200 {"id": "..."}
-    L->>R: Replicate SQLite WAL<br/>(async, continuous)
 ```
 
 ---
@@ -140,9 +133,7 @@ graph TD
     R --> US[updateStatus]
 
     RS --> CM1[ConfigMap: server config]
-    RS --> CM2[ConfigMap: litestream config]
-    RS --> PVC[PVC: server-data]
-    RS --> DEP[Deployment: server + litestream]
+    RS --> DEP[Deployment: server]
     RS --> SVC[Service: server]
     RS --> RUSTFS_SS[StatefulSet: rustfs]
     RS --> RUSTFS_SVC[Service: rustfs]
@@ -160,19 +151,26 @@ graph TD
 
 ---
 
-## Litestream Replication
+## Storage: rotation.json
 
-```mermaid
-graph LR
-    subgraph "Server Pod (shared PVC)"
-        SERVER[GoFrame Server] -->|writes| DB[(SQLite<br/>/data/goframe.db)]
-        DB -->|WAL changes| LITESTREAM[Litestream Sidecar]
-    end
+All state is stored in RustFS as `rotation.json`. The server is stateless — no PVC or local database is required.
 
-    LITESTREAM -->|"s3://{bucket}/litestream/"| RUSTFS[RustFS]
+```json
+{
+  "last_rotated": "2026-05-31T00:00:00Z",
+  "ordered_ids": ["id-b", "id-a"],
+  "images": {
+    "id-a": { "created_at": "2026-05-30T10:00:00Z", "source": "xkcd" },
+    "id-b": { "created_at": "2026-05-31T09:00:00Z", "source": "" }
+  }
+}
 ```
 
-SQLite runs in WAL mode (`PRAGMA journal_mode=WAL`) for Litestream compatibility. The sidecar continuously monitors WAL changes and replicates snapshots to RustFS. On pod restart, Litestream can restore the database from the latest snapshot.
+- `ordered_ids`: display order; index 0 is today's image
+- `images`: per-image metadata (creation time, source label)
+- `last_rotated`: timestamp of the last midnight rotation by the operator
+
+Both the server and operator read and write this file. The server owns all image CRUD writes; the operator advances `ordered_ids` and updates `last_rotated` at midnight.
 
 ---
 

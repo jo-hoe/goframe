@@ -29,7 +29,6 @@ services:
         source: ./local.yaml
         target: /local.yaml
         read_only: true
-      - goframe-data:/data
     depends_on:
       rustfs:
         condition: service_healthy
@@ -62,4 +61,3 @@ services:
 
 volumes:
   rustfs-data:
-  goframe-data:

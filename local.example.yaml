@@ -15,7 +15,6 @@ database:
   bucket: "goframe"
   accessKey: "minioadmin"
   secretKey: "minioadmin"
-  dbPath: "/data/goframe.db"         # local file for SQLite; Litestream replicates this to RustFS
   imageBaseURL: "/images"            # browser-facing URL prefix; served by ingress or reverse proxy
 commands:
   - name: RotationCommand
