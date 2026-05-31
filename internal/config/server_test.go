@@ -45,8 +45,8 @@ database:
 		t.Errorf("Expected database type to be 'rustfs', got '%s'", config.Database.Type)
 	}
 
-	if config.Database.DBPath != "/data/goframe.db" {
-		t.Errorf("Expected default dbPath to be '/data/goframe.db', got '%s'", config.Database.DBPath)
+	if config.Database.ImageBaseURL != "/images" {
+		t.Errorf("Expected default imageBaseURL to be '/images', got '%s'", config.Database.ImageBaseURL)
 	}
 }
 

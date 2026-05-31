@@ -28,7 +28,6 @@ func NewCoreService(cfg *config.ServiceConfig) (*CoreService, error) {
 		cfg.Database.Bucket,
 		cfg.Database.AccessKey,
 		cfg.Database.SecretKey,
-		cfg.Database.DBPath,
 		cfg.Database.ImageBaseURL,
 	)
 	if err != nil {
@@ -107,9 +106,9 @@ func (service *CoreService) GetOrderedImageIDs(ctx context.Context) ([]string, e
 	return service.getOrderedImageIDs(ctx)
 }
 
-// GetOrderedImages returns images with id, created_at, and source populated, in rank order.
+// GetOrderedImages returns images in current display order (index 0 = today).
 func (service *CoreService) GetOrderedImages(ctx context.Context) ([]*database.Image, error) {
-	return service.databaseService.GetImages(ctx, "id", "created_at", "source")
+	return service.databaseService.GetImageMetadata(ctx)
 }
 
 // GetImageForTime returns the current image ID from the operator-managed rotation key.
@@ -117,24 +116,16 @@ func (service *CoreService) GetImageForTime(ctx context.Context, _ time.Time) (s
 	return service.databaseService.GetCurrentImageID(ctx)
 }
 
-// UpdateImageOrder updates the persistent order to match the given list of IDs.
+// UpdateImageOrder updates the persistent display order to match the given list of IDs.
 func (service *CoreService) UpdateImageOrder(ctx context.Context, order []string) error {
 	if len(order) == 0 {
 		return nil
 	}
-	return service.databaseService.UpdateRanks(ctx, order)
+	return service.databaseService.UpdateOrder(ctx, order)
 }
 
 func (service *CoreService) getOrderedImageIDs(ctx context.Context) ([]string, error) {
-	images, err := service.databaseService.GetImages(ctx, "id")
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch images: %w", err)
-	}
-	ids := make([]string, 0, len(images))
-	for _, img := range images {
-		ids = append(ids, img.ID)
-	}
-	return ids, nil
+	return service.databaseService.GetRotationOrderedIDs(ctx)
 }
 
 // applyPipeline converts the input image to PNG and applies the configured command pipeline.

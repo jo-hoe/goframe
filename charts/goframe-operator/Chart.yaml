@@ -2,8 +2,8 @@ apiVersion: v2
 name: goframe-operator
 description: Helm chart for the GoFrame Kubernetes operator (install once per cluster)
 type: application
-version: 12.0.4
-appVersion: "12.0.4"
+version: 13.0.0
+appVersion: "13.0.0"
 keywords:
   - go
   - operator

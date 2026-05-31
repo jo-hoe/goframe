@@ -2,10 +2,9 @@ package database
 
 import "time"
 
+// Image holds per-image metadata. Blobs are stored in RustFS and accessed via URL redirects.
 type Image struct {
-	ID             string    `db:"id"`
-	CreatedAt      time.Time `db:"created_at"`      // ISO 8601 UTC timestamp of upload
-	OriginalImage  []byte    `db:"original_image"`  // PNG image data stored as binary
-	ProcessedImage []byte    `db:"processed_image"` // PNG image data stored as binary
-	Source         string    `db:"source"`          // informational origin label set by the caller (empty for manual uploads)
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	Source    string    `json:"source"`
 }

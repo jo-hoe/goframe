@@ -14,7 +14,6 @@ type Database struct {
 	Bucket       string `yaml:"bucket"`
 	AccessKey    string `yaml:"accessKey"`
 	SecretKey    string `yaml:"secretKey"`
-	DBPath       string `yaml:"dbPath"`
 	ImageBaseURL string `yaml:"imageBaseURL"`
 }
 
@@ -58,9 +57,6 @@ func LoadServerConfig(path string) (*ServiceConfig, error) {
 	}
 	if config.LogLevel == "" {
 		config.LogLevel = "info"
-	}
-	if config.Database.DBPath == "" {
-		config.Database.DBPath = "/data/goframe.db"
 	}
 	if config.Database.AccessKey == "" {
 		config.Database.AccessKey = os.Getenv("RUSTFS_ACCESS_KEY")
