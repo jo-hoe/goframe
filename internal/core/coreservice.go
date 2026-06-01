@@ -65,12 +65,7 @@ func (service *CoreService) AddImage(ctx context.Context, image []byte, source s
 		return nil, err
 	}
 
-	afterID, err := service.databaseService.GetCurrentImageID(ctx)
-	if err != nil {
-		afterID = ""
-	}
-
-	databaseImageID, err := service.databaseService.CreateImage(ctx, convertedImageData, processedImage, time.Now().In(service.tzLoc), source, afterID)
+	databaseImageID, err := service.databaseService.CreateImage(ctx, convertedImageData, processedImage, time.Now().In(service.tzLoc), source, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create database image: %w", err)
 	}

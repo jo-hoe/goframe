@@ -14,6 +14,10 @@ update: ## pulls git repo
 test: ## run golang test (including integration tests)
 	go test ${ROOT_DIR}/...
 
+.PHONY: test-integration
+test-integration: ## run integration tests against a live server (requires test/integration/local.yaml)
+	go test ${ROOT_DIR}test/integration/... -v -count=1
+
 .PHONY: build
 build: ## build goframe binary
 	go build ${ROOT_DIR}/...
