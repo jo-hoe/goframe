@@ -9,6 +9,9 @@ metadata:
 spec:
   serviceName: {{ .Release.Name }}-rustfs
   replicas: 1
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Delete
+    whenScaled: Retain
   selector:
     matchLabels:
       app.kubernetes.io/name: rustfs
