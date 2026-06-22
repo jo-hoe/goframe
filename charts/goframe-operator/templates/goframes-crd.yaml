@@ -69,9 +69,9 @@ spec:
                   - name
                   type: object
                 type: array
-              rustfs:
-                description: RustFS configures the RustFS storage used by the operator
-                  and server.
+              objectStorage:
+                description: ObjectStorage configures the S3-compatible object store
+                  used by the operator and server.
                 properties:
                   bucket:
                     description: |-
@@ -79,40 +79,18 @@ spec:
                       Defaults to the GoFrame CR name if empty.
                     type: string
                   endpoint:
-                    description: Endpoint is the RustFS base URL (e.g. "http://myrelease-rustfs:9000").
-                    example: http://myrelease-rustfs:9000
+                    description: Endpoint is the S3 base URL (e.g. "http://myrelease-seaweedfs:9000").
+                    example: http://myrelease-seaweedfs:9000
                     type: string
                   imageBaseURL:
                     description: |-
                       ImageBaseURL is the browser-facing URL prefix for image assets.
-                      Defaults to "/images" which is served by the RustFS ingress.
+                      Defaults to "/images" which is served by the object-storage ingress.
                     type: string
-                  litestreamImage:
-                    default:
-                      repository: litestream/litestream
-                      tag: 0.3.13
-                    description: |-
-                      LitestreamImage selects the Litestream sidecar container image used for
-                      SQLite WAL replication to RustFS.
-                    properties:
-                      pullPolicy:
-                        description: PullPolicy is the Kubernetes image pull policy.
-                        enum:
-                        - Always
-                        - Never
-                        - IfNotPresent
-                        type: string
-                      repository:
-                        description: Repository is the image repository (e.g. "ghcr.io/jo-hoe/goframe").
-                        type: string
-                      tag:
-                        description: Tag is the image tag (e.g. "latest", "v1.2.3").
-                        type: string
-                    type: object
                   secretRef:
                     description: |-
                       SecretRef is the name of a Kubernetes Secret in the same namespace that holds
-                      the RustFS credentials. The Secret must contain the keys "accessKey" and "secretKey".
+                      the S3 credentials. The Secret must contain the keys "accessKey" and "secretKey".
                     type: string
                 required:
                 - endpoint
@@ -206,7 +184,7 @@ spec:
                       type: string
                     s3:
                       description: |-
-                        S3 holds configuration for the s3 source (AWS S3, RustFS, MinIO, etc.).
+                        S3 holds configuration for the s3 source (AWS S3, SeaweedFS, MinIO, etc.).
                         Required when source is "s3".
                       properties:
                         bucket:
@@ -217,7 +195,7 @@ spec:
                           description: |-
                             Endpoint is the base URL of the S3-compatible service (no trailing slash, no bucket path).
                             For AWS S3: "https://s3.<region>.amazonaws.com".
-                            For RustFS / MinIO: "http://rustfs:9000".
+                            For SeaweedFS / MinIO: "http://seaweedfs:9000".
                           type: string
                         prefix:
                           description: Prefix is an optional key prefix to filter
@@ -226,7 +204,7 @@ spec:
                         region:
                           description: |-
                             Region is the AWS region identifier (e.g. "us-east-1").
-                            For RustFS, any non-empty value is accepted.
+                            For SeaweedFS, any non-empty value is accepted.
                           type: string
                         secretRef:
                           description: |-

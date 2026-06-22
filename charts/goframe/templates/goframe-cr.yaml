@@ -6,22 +6,22 @@ metadata:
 spec:
   timezone: {{ .Values.timezone | quote }}
 
-  rustfs:
-    {{- if .Values.rustfs.address }}
-    endpoint: {{ .Values.rustfs.address | quote }}
+  objectStorage:
+    {{- if .Values.seaweedfs.address }}
+    endpoint: {{ .Values.seaweedfs.address | quote }}
     {{- else }}
-    endpoint: {{ printf "http://%s-rustfs.%s.svc.cluster.local:9000" .Release.Name .Release.Namespace | quote }}
+    endpoint: {{ printf "http://%s-seaweedfs.%s.svc.cluster.local:9000" .Release.Name .Release.Namespace | quote }}
     {{- end }}
-    {{- if .Values.rustfs.bucket }}
-    bucket: {{ .Values.rustfs.bucket | quote }}
+    {{- if .Values.seaweedfs.bucket }}
+    bucket: {{ .Values.seaweedfs.bucket | quote }}
     {{- end }}
-    {{- if .Values.rustfs.secretRef }}
-    secretRef: {{ .Values.rustfs.secretRef | quote }}
+    {{- if .Values.seaweedfs.secretRef }}
+    secretRef: {{ .Values.seaweedfs.secretRef | quote }}
     {{- else }}
-    secretRef: {{ printf "%s-rustfs-credentials" .Release.Name | quote }}
+    secretRef: {{ printf "%s-seaweedfs-credentials" .Release.Name | quote }}
     {{- end }}
-    {{- if .Values.rustfs.imageBaseURL }}
-    imageBaseURL: {{ .Values.rustfs.imageBaseURL | quote }}
+    {{- if .Values.seaweedfs.imageBaseURL }}
+    imageBaseURL: {{ .Values.seaweedfs.imageBaseURL | quote }}
     {{- end }}
 
   server:

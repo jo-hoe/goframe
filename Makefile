@@ -46,11 +46,11 @@ generate-check: generate ## fail if generated files are out of sync with Go type
 	@echo "Generated files are up to date."
 
 .PHONY: start-docker
-start-docker: ## start goframe server + rustfs via docker compose
-	@docker-compose -f ${ROOT_DIR}docker-compose.yml up --build rustfs goframe
+start-docker: ## start goframe server + seaweedfs via docker compose
+	@docker-compose -f ${ROOT_DIR}docker-compose.yml up --build seaweedfs goframe
 
 .PHONY: start-docker-with-image-scheduler
-start-docker-with-image-scheduler: ## start goframe, rustfs, and run image scheduler once
+start-docker-with-image-scheduler: ## start goframe, seaweedfs, and run image scheduler once
 	@docker-compose -f ${ROOT_DIR}docker-compose.yml up --build goframe image-scheduler
 
 .PHONY: run-image-scheduler

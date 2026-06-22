@@ -1,7 +1,7 @@
 GoFrame CR "{{ .Release.Name }}" has been installed in namespace "{{ .Release.Namespace }}".
 
 The GoFrame operator will reconcile this CR and provision:
-  - RustFS (StatefulSet + Service + Secret)
+  - SeaweedFS (StatefulSet + Service + Secret)
   - goframe server (Deployment + Service + ConfigMap)
   - CronJob per scheduler entry
 

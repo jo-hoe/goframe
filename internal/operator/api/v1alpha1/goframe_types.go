@@ -48,9 +48,9 @@ type GoFrameSpec struct {
 	// +optional
 	Server ServerSpec `json:"server,omitempty"`
 
-	// RustFS configures the RustFS storage used by the operator and server.
+	// ObjectStorage configures the S3-compatible object store used by the operator and server.
 	// +optional
-	RustFS RustFSSpec `json:"rustfs,omitempty"`
+	ObjectStorage ObjectStorageSpec `json:"objectStorage,omitempty"`
 }
 
 // CommandSpec describes a single image-processing command in the pipeline.
@@ -108,7 +108,7 @@ type SchedulerSpec struct {
 	// +optional
 	Tumblr *TumblrConfig `json:"tumblr,omitempty"`
 
-	// S3 holds configuration for the s3 source (AWS S3, RustFS, MinIO, etc.).
+	// S3 holds configuration for the s3 source (AWS S3, SeaweedFS, MinIO, etc.).
 	// Required when source is "s3".
 	// +optional
 	S3 *S3Config `json:"s3,omitempty"`
@@ -137,12 +137,12 @@ type TumblrConfig struct {
 }
 
 // S3Config holds the configuration for the s3 image source.
-// Compatible with AWS S3, RustFS, MinIO, and any S3-compatible storage.
+// Compatible with AWS S3, SeaweedFS, MinIO, and any S3-compatible storage.
 // +kubebuilder:object:generate=true
 type S3Config struct {
 	// Endpoint is the base URL of the S3-compatible service (no trailing slash, no bucket path).
 	// For AWS S3: "https://s3.<region>.amazonaws.com".
-	// For RustFS / MinIO: "http://rustfs:9000".
+	// For SeaweedFS / MinIO: "http://seaweedfs:9000".
 	Endpoint string `json:"endpoint"`
 
 	// Bucket is the name of the bucket to fetch images from.
@@ -153,7 +153,7 @@ type S3Config struct {
 	Prefix string `json:"prefix,omitempty"`
 
 	// Region is the AWS region identifier (e.g. "us-east-1").
-	// For RustFS, any non-empty value is accepted.
+	// For SeaweedFS, any non-empty value is accepted.
 	Region string `json:"region"`
 
 	// SecretRef is the name of a Kubernetes Secret in the same namespace that holds
@@ -197,11 +197,13 @@ type ServerSpec struct {
 	ServiceType string `json:"serviceType,omitempty"`
 }
 
-// RustFSSpec configures the RustFS (S3-compatible) storage connection.
+// ObjectStorageSpec configures the S3-compatible object store connection used by
+// the operator and server. The default backend is SeaweedFS (deployed as a subchart),
+// but any S3-compatible endpoint can be configured here (AWS S3, MinIO, Garage, etc.).
 // +kubebuilder:object:generate=true
-type RustFSSpec struct {
-	// Endpoint is the RustFS base URL (e.g. "http://myrelease-rustfs:9000").
-	// +kubebuilder:example="http://myrelease-rustfs:9000"
+type ObjectStorageSpec struct {
+	// Endpoint is the S3 base URL (e.g. "http://myrelease-seaweedfs:9000").
+	// +kubebuilder:example="http://myrelease-seaweedfs:9000"
 	Endpoint string `json:"endpoint"`
 
 	// Bucket is the S3 bucket name to use for image storage.
@@ -210,20 +212,14 @@ type RustFSSpec struct {
 	Bucket string `json:"bucket,omitempty"`
 
 	// SecretRef is the name of a Kubernetes Secret in the same namespace that holds
-	// the RustFS credentials. The Secret must contain the keys "accessKey" and "secretKey".
+	// the S3 credentials. The Secret must contain the keys "accessKey" and "secretKey".
 	// +optional
 	SecretRef string `json:"secretRef,omitempty"`
 
 	// ImageBaseURL is the browser-facing URL prefix for image assets.
-	// Defaults to "/images" which is served by the RustFS ingress.
+	// Defaults to "/images" which is served by the object-storage ingress.
 	// +optional
 	ImageBaseURL string `json:"imageBaseURL,omitempty"`
-
-	// LitestreamImage selects the Litestream sidecar container image used for
-	// SQLite WAL replication to RustFS.
-	// +kubebuilder:default={repository: "litestream/litestream", tag: "0.3.13"}
-	// +optional
-	LitestreamImage ImageSpec `json:"litestreamImage,omitempty"`
 }
 
 // ImageSpec selects a container image.

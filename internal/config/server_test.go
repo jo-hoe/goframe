@@ -13,8 +13,8 @@ func TestLoadServerConfig_Success(t *testing.T) {
 	configContent := `
 port: 8080
 database:
-  type: "rustfs"
-  endpoint: "http://rustfs:9000"
+  type: "seaweedfs"
+  endpoint: "http://seaweedfs:9000"
   bucket: "goframe"
   accessKey: "minioadmin"
   secretKey: "minioadmin"
@@ -37,12 +37,12 @@ database:
 		t.Errorf("Expected port to be 8080, got %d", config.Port)
 	}
 
-	if config.Database.Endpoint != "http://rustfs:9000" {
-		t.Errorf("Expected endpoint to be 'http://rustfs:9000', got '%s'", config.Database.Endpoint)
+	if config.Database.Endpoint != "http://seaweedfs:9000" {
+		t.Errorf("Expected endpoint to be 'http://seaweedfs:9000', got '%s'", config.Database.Endpoint)
 	}
 
-	if config.Database.Type != "rustfs" {
-		t.Errorf("Expected database type to be 'rustfs', got '%s'", config.Database.Type)
+	if config.Database.Type != "seaweedfs" {
+		t.Errorf("Expected database type to be 'seaweedfs', got '%s'", config.Database.Type)
 	}
 
 	if config.Database.ImageBaseURL != "/images" {

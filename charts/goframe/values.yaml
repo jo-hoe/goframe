@@ -1,11 +1,11 @@
 # -- Timezone for image rotation midnight detection (IANA timezone name)
 timezone: "UTC"
 
-# RustFS connection configuration.
-# Leave address empty to use the bundled RustFS subchart.
-# Set address to connect to an external RustFS or MinIO instance instead.
-rustfs:
-  # -- Base URL of an external RustFS or MinIO instance (e.g. "http://my-rustfs:9000"). Empty = use bundled subchart.
+# SeaweedFS connection configuration.
+# Leave address empty to use the bundled SeaweedFS StatefulSet.
+# Set address to connect to an external S3-compatible endpoint (AWS S3, MinIO, etc.) instead.
+seaweedfs:
+  # -- Base URL of an external S3-compatible endpoint (e.g. "http://my-s3:9000"). Empty = use bundled SeaweedFS.
   address: ""
   # -- S3 bucket name. Defaults to the Helm release name when empty.
   bucket: ""
@@ -14,30 +14,39 @@ rustfs:
   # -- Browser-facing URL prefix for served images. Defaults to "/images" when empty.
   imageBaseURL: ""
   image:
-    # -- RustFS container image repository
-    repository: rustfs/rustfs
-    # -- RustFS container image tag
+    # -- SeaweedFS container image repository
+    repository: chrislusf/seaweedfs
+    # -- SeaweedFS container image tag
     tag: "latest"
-    # -- Image pull policy for the RustFS container
+    # -- Image pull policy for the SeaweedFS container
     pullPolicy: IfNotPresent
+  # -- Resource requests and limits for the SeaweedFS pod.
+  # `weed server -s3` runs master + volume + filer + S3 gateway in one process; ~100 images and light traffic fit comfortably in the defaults.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
   persistence:
-    # -- Enable persistent storage for RustFS
+    # -- Enable persistent storage for SeaweedFS
     enabled: true
     # -- Persistent volume size. Scale with image_count × avg_size_MB × 1.5.
     size: 1Gi
     # -- StorageClass for the persistent volume. Empty = cluster default.
     storageClass: ""
   credentials:
-    # -- RustFS access key. Auto-generated when empty.
+    # -- SeaweedFS access key. Auto-generated when empty.
     accessKey: ""
-    # -- RustFS secret key. Auto-generated when empty.
+    # -- SeaweedFS secret key. Auto-generated when empty.
     secretKey: ""
   ingress:
-    # -- Expose RustFS images via Kubernetes Ingress for direct browser access
+    # -- Expose SeaweedFS images via Kubernetes Ingress for direct browser access
     enabled: true
-    # -- IngressClass name for RustFS ingress. Empty = cluster default.
+    # -- IngressClass name for SeaweedFS ingress. Empty = cluster default.
     className: ""
-    # -- Annotations for the RustFS Ingress resource
+    # -- Annotations for the SeaweedFS Ingress resource
     annotations: {}
 
 server:
@@ -147,18 +156,18 @@ schedulerImage:
 #         - 9   # Drawings and Prints
 #         - 11  # European Paintings
 #
-# Example — s3-compatible source (AWS S3, RustFS, MinIO):
+# Example — s3-compatible source (AWS S3, SeaweedFS, MinIO):
 # schedulers:
 #   - name: s3-daily
 #     cron: "0 8 * * *"
 #     source: s3
 #     s3:
-#       endpoint: "https://s3.us-east-1.amazonaws.com"  # or "http://rustfs:9000" for RustFS
+#       endpoint: "https://s3.us-east-1.amazonaws.com"  # or "http://seaweedfs:9000" for SeaweedFS
 #       bucket: "my-images"
 #       prefix: "wallpapers/"   # optional; omit to use all objects in the bucket.
 #                                # listing is fully recursive — sub-sub-folders are included
 #                                # automatically (no S3 delimiter is used).
-#       region: "us-east-1"     # any non-empty value for RustFS
+#       region: "us-east-1"     # any non-empty value for SeaweedFS
 #       # secretRef names a Kubernetes Secret with keys "accessKey" and "secretKey".
 #       # Omit for anonymous access to public buckets.
 #       secretRef: "my-s3-credentials"

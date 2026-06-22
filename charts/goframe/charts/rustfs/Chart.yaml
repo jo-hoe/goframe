@@ -1,6 +1,0 @@
-apiVersion: v2
-name: rustfs
-description: RustFS S3-compatible object storage subchart for goframe
-type: application
-version: 1.0.0
-appVersion: "LATEST"

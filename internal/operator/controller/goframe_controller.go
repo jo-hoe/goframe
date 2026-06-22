@@ -45,7 +45,7 @@ func (r *GoFrameReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 		var reqs []reconcile.Request
 		for _, gf := range gfList.Items {
-			if gf.Spec.RustFS.SecretRef == obj.GetName() {
+			if gf.Spec.ObjectStorage.SecretRef == obj.GetName() {
 				reqs = append(reqs, reconcile.Request{
 					NamespacedName: types.NamespacedName{Name: gf.Name, Namespace: gf.Namespace},
 				})

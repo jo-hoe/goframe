@@ -1,19 +1,29 @@
 services:
-  rustfs:
-    image: rustfs/rustfs:latest
-    environment:
-      RUSTFS_ACCESS_KEY: minioadmin
-      RUSTFS_SECRET_KEY: minioadmin
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    command: >
+      server
+      -dir=/data
+      -s3
+      -s3.port=9000
+      -s3.config=/etc/seaweedfs/s3.json
+      -filer
+      -master.volumeSizeLimitMB=64
+      -volume.max=0
     ports:
       - "9000:9000"
     volumes:
-      - rustfs-data:/data
+      - seaweedfs-data:/data
+      - type: bind
+        source: ./docker-compose-s3.json
+        target: /etc/seaweedfs/s3.json
+        read_only: true
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/probe || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/status || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 10
-      start_period: 5s
+      start_period: 10s
 
   goframe:
     build:
@@ -30,7 +40,7 @@ services:
         target: /local.yaml
         read_only: true
     depends_on:
-      rustfs:
+      seaweedfs:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/probe || exit 1"]
@@ -60,4 +70,4 @@ services:
     restart: "no"
 
 volumes:
-  rustfs-data:
+  seaweedfs-data:

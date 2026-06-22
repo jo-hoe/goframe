@@ -11,10 +11,10 @@ The service provides a web UI to upload and manage images, applies a configurabl
 
 ## Architecture
 
-Images are stored in RustFS (S3-compatible object storage). Metadata and rotation state are stored alongside blobs in RustFS as `rotation.json` — no local database or PVC required. The server is stateless. The server returns 302 redirects to RustFS URLs for image delivery.
+Images are stored in SeaweedFS (S3-compatible object storage). Metadata and rotation state are stored alongside blobs in SeaweedFS as `rotation.json` — no local database or PVC required. The server is stateless. The server returns 302 redirects to SeaweedFS URLs for image delivery.
 
 A Kubernetes operator manages:
-- RustFS (StatefulSet + Service + Secret)
+- SeaweedFS (StatefulSet + Service + Secret)
 - goframe server (Deployment + Service + ConfigMap)
 - CronJob per scheduler entry
 
@@ -34,12 +34,12 @@ See `local.example.yaml` for all available fields.
 Prerequisites:
 
 - Go 1.26+
-- Docker (for RustFS via docker-compose)
+- Docker (for SeaweedFS via docker-compose)
 
 Steps:
 
 1. Copy `local.example.yaml` to `local.yaml` and adjust as needed
-2. Start RustFS: `make start-docker`
+2. Start SeaweedFS: `make start-docker`
 3. Run the server: `go run ./cmd/server`
 4. Open the UI: <http://localhost:8080/>
 

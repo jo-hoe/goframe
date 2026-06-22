@@ -51,12 +51,12 @@ type TumblrFileConfig struct {
 }
 
 // S3FileConfig is the typed configuration for the s3 source.
-// Compatible with AWS S3, RustFS, MinIO, and any S3-compatible storage.
+// Compatible with AWS S3, SeaweedFS, MinIO, and any S3-compatible storage.
 type S3FileConfig struct {
 	SchedulerFileConfig `yaml:",inline"`
 	// Endpoint is the base URL of the S3-compatible service (no trailing slash, no bucket).
 	// For AWS S3 use "https://s3.<region>.amazonaws.com".
-	// For RustFS/MinIO use e.g. "http://rustfs:9000".
+	// For SeaweedFS/MinIO use e.g. "http://seaweedfs:9000".
 	Endpoint string `yaml:"endpoint"`
 	// Bucket is the name of the S3 bucket to fetch images from.
 	Bucket string `yaml:"bucket"`
@@ -65,7 +65,7 @@ type S3FileConfig struct {
 	// nesting depth. This is because no S3 delimiter is used, so sub-sub-folders are included
 	// automatically. A random image is then selected from the full flat list.
 	Prefix string `yaml:"prefix"`
-	// Region is the AWS region (e.g. "us-east-1"). Required for AWS S3; for RustFS use any non-empty value.
+	// Region is the AWS region (e.g. "us-east-1"). Required for AWS S3; for SeaweedFS use any non-empty value.
 	Region string `yaml:"region"`
 	// AccessKey is the AWS access key ID or equivalent credential.
 	// Leave empty for anonymous access to public buckets.

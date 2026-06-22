@@ -9,7 +9,7 @@ import (
 type DatabaseService interface {
 	Close() error
 
-	// CreateImage uploads blobs to RustFS and registers the image in the rotation state.
+	// CreateImage uploads blobs to object storage and registers the image in the rotation state.
 	// createdAt is stored as-is (caller is responsible for timezone).
 	// source is an informational origin label (empty string for manual uploads).
 	// afterID is the image ID to insert after in the display order; pass "" to append.
@@ -43,13 +43,13 @@ type DatabaseService interface {
 }
 
 // NewDatabaseWithNamespace constructs a DatabaseService from the given config.
-// dbType must be "rustfs". endpoint is the RustFS base URL, bucket is the S3
+// dbType must be "seaweedfs". endpoint is the S3 base URL, bucket is the S3
 // bucket name (used as the namespace), accessKey/secretKey are the credentials,
 // and imageBaseURL is the browser-facing URL prefix for image assets (e.g. "/images").
 func NewDatabaseWithNamespace(dbType, endpoint, bucket, accessKey, secretKey, imageBaseURL string) (DatabaseService, error) {
 	switch dbType {
-	case "rustfs":
-		return NewRustFSDatabase(endpoint, bucket, accessKey, secretKey, "us-east-1", imageBaseURL)
+	case "seaweedfs":
+		return NewSeaweedFSDatabase(endpoint, bucket, accessKey, secretKey, "us-east-1", imageBaseURL)
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %s", dbType)
 	}

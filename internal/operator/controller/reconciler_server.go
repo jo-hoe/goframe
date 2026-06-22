@@ -35,7 +35,7 @@ func (r *GoFrameReconciler) reconcileServer(ctx context.Context, gf *goframev1al
 	if err != nil {
 		return err
 	}
-	accessKey, secretKey, err := r.readRustFSCredentials(ctx, gf)
+	accessKey, secretKey, err := r.readObjectStorageCredentials(ctx, gf)
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func buildServerConfig(gf *goframev1alpha1.GoFrame) (string, error) {
 		tz = "UTC"
 	}
 
-	bucket := spec.RustFS.Bucket
+	bucket := spec.ObjectStorage.Bucket
 	if bucket == "" {
 		bucket = gf.Name
 	}
@@ -115,10 +115,10 @@ func buildServerConfig(gf *goframev1alpha1.GoFrame) (string, error) {
 		SvgFallbackLongSidePixelCount: svgFallback,
 		Timezone:                      tz,
 		Database: dbConfig{
-			Type:         "rustfs",
-			Endpoint:     spec.RustFS.Endpoint,
+			Type:         "seaweedfs",
+			Endpoint:     spec.ObjectStorage.Endpoint,
 			Bucket:       bucket,
-			ImageBaseURL: spec.RustFS.ImageBaseURL,
+			ImageBaseURL: spec.ObjectStorage.ImageBaseURL,
 		},
 		Commands: cmds,
 	}
@@ -202,7 +202,7 @@ func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *g
 								{ContainerPort: port, Protocol: corev1.ProtocolTCP},
 							},
 							Args: []string{"--config", "/etc/goframe/config.yaml"},
-							Env:  rustfsServerEnvVars(gf),
+							Env:  objectStorageServerEnvVars(gf),
 							VolumeMounts: []corev1.VolumeMount{
 								{Name: "config", MountPath: "/etc/goframe", ReadOnly: true},
 							},
@@ -331,16 +331,16 @@ func imagePullPolicy(policy string) corev1.PullPolicy {
 	}
 }
 
-// rustfsServerEnvVars returns RUSTFS_ACCESS_KEY/RUSTFS_SECRET_KEY env vars
-// for the goframe server container, read from the RustFS credentials Secret.
-func rustfsServerEnvVars(gf *goframev1alpha1.GoFrame) []corev1.EnvVar {
-	ref := gf.Spec.RustFS.SecretRef
+// objectStorageServerEnvVars returns OBJECT_STORAGE_ACCESS_KEY/OBJECT_STORAGE_SECRET_KEY env vars
+// for the goframe server container, read from the object-storage credentials Secret.
+func objectStorageServerEnvVars(gf *goframev1alpha1.GoFrame) []corev1.EnvVar {
+	ref := gf.Spec.ObjectStorage.SecretRef
 	if ref == "" {
 		return nil
 	}
 	return []corev1.EnvVar{
 		{
-			Name: "RUSTFS_ACCESS_KEY",
+			Name: "OBJECT_STORAGE_ACCESS_KEY",
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{Name: ref},
@@ -349,7 +349,7 @@ func rustfsServerEnvVars(gf *goframev1alpha1.GoFrame) []corev1.EnvVar {
 			},
 		},
 		{
-			Name: "RUSTFS_SECRET_KEY",
+			Name: "OBJECT_STORAGE_SECRET_KEY",
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{Name: ref},

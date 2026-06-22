@@ -2,7 +2,7 @@
 
 ## Overview
 
-GoFrame is a Kubernetes-native image rotation system. A custom operator manages the lifecycle of all components: a stateless web server, S3-compatible storage (RustFS), and CronJob-based image schedulers.
+GoFrame is a Kubernetes-native image rotation system. A custom operator manages the lifecycle of all components: a stateless web server, S3-compatible storage (SeaweedFS), and CronJob-based image schedulers.
 
 ```mermaid
 graph TD
@@ -13,7 +13,7 @@ graph TD
 
     subgraph "Data Plane"
         SRV[GoFrame Server]
-        RUSTFS[RustFS StatefulSet]
+        SWFS[SeaweedFS StatefulSet]
     end
 
     subgraph "Scheduling"
@@ -29,17 +29,17 @@ graph TD
 
     CR -->|watched by| OP
     OP -->|reconciles| SRV
-    OP -->|reconciles| RUSTFS
+    OP -->|reconciles| SWFS
     OP -->|reconciles| CJ1
     OP -->|reconciles| CJ2
 
-    SRV -->|stores blobs + metadata| RUSTFS
+    SRV -->|stores blobs + metadata| SWFS
 
     CJ1 -->|POST /api/image| SRV
     CJ2 -->|POST /api/image| SRV
 
     ING_SRV -->|/* routes| SRV
-    ING_IMG -->|/images routes| RUSTFS
+    ING_IMG -->|/images routes| SWFS
     MW -->|rewrites path| ING_IMG
 ```
 
@@ -51,10 +51,10 @@ graph TD
 |-----------|------|------|---------|
 | GoFrame Operator | Deployment | 8082/8083 | Reconciles GoFrame CRs |
 | GoFrame Server | Deployment | 8080 | Web UI, API, image processing |
-| RustFS | StatefulSet | 9000 | S3-compatible blob + metadata storage |
+| SeaweedFS | StatefulSet | 9000 | S3-compatible blob + metadata storage |
 | Image Schedulers | CronJob (one per source) | - | Fetch images from external sources |
 | Server Ingress | Ingress | 80/443 | Routes UI/API traffic |
-| RustFS Ingress | Ingress + Middleware | 80/443 | Direct browser access to images |
+| SeaweedFS Ingress | Ingress + Middleware | 80/443 | Direct browser access to images |
 
 ---
 
@@ -65,7 +65,7 @@ sequenceDiagram
     participant B as Browser
     participant I as Ingress
     participant S as GoFrame Server
-    participant R as RustFS
+    participant R as SeaweedFS
 
     B->>I: POST /api/image (multipart)
     I->>S: forward request
@@ -86,7 +86,7 @@ sequenceDiagram
     participant I as Ingress
     participant S as GoFrame Server
     participant MW as Traefik Middleware
-    participant R as RustFS
+    participant R as SeaweedFS
 
     B->>I: GET /api/image.png
     I->>S: forward to server
@@ -108,14 +108,14 @@ sequenceDiagram
 graph LR
     Browser -->|"GET /*"| Traefik[Traefik Ingress Controller]
 
-    Traefik -->|"path: /images/*"| RustFS_Ingress[RustFS Ingress]
+    Traefik -->|"path: /images/*"| SeaweedFS_Ingress[SeaweedFS Ingress]
     Traefik -->|"path: /*"| Server_Ingress[Server Ingress]
 
-    RustFS_Ingress -->|"rewrite: /{bucket}/images/*"| RustFS[RustFS :9000]
+    SeaweedFS_Ingress -->|"rewrite: /{bucket}/images/*"| SeaweedFS[SeaweedFS :9000]
     Server_Ingress --> Server[GoFrame Server :8080]
 ```
 
-The RustFS ingress uses a Traefik `replacePathRegex` Middleware to rewrite `/images/(.*)` to `/{bucket}/images/$1`, mapping the browser-facing URL to the S3 object key.
+The SeaweedFS ingress uses a Traefik `replacePathRegex` Middleware to rewrite `/images/(.*)` to `/{bucket}/images/$1`, mapping the browser-facing URL to the S3 object key.
 
 A bucket policy grants anonymous `s3:GetObject` on `images/*`, so no authentication is required for image fetches through the ingress.
 
@@ -135,15 +135,15 @@ graph TD
     RS --> CM1[ConfigMap: server config]
     RS --> DEP[Deployment: server]
     RS --> SVC[Service: server]
-    RS --> RUSTFS_SS[StatefulSet: rustfs]
-    RS --> RUSTFS_SVC[Service: rustfs]
-    RS --> SEC[Secret: rustfs-credentials]
+    RS --> SWFS_SS[StatefulSet: seaweedfs]
+    RS --> SWFS_SVC[Service: seaweedfs]
+    RS --> SEC[Secret: seaweedfs-credentials]
 
     RC --> |per scheduler| SCM[ConfigMap: scheduler config]
     RC --> |per scheduler| SCRON[CronJob: scheduler]
     RC --> |if s3 source| SSEC[Secret: s3-credentials]
 
-    RR --> |read/write| ROT[rotation.json in RustFS]
+    RR --> |read/write| ROT[rotation.json in SeaweedFS]
     RR --> |advance at midnight| ORDER[Rotate ordered_ids]
 
     US --> STATUS[CR Status: currentImageID,<br/>lastRotationTime, serverReady]
@@ -153,7 +153,7 @@ graph TD
 
 ## Storage: rotation.json
 
-All state is stored in RustFS as `rotation.json`. The server is stateless — no PVC or local database is required.
+All state is stored in SeaweedFS as `rotation.json`. The server is stateless — no PVC or local database is required.
 
 ```json
 {
@@ -171,6 +171,8 @@ All state is stored in RustFS as `rotation.json`. The server is stateless — no
 - `last_rotated`: timestamp of the last midnight rotation by the operator
 
 Both the server and operator read and write this file. The server owns all image CRUD writes; the operator advances `ordered_ids` and updates `last_rotated` at midnight.
+
+SeaweedFS additionally supports atomic conditional writes (`If-Match` / `If-None-Match` via `ObjectTransaction`) — a primitive RustFS lacked. The current implementation does not yet use it; it remains available for follow-up work that needs to make the server/operator coordination race-free.
 
 ---
 
@@ -212,7 +214,7 @@ Each scheduler is configured with:
 
 The operator performs timezone-aware midnight rotation:
 
-1. Read `rotation.json` from RustFS (`ordered_ids`, `last_rotated`)
+1. Read `rotation.json` from SeaweedFS (`ordered_ids`, `last_rotated`)
 2. Compare current day (in configured timezone) to `last_rotated` day
 3. If new day: rotate `ordered_ids` by number of elapsed days
 4. Write updated `ordered_ids` and `last_rotated` back to `rotation.json`

@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-seaweedfs
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: seaweedfs
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  serviceName: {{ .Release.Name }}-seaweedfs
+  replicas: 1
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Delete
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seaweedfs
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seaweedfs
+        app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        {{- $secretName := ternary .Values.seaweedfs.secretRef (printf "%s-seaweedfs-credentials" .Release.Name) (ne .Values.seaweedfs.secretRef "") }}
+        {{- $secret := lookup "v1" "Secret" .Release.Namespace $secretName }}
+        {{- if $secret }}
+        checksum/credentials: {{ printf "%s:%s" (index $secret.data "accessKey") (index $secret.data "secretKey") | sha256sum }}
+        {{- end }}
+    spec:
+      containers:
+        - name: seaweedfs
+          image: {{ .Values.seaweedfs.image.repository }}:{{ .Values.seaweedfs.image.tag }}
+          imagePullPolicy: {{ .Values.seaweedfs.image.pullPolicy }}
+          # Run master + volume + filer + S3 gateway in one process.
+          # The S3 identity config is mounted from the credentials Secret at /etc/seaweedfs/s3.json.
+          command:
+            - weed
+            - server
+            - -dir=/data
+            - -s3
+            - -s3.port=9000
+            - -s3.config=/etc/seaweedfs/s3.json
+            - -filer
+            - -master.volumeSizeLimitMB=64
+            - -volume.max=0
+          ports:
+            - containerPort: 9000
+              name: s3
+              protocol: TCP
+          {{- with .Values.seaweedfs.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: identity
+              mountPath: /etc/seaweedfs
+              readOnly: true
+      volumes:
+        - name: identity
+          secret:
+            secretName: {{ if .Values.seaweedfs.secretRef }}{{ .Values.seaweedfs.secretRef }}{{ else }}{{ .Release.Name }}-seaweedfs-credentials{{ end }}
+            items:
+              - key: s3.json
+                path: s3.json
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - {{ .Values.seaweedfs.persistence.accessMode | default "ReadWriteOnce" }}
+        {{- if .Values.seaweedfs.persistence.storageClass }}
+        storageClassName: {{ .Values.seaweedfs.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.seaweedfs.persistence.size }}

@@ -17,14 +17,14 @@ import (
 type Config struct {
 	// Endpoint is the base URL of the S3-compatible service (no trailing slash, no bucket path).
 	// For AWS S3: "https://s3.<region>.amazonaws.com"
-	// For RustFS / MinIO: "http://rustfs:9000"
+	// For SeaweedFS / MinIO: "http://seaweedfs:9000"
 	Endpoint string
 	// Bucket is the name of the bucket to fetch images from.
 	Bucket string
 	// Prefix is an optional key prefix to filter objects (e.g. "photos/").
 	Prefix string
 	// Region is the AWS region identifier (e.g. "us-east-1").
-	// For RustFS, any non-empty string is accepted.
+	// For SeaweedFS, any non-empty string is accepted.
 	Region string
 	// AccessKey is the access key ID.
 	AccessKey string
@@ -32,7 +32,7 @@ type Config struct {
 	SecretKey string
 }
 
-// S3Source fetches a random image from an S3-compatible bucket (AWS S3, RustFS, MinIO, etc.).
+// S3Source fetches a random image from an S3-compatible bucket (AWS S3, SeaweedFS, MinIO, etc.).
 // It lists objects under an optional prefix and downloads one at random.
 type S3Source struct {
 	cfg        Config

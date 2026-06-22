@@ -10,8 +10,8 @@ thumbnailWidth: 512
 svgFallbackLongSidePixelCount: 4096
 timezone: "UTC"
 database:
-  type: "rustfs"
-  endpoint: "http://localhost:9000"  # docker-compose: "http://rustfs:9000"
+  type: "seaweedfs"
+  endpoint: "http://localhost:9000"  # docker-compose: "http://seaweedfs:9000"
   bucket: "goframe"
   accessKey: "minioadmin"
   secretKey: "minioadmin"
@@ -88,17 +88,17 @@ source: xkcd
 #   - 11  # European Paintings
 
 # ---- s3 source (set source: s3 to activate) ----
-# Fetches a random image object from an S3-compatible bucket (AWS S3, RustFS, MinIO, etc.).
+# Fetches a random image object from an S3-compatible bucket (AWS S3, SeaweedFS, MinIO, etc.).
 # Uses AWS Signature Version 4 over plain HTTP — no AWS SDK required.
 #
 # endpoint: base URL of the S3-compatible service (no trailing slash, no bucket path).
-#   For AWS S3:  "https://s3.<region>.amazonaws.com"
-#   For RustFS:  "http://rustfs:9000"
-#   For MinIO:   "http://minio:9000"
+#   For AWS S3:    "https://s3.<region>.amazonaws.com"
+#   For SeaweedFS: "http://seaweedfs:9000"
+#   For MinIO:     "http://minio:9000"
 # bucket:    required. Name of the bucket to fetch images from.
 # prefix:    optional. Key prefix to filter objects, e.g. "wallpapers/".
 #            Omit to use all objects in the bucket.
-# region:    required. AWS region (e.g. "us-east-1"). For RustFS any non-empty value works.
+# region:    required. AWS region (e.g. "us-east-1"). For SeaweedFS any non-empty value works.
 # accessKey: required. Access key ID.
 # secretKey: required. Secret access key.
 #

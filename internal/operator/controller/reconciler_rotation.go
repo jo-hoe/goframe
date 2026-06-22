@@ -13,11 +13,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// rustfsRequeueOnNotReady is the requeue interval when RustFS is not yet reachable.
-const rustfsRequeueOnNotReady = 15 * time.Second
+// objectStorageRequeueOnNotReady is the requeue interval when object storage is not yet reachable.
+const objectStorageRequeueOnNotReady = 15 * time.Second
 
 // reconcileRotation performs timezone-aware midnight rotation and writes the
-// resulting ordered_ids list to rotation.json in RustFS, which the server also reads.
+// resulting ordered_ids list to rotation.json in object storage, which the server also reads.
 // The current image is always ordered_ids[0].
 // It returns the duration until the next midnight (for RequeueAfter).
 func (r *GoFrameReconciler) reconcileRotation(ctx context.Context, gf *goframev1alpha1.GoFrame) (time.Duration, error) {
@@ -36,21 +36,21 @@ func (r *GoFrameReconciler) reconcileRotation(ctx context.Context, gf *goframev1
 	now := time.Now().In(loc)
 	nextMidnight := durationUntilNextMidnight(now, loc)
 
-	bucket := gf.Spec.RustFS.Bucket
+	bucket := gf.Spec.ObjectStorage.Bucket
 	if bucket == "" {
 		bucket = gf.Name
 	}
 
-	accessKey, secretKey, err := r.readRustFSCredentials(ctx, gf)
+	accessKey, secretKey, err := r.readObjectStorageCredentials(ctx, gf)
 	if err != nil {
-		logger.Info("could not read RustFS credentials, requeuing", "err", err)
-		return rustfsRequeueOnNotReady, nil
+		logger.Info("could not read object-storage credentials, requeuing", "err", err)
+		return objectStorageRequeueOnNotReady, nil
 	}
 
-	rc, err := database.NewRotationStateClient(gf.Spec.RustFS.Endpoint, bucket, accessKey, secretKey)
+	rc, err := database.NewRotationStateClient(gf.Spec.ObjectStorage.Endpoint, bucket, accessKey, secretKey)
 	if err != nil {
-		logger.Info("could not create rotation state client, requeuing", "endpoint", gf.Spec.RustFS.Endpoint, "err", err)
-		return rustfsRequeueOnNotReady, nil
+		logger.Info("could not create rotation state client, requeuing", "endpoint", gf.Spec.ObjectStorage.Endpoint, "err", err)
+		return objectStorageRequeueOnNotReady, nil
 	}
 
 	if err := advanceRotation(ctx, rc, now, gf); err != nil {

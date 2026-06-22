@@ -59,13 +59,13 @@ func LoadServerConfig(path string) (*ServiceConfig, error) {
 		config.LogLevel = "info"
 	}
 	if config.Database.AccessKey == "" {
-		config.Database.AccessKey = os.Getenv("RUSTFS_ACCESS_KEY")
+		config.Database.AccessKey = os.Getenv("OBJECT_STORAGE_ACCESS_KEY")
 	}
 	if config.Database.SecretKey == "" {
-		config.Database.SecretKey = os.Getenv("RUSTFS_SECRET_KEY")
+		config.Database.SecretKey = os.Getenv("OBJECT_STORAGE_SECRET_KEY")
 	}
 	if config.Database.ImageBaseURL == "" {
-		config.Database.ImageBaseURL = os.Getenv("RUSTFS_IMAGE_BASE_URL")
+		config.Database.ImageBaseURL = os.Getenv("OBJECT_STORAGE_IMAGE_BASE_URL")
 	}
 	if config.Database.ImageBaseURL == "" {
 		config.Database.ImageBaseURL = "/images"
