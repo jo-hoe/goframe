@@ -40,8 +40,8 @@ github.com/go-openapi/swag/jsonutils v0.27.0 h1:VYtd9jEQYeU4j8q5vdn5KWotF4vKywhG
 github.com/go-openapi/swag/jsonutils v0.27.0/go.mod h1:U7pb8AGuwhok3RDicHeHwSG4L3PXSq6PAL98Aon632g=
 github.com/go-openapi/swag/jsonutils/fixtures_test v0.27.0 h1:+d7C7Ur/SsGg/UZ9G0JEovnfRqtMNZCJQGKc2h/ojoE=
 github.com/go-openapi/swag/jsonutils/fixtures_test v0.27.0/go.mod h1:mofwUWx70wvskwESqRJ//k/9kURmCgyJl5m5Ppoh5kY=
-github.com/go-openapi/swag/loading v0.26.0 h1:Apg6zaKhCJurpJer0DCxq99qwmhFddBhaMX7kilDcko=
-github.com/go-openapi/swag/loading v0.26.0/go.mod h1:dBxQ/6V2uBaAQdevN18VELE6xSpJWZxLX4txe12JwDg=
+github.com/go-openapi/swag/loading v0.27.0 h1:s8DA9aPEdFH6OluHUYUn3DnIuoTdyWs9RwffXBUfyeI=
+github.com/go-openapi/swag/loading v0.27.0/go.mod h1:VOz+Jg6UGGywcmRvYsI4fvtp+bd7NfioseGEPleYdA4=
 github.com/go-openapi/swag/mangling v0.27.0 h1:rpPJuqQHa6z2pDiP3iIpXOyNXlSs9cQCxnJSAxzdfOc=
 github.com/go-openapi/swag/mangling v0.27.0/go.mod h1:jtBE2+V+3pILxOR7Vgce+Cwp6A2PgZbvVqfNntbVs0w=
 github.com/go-openapi/swag/netutils v0.27.0 h1:lEUG+hHvPvLggB3A8snFk0IRKNf9uC0YKc+7WYqvAF8=
