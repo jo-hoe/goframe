@@ -6,7 +6,7 @@ require (
 	github.com/labstack/echo/v4 v4.15.4
 	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
-	golang.org/x/image v0.41.0
+	golang.org/x/image v0.43.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.36.2
 	k8s.io/apiextensions-apiserver v0.36.2
