@@ -28,7 +28,7 @@ func loadConfig() (*Config, error) {
 		path = "local.yaml"
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil

@@ -75,7 +75,11 @@ func uploadTestImage(t *testing.T, client *http.Client, baseURL string) string {
 	if err != nil {
 		t.Fatalf("upload request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("closing upload response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusCreated {
 		b, _ := io.ReadAll(resp.Body)
@@ -102,7 +106,11 @@ func listImages(t *testing.T, client *http.Client, baseURL string) []apiImageIte
 	if err != nil {
 		t.Fatalf("list request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("closing list response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
@@ -128,7 +136,11 @@ func deleteImage(t *testing.T, client *http.Client, baseURL, id string) {
 	if err != nil {
 		t.Fatalf("delete request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("closing delete response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusNoContent {
 		b, _ := io.ReadAll(resp.Body)
@@ -149,7 +161,11 @@ func moveImage(t *testing.T, client *http.Client, baseURL, id, dir string) {
 	if err != nil {
 		t.Fatalf("move request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logf("closing move response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
