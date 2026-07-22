@@ -210,7 +210,7 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		Commands:         cmds,
 	}
 
-	out, err := yaml.Marshal(cfg)
+	out, err := yaml.Marshal(cfg) //nolint:gosec // APIKey field is always empty; actual key is mounted from a K8s Secret at runtime
 	if err != nil {
 		return "", err
 	}
