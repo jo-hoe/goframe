@@ -11,6 +11,8 @@ import (
 	"github.com/jo-hoe/goframe/internal/imageprocessing"
 	"github.com/jo-hoe/goframe/internal/scheduler"
 	"github.com/jo-hoe/goframe/internal/scheduler/metmuseum"
+	"github.com/jo-hoe/goframe/internal/scheduler/nasaapod"
+	"github.com/jo-hoe/goframe/internal/scheduler/nasaimageoftheday"
 	"github.com/jo-hoe/goframe/internal/scheduler/oatmeal"
 	s3source "github.com/jo-hoe/goframe/internal/scheduler/s3"
 	"github.com/jo-hoe/goframe/internal/scheduler/tumblr"
@@ -67,6 +69,23 @@ func main() {
 			AccessKey: fileOr(s3CredentialPath("accessKey"), s3Cfg.AccessKey),
 			SecretKey: fileOr(s3CredentialPath("secretKey"), s3Cfg.SecretKey),
 		})
+	case "nasaapod":
+		apodCfg, loadErr := config.LoadNASAAPODConfig(path)
+		if loadErr != nil {
+			slog.Error("image-scheduler: failed to load config", "path", path, "error", loadErr)
+			os.Exit(1)
+		}
+		baseCfg = &apodCfg.SchedulerFileConfig
+		apiKey := fileOr(nasaAPIKeyPath(), apodCfg.APIKey)
+		source = nasaapod.NewNASAAPODSource(apiKey)
+	case "nasaimageoftheday":
+		iotdCfg, loadErr := config.LoadNASAImageOfTheDayConfig(path)
+		if loadErr != nil {
+			slog.Error("image-scheduler: failed to load config", "path", path, "error", loadErr)
+			os.Exit(1)
+		}
+		baseCfg = &iotdCfg.SchedulerFileConfig
+		source = nasaimageoftheday.NewNASAImageOfTheDaySource()
 	default:
 		baseCfg, err = config.LoadSchedulerConfig(path)
 		if err != nil {
@@ -153,6 +172,12 @@ const s3CredentialsMountPath = "/etc/s3-credentials" //nolint:gosec // mount pat
 
 func s3CredentialPath(key string) string {
 	return filepath.Join(s3CredentialsMountPath, key)
+}
+
+// nasaAPIKeyPath returns the file path for the NASA API key, resolved from the
+// NASA_APOD_API_KEY_PATH env var set by the operator when an apiKeySecretRef is configured.
+func nasaAPIKeyPath() string {
+	return os.Getenv("NASA_APOD_API_KEY_PATH")
 }
 
 // fileOr reads a file and returns its trimmed content, or fallback if the file is absent or empty.

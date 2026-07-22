@@ -66,7 +66,7 @@ The operator chart (`charts/goframe-operator`) must be installed first to regist
 
 CronJob-based image schedulers fetch images from external sources automatically.
 
-Supported sources: `xkcd`, `oatmeal`, `metmuseum`, `tumblr`, `s3`
+Supported sources: `xkcd`, `oatmeal`, `metmuseum`, `tumblr`, `s3`, `nasaapod`, `nasaimageoftheday`
 
 Key configuration:
 - **group**: Schedulers sharing a group evict each other's images on upload (mutual exclusion)

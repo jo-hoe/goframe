@@ -19,11 +19,13 @@ import (
 )
 
 const (
-	schedulerInstanceLabel       = "goframe-instance"
-	schedulerNameLabel           = "goframe-scheduler"
-	schedulerConfigMountPath     = "/etc/goframe-scheduler"
-	schedulerConfigFileName      = "image-scheduler.yaml"
-	schedulerS3CredentialsMountPath = "/etc/s3-credentials" //nolint:gosec // mount path, not a credential
+	schedulerInstanceLabel          = "goframe-instance"
+	schedulerNameLabel              = "goframe-scheduler"
+	schedulerConfigMountPath        = "/etc/goframe-scheduler"
+	schedulerConfigFileName         = "image-scheduler.yaml"
+	schedulerS3CredentialsMountPath = "/etc/s3-credentials"     //nolint:gosec // mount path, not a credential
+	schedulerNASAKeyMountPath       = "/etc/nasa-api-key"       //nolint:gosec // mount path, not a credential
+	schedulerNASAKeyFileName        = "apiKey"
 )
 
 // reconcileCronJobs diffs spec.schedulers against existing CronJobs and
@@ -140,6 +142,7 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		Bucket           string      `yaml:"bucket,omitempty"`
 		Prefix           string      `yaml:"prefix,omitempty"`
 		Region           string      `yaml:"region,omitempty"`
+		APIKey           string      `yaml:"apiKey,omitempty"`
 		LogLevel         string      `yaml:"logLevel"`
 		Commands         []cmdConfig `yaml:"commands,omitempty"`
 	}
@@ -185,6 +188,10 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		prefix = sched.S3.Prefix
 		region = sched.S3.Region
 	}
+
+	// For nasaapod the API key is mounted from a Secret file and read by the binary at runtime;
+	// the apiKey field in the config is left empty intentionally when a secretRef is configured.
+	// When no secretRef is set the field stays empty and the source will use the demo key.
 
 	cfg := schedulerConfig{
 		GoframeURL:       serverURL(gf),
@@ -308,6 +315,26 @@ func (r *GoFrameReconciler) buildCronJob(gf *goframev1alpha1.GoFrame, sched gofr
 					SecretName: sched.S3.SecretRef,
 				},
 			},
+		})
+	}
+
+	if sched.NASAApod != nil && sched.NASAApod.APIKeySecretRef != "" {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "nasa-api-key",
+			MountPath: schedulerNASAKeyMountPath,
+			ReadOnly:  true,
+		})
+		volumes = append(volumes, corev1.Volume{
+			Name: "nasa-api-key",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: sched.NASAApod.APIKeySecretRef,
+				},
+			},
+		})
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "NASA_APOD_API_KEY_PATH",
+			Value: schedulerNASAKeyMountPath + "/" + schedulerNASAKeyFileName,
 		})
 	}
 

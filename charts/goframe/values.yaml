@@ -90,7 +90,7 @@ schedulerImage:
 
 # -- CronJob-based image schedulers (one CronJob per entry).
 # Each entry requires: name, cron, source.
-# Supported sources: xkcd, oatmeal, metmuseum, tumblr, s3.
+# Supported sources: xkcd, oatmeal, metmuseum, tumblr, s3, nasaapod, nasaimageoftheday.
 #
 # group: optional. Schedulers sharing the same group evict each other's images on
 # a successful upload, so only one group member's image is displayed at a time. Use this to
@@ -176,6 +176,24 @@ schedulerImage:
 #       repository: ghcr.io/jo-hoe/goframe-image-scheduler
 #       tag: ""
 #       pullPolicy: IfNotPresent
+#
+# Example — NASA Astronomy Picture of the Day (random image from the full archive):
+# schedulers:
+#   - name: nasa-apod
+#     cron: "0 8 * * *"
+#     source: nasaapod
+#     nasaapod:
+#       # apiKeySecretRef names a Kubernetes Secret with key "apiKey".
+#       # Obtain a free key at https://api.nasa.gov/.
+#       # Omit to use the NASA demo key (rate-limited to 30 req/hour/IP).
+#       apiKeySecretRef: "nasa-apod-credentials"
+#
+# Example — NASA Image of the Day (latest image from https://www.nasa.gov/image-of-the-day/):
+# schedulers:
+#   - name: nasa-image-of-the-day
+#     cron: "0 8 * * *"
+#     source: nasaimageoftheday
+#     # No additional configuration required.
 #
 schedulers: []
 

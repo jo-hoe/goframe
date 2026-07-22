@@ -183,6 +183,8 @@ graph TD
         MET[Met Museum API]
         TUMBLR[Tumblr RSS]
         S3SRC[S3 Bucket]
+        NASAAPOD[NASA APOD API]
+        NASAIOTD[NASA Image of the Day RSS]
     end
 
     subgraph "CronJobs (one per scheduler)"
@@ -193,6 +195,8 @@ graph TD
     CJ -->|fetch random image| MET
     CJ -->|fetch random image| TUMBLR
     CJ -->|fetch random image| S3SRC
+    CJ -->|fetch random image| NASAAPOD
+    CJ -->|fetch latest image| NASAIOTD
 
     CJ -->|"POST /api/image<br/>(with source label)"| SRV[GoFrame Server]
 
@@ -201,10 +205,17 @@ graph TD
 
 Each scheduler is configured with:
 - **cron**: When to run (timezone-aware)
-- **source**: Which image source to use
+- **source**: Which image source to use (`xkcd`, `oatmeal`, `metmuseum`, `tumblr`, `s3`, `nasaapod`, `nasaimageoftheday`)
 - **group**: Mutually exclusive scheduling (e.g., weekday vs weekend)
 - **onExternalImages**: Policy for non-group images (`ignore`, `takeover`, `yield`)
 - **commands**: Optional per-scheduler image processing pipeline
+
+### NASA sources
+
+| Source | Fetch behaviour | Config |
+|---|---|---|
+| `nasaapod` | Picks a random entry from the full APOD archive via `api.nasa.gov` | Optional `apiKeySecretRef` for a production API key |
+| `nasaimageoftheday` | Fetches the latest image from the NASA RSS feed (`nasa.gov/feed/`) | No additional configuration required |
 
 ---
 

@@ -50,6 +50,24 @@ type TumblrFileConfig struct {
 	Blogs []string `yaml:"blogs"`
 }
 
+// NASAAPODFileConfig is the typed configuration for the nasaapod source.
+// It embeds all common scheduler fields and adds an optional APIKey field.
+// When APIKey is empty the NASA demo key is used (rate-limited to 30 req/hour/IP).
+// Obtain a free production key at https://api.nasa.gov/.
+type NASAAPODFileConfig struct {
+	SchedulerFileConfig `yaml:",inline"`
+	// APIKey is a NASA API key. Leave empty to use the demo key.
+	// See https://api.nasa.gov/ for registration.
+	APIKey string `yaml:"apiKey"`
+}
+
+// NASAImageOfTheDayFileConfig is the typed configuration for the nasaimageoftheday source.
+// It embeds all common scheduler fields; no additional fields are required.
+// The source fetches the latest image from https://www.nasa.gov/feed/.
+type NASAImageOfTheDayFileConfig struct {
+	SchedulerFileConfig `yaml:",inline"`
+}
+
 // S3FileConfig is the typed configuration for the s3 source.
 // Compatible with AWS S3, RustFS, MinIO, and any S3-compatible storage.
 type S3FileConfig struct {
@@ -157,6 +175,42 @@ func LoadS3Config(path string) (*S3FileConfig, error) {
 	}
 	if cfg.Region == "" {
 		return nil, fmt.Errorf("s3 scheduler config %s: region is required", path)
+	}
+	return &cfg, nil
+}
+
+// LoadNASAAPODConfig reads and parses a YAML nasaapod scheduler config from the given path.
+func LoadNASAAPODConfig(path string) (*NASAAPODFileConfig, error) {
+	data, err := readConfigFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg NASAAPODFileConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse nasaapod scheduler config %s: %w", path, err)
+	}
+
+	if err := applyDefaults(&cfg.SchedulerFileConfig); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+// LoadNASAImageOfTheDayConfig reads and parses a YAML nasaimageoftheday scheduler config from the given path.
+func LoadNASAImageOfTheDayConfig(path string) (*NASAImageOfTheDayFileConfig, error) {
+	data, err := readConfigFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg NASAImageOfTheDayFileConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse nasaimageoftheday scheduler config %s: %w", path, err)
+	}
+
+	if err := applyDefaults(&cfg.SchedulerFileConfig); err != nil {
+		return nil, err
 	}
 	return &cfg, nil
 }

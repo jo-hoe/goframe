@@ -113,6 +113,15 @@ type SchedulerSpec struct {
 	// +optional
 	S3 *S3Config `json:"s3,omitempty"`
 
+	// NASAApod holds configuration for the nasaapod source.
+	// +optional
+	NASAApod *NASAApodConfig `json:"nasaapod,omitempty"`
+
+	// NASAImageOfTheDay holds configuration for the nasaimageoftheday source.
+	// No additional configuration is required; the field exists for future extensibility.
+	// +optional
+	NASAImageOfTheDay *NASAImageOfTheDayConfig `json:"nasaimageoftheday,omitempty"`
+
 	// Image configures the container image for the scheduler CronJob.
 	// +optional
 	Image ImageSpec `json:"image,omitempty"`
@@ -162,6 +171,22 @@ type S3Config struct {
 	// +optional
 	SecretRef string `json:"secretRef,omitempty"`
 }
+
+// NASAApodConfig holds the configuration for the nasaapod image source.
+// +kubebuilder:object:generate=true
+type NASAApodConfig struct {
+	// APIKeySecretRef is the name of a Kubernetes Secret in the same namespace that holds
+	// the NASA API key. The Secret must contain the key "apiKey".
+	// Omit to use the NASA demo key (rate-limited to 30 req/hour/IP).
+	// Obtain a free production key at https://api.nasa.gov/.
+	// +optional
+	APIKeySecretRef string `json:"apiKeySecretRef,omitempty"`
+}
+
+// NASAImageOfTheDayConfig holds the configuration for the nasaimageoftheday image source.
+// No additional parameters are required; the source fetches from https://www.nasa.gov/feed/.
+// +kubebuilder:object:generate=true
+type NASAImageOfTheDayConfig struct{}
 
 // ServerSpec configures the goframe server Deployment.
 // +kubebuilder:object:generate=true

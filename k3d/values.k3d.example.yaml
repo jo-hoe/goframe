@@ -64,6 +64,26 @@ schedulers:
   #     tag: latest
   #     pullPolicy: Always
 
+  - name: nasa-apod
+    cron: "2-59/4 * * * *"
+    source: nasaapod
+    group: daily-wallpaper
+    # nasaapod.apiKeySecretRef: omitted — uses NASA demo key (30 req/hour/IP)
+    # To use a production key, create a Secret and set apiKeySecretRef: "nasa-apod-credentials"
+    image:
+      repository: registry.localhost:5000/goframe-image-scheduler
+      tag: latest
+      pullPolicy: Always
+
+  - name: nasa-image-of-the-day
+    cron: "3-59/4 * * * *"
+    source: nasaimageoftheday
+    group: daily-wallpaper
+    image:
+      repository: registry.localhost:5000/goframe-image-scheduler
+      tag: latest
+      pullPolicy: Always
+
 
 ingress:
   enabled: true
