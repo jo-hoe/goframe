@@ -77,17 +77,45 @@ func TestExtractLatestImageURL_NoItems(t *testing.T) {
 	}
 }
 
-func TestExtractLatestImageURL_UsesFirstItem(t *testing.T) {
+func TestExtractLatestImageURL_UsesImageArticleItem(t *testing.T) {
 	feed := rssFeed{Channel: rssChannel{Items: []rssItem{
-		{ContentEncoded: `<img src="https://example.com/first.jpg"/>`},
-		{ContentEncoded: `<img src="https://example.com/second.jpg"/>`},
+		{Link: "https://www.nasa.gov/news/some-news/", ContentEncoded: `<img src="https://example.com/news.jpg"/>`},
+		{Link: "https://www.nasa.gov/image-article/galaxy/", ContentEncoded: `<img src="https://example.com/galaxy.jpg"/>`},
 	}}}
 	got, err := extractLatestImageURL(feed)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got != "https://example.com/first.jpg" {
-		t.Errorf("expected first item URL, got %q", got)
+	if got != "https://example.com/galaxy.jpg" {
+		t.Errorf("expected image-article URL, got %q", got)
+	}
+}
+
+func TestExtractLatestImageURL_NoImageArticleItem(t *testing.T) {
+	feed := rssFeed{Channel: rssChannel{Items: []rssItem{
+		{Link: "https://www.nasa.gov/news/some-news/", ContentEncoded: `<img src="https://example.com/news.jpg"/>`},
+	}}}
+	_, err := extractLatestImageURL(feed)
+	if err == nil {
+		t.Fatal("expected error when no image-article item found, got nil")
+	}
+}
+
+func TestStripQueryParams(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"https://example.com/img.jpg?w=864", "https://example.com/img.jpg"},
+		{"https://example.com/img.jpg?w=2048&h=1365", "https://example.com/img.jpg"},
+		{"https://example.com/img.jpg", "https://example.com/img.jpg"},
+		{"not-a-url", "not-a-url"},
+	}
+	for _, tc := range tests {
+		got := stripQueryParams(tc.input)
+		if got != tc.want {
+			t.Errorf("stripQueryParams(%q) = %q, want %q", tc.input, got, tc.want)
+		}
 	}
 }
 
@@ -183,6 +211,7 @@ func buildTestFeedXML(contentEncodedBody string) string {
 		`    <title>NASA</title>`,
 		`    <item>`,
 		`      <title>Test Image</title>`,
+		`      <link>https://www.nasa.gov/image-article/test/</link>`,
 		`      <content:encoded><![CDATA[` + contentEncodedBody + `]]></content:encoded>`,
 		`    </item>`,
 		`  </channel>`,

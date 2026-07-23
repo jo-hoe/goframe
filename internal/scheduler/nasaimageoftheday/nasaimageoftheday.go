@@ -10,6 +10,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -53,6 +54,8 @@ func (n *NASAImageOfTheDaySource) Fetch(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("extracting image URL from nasa feed: %w", err)
 	}
 
+	imageURL = stripQueryParams(imageURL)
+
 	data, err := scheduler.FetchBytes(ctx, n.httpClient, imageURL)
 	if err != nil {
 		return nil, fmt.Errorf("downloading nasa image of the day from %q: %w", imageURL, err)
@@ -74,6 +77,7 @@ type rssChannel struct {
 // rssItem represents a single feed entry.
 // ContentEncoded is namespace-qualified to match the content:encoded element.
 type rssItem struct {
+	Link           string `xml:"link"`
 	ContentEncoded string `xml:"http://purl.org/rss/1.0/modules/content/ encoded"`
 }
 
@@ -93,12 +97,18 @@ func parseFeed(data []byte) (rssFeed, error) {
 	return feed, nil
 }
 
-// extractLatestImageURL finds the image URL in the first RSS item's content:encoded HTML.
+// extractLatestImageURL finds the image URL in the most recent image-article RSS item.
+// The general NASA feed mixes post types; image-of-the-day entries have links under /image-article/.
 func extractLatestImageURL(feed rssFeed) (string, error) {
 	if len(feed.Channel.Items) == 0 {
 		return "", fmt.Errorf("rss feed contains no items")
 	}
-	return extractImgSrc(feed.Channel.Items[0].ContentEncoded)
+	for _, item := range feed.Channel.Items {
+		if strings.Contains(item.Link, "/image-article/") {
+			return extractImgSrc(item.ContentEncoded)
+		}
+	}
+	return "", fmt.Errorf("no image-article item found in rss feed")
 }
 
 // extractImgSrc parses an HTML fragment and returns the src attribute of the first <img> element.
@@ -130,4 +140,14 @@ func findFirstImgSrc(n *html.Node) string {
 		}
 	}
 	return ""
+}
+
+// stripQueryParams removes query string parameters from a URL, returning the bare path.
+func stripQueryParams(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	u.RawQuery = ""
+	return u.String()
 }
