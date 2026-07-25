@@ -10,6 +10,7 @@ import (
 	"github.com/jo-hoe/goframe/internal/config"
 	"github.com/jo-hoe/goframe/internal/imageprocessing"
 	"github.com/jo-hoe/goframe/internal/scheduler"
+	"github.com/jo-hoe/goframe/internal/scheduler/imagelist"
 	"github.com/jo-hoe/goframe/internal/scheduler/metmuseum"
 	"github.com/jo-hoe/goframe/internal/scheduler/nasaapod"
 	"github.com/jo-hoe/goframe/internal/scheduler/nasaimageoftheday"
@@ -86,6 +87,14 @@ func main() {
 		}
 		baseCfg = &iotdCfg.SchedulerFileConfig
 		source = nasaimageoftheday.NewNASAImageOfTheDaySource()
+	case "imagelist":
+		ilCfg, loadErr := config.LoadImageListConfig(path)
+		if loadErr != nil {
+			slog.Error("image-scheduler: failed to load config", "path", path, "error", loadErr)
+			os.Exit(1)
+		}
+		baseCfg = &ilCfg.SchedulerFileConfig
+		source = imagelist.NewImageListSource(imageListPath(), config.HeaderMap(ilCfg.Headers))
 	default:
 		baseCfg, err = config.LoadSchedulerConfig(path)
 		if err != nil {
@@ -178,6 +187,12 @@ func s3CredentialPath(key string) string {
 // NASA_APOD_API_KEY_PATH env var set by the operator when an apiKeySecretRef is configured.
 func nasaAPIKeyPath() string {
 	return os.Getenv("NASA_APOD_API_KEY_PATH")
+}
+
+// imageListPath returns the file path for the imagelist YAML, resolved from the
+// IMAGE_LIST_PATH env var set by the operator when the imagelist source is configured.
+func imageListPath() string {
+	return os.Getenv("IMAGE_LIST_PATH")
 }
 
 // fileOr reads a file and returns its trimmed content, or fallback if the file is absent or empty.

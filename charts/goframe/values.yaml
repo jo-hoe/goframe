@@ -90,7 +90,7 @@ schedulerImage:
 
 # -- CronJob-based image schedulers (one CronJob per entry).
 # Each entry requires: name, cron, source.
-# Supported sources: xkcd, oatmeal, metmuseum, tumblr, s3, nasaapod, nasaimageoftheday.
+# Supported sources: xkcd, oatmeal, metmuseum, tumblr, s3, nasaapod, nasaimageoftheday, imagelist.
 #
 # group: optional. Schedulers sharing the same group evict each other's images on
 # a successful upload, so only one group member's image is displayed at a time. Use this to
@@ -194,6 +194,28 @@ schedulerImage:
 #     cron: "0 8 * * *"
 #     source: nasaimageoftheday
 #     # No additional configuration required.
+#
+# Example — imagelist (random image from a provided YAML list of URLs):
+# Each list entry has a required `url`; any other fields (title, description,
+# credit, altText, publishedAt, width, height, orientation) are ignored.
+# schedulers:
+#   - name: natgeo
+#     cron: "0 8 * * *"
+#     source: imagelist
+#     imagelist:
+#       # Option A — inline the list; the chart renders a ConfigMap for it:
+#       images:
+#         - url: https://example.com/a.jpg
+#         - url: https://example.com/b.jpg
+#           title: Behind the Scenes   # extra fields are ignored
+#       # Option B — reference an existing (e.g. generated) ConfigMap that holds
+#       #            the list under the key "images.yaml". When set, `images` is ignored.
+#       # configMapRef: my-generated-image-list
+#       # headers is optional — HTTP request headers applied to each image download.
+#       # Set a browser User-Agent for hosts that reject the default Go client.
+#       # headers:
+#       #   - name: User-Agent
+#       #     value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 #
 schedulers: []
 

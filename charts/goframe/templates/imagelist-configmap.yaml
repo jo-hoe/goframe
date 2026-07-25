@@ -1,0 +1,15 @@
+{{- range .Values.schedulers }}
+{{- if and .imagelist .imagelist.images (not .imagelist.configMapRef) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-sched-%s-imagelist" $.Release.Name .name | quote }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "goframe.labels" $ | nindent 4 }}
+data:
+  images.yaml: |
+    {{- toYaml .imagelist.images | nindent 4 }}
+{{- end }}
+{{- end }}

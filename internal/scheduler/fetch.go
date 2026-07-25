@@ -17,11 +17,17 @@ const (
 // Retries up to fetchMaxRetries times with exponential backoff on 429 or 403
 // (rate-limit / CloudFlare transient blocks).
 func FetchBytes(ctx context.Context, client *http.Client, url string) ([]byte, error) {
+	return FetchBytesWithHeaders(ctx, client, url, nil)
+}
+
+// FetchBytesWithHeaders behaves like FetchBytes but sets the given request headers
+// on each attempt. A nil or empty map leaves the default request headers unchanged.
+func FetchBytesWithHeaders(ctx context.Context, client *http.Client, url string, headers map[string]string) ([]byte, error) {
 	var lastErr error
 	delay := fetchBaseDelay
 
 	for attempt := range fetchMaxRetries + 1 {
-		data, retry, err := fetchOnce(ctx, client, url)
+		data, retry, err := fetchOnce(ctx, client, url, headers)
 		if err == nil {
 			return data, nil
 		}
@@ -40,10 +46,13 @@ func FetchBytes(ctx context.Context, client *http.Client, url string) ([]byte, e
 	return nil, lastErr
 }
 
-func fetchOnce(ctx context.Context, client *http.Client, url string) ([]byte, bool, error) {
+func fetchOnce(ctx context.Context, client *http.Client, url string, headers map[string]string) ([]byte, bool, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, false, err
+	}
+	for name, value := range headers {
+		req.Header.Set(name, value)
 	}
 
 	resp, err := client.Do(req)

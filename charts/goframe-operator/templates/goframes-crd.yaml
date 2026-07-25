@@ -173,6 +173,38 @@ spec:
                           description: Tag is the image tag (e.g. "latest", "v1.2.3").
                           type: string
                       type: object
+                    imagelist:
+                      description: |-
+                        ImageList holds configuration for the imagelist source.
+                        The URL list is mounted as a ConfigMap file and read by the scheduler at runtime.
+                      properties:
+                        configMapRef:
+                          description: |-
+                            ConfigMapRef is the name of a Kubernetes ConfigMap in the same namespace that holds
+                            the image list under the key "images.yaml". When omitted, the Helm chart renders a
+                            ConfigMap from an inline list and sets this reference automatically.
+                          type: string
+                        headers:
+                          description: |-
+                            Headers are optional HTTP request headers applied to each image download.
+                            Use this to set e.g. a browser User-Agent for hosts that reject the default
+                            Go client. When empty the default request headers are used unchanged.
+                          items:
+                            description: HTTPHeader is a single HTTP request header
+                              name/value pair.
+                            properties:
+                              name:
+                                description: Name is the HTTP header name (e.g. "User-Agent").
+                                type: string
+                              value:
+                                description: Value is the HTTP header value.
+                                type: string
+                            required:
+                            - name
+                            - value
+                            type: object
+                          type: array
+                      type: object
                     logLevel:
                       default: info
                       description: LogLevel sets the scheduler log verbosity (debug,

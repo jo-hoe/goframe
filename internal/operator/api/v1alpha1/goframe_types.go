@@ -122,6 +122,11 @@ type SchedulerSpec struct {
 	// +optional
 	NASAImageOfTheDay *NASAImageOfTheDayConfig `json:"nasaimageoftheday,omitempty"`
 
+	// ImageList holds configuration for the imagelist source.
+	// The URL list is mounted as a ConfigMap file and read by the scheduler at runtime.
+	// +optional
+	ImageList *ImageListConfig `json:"imagelist,omitempty"`
+
 	// Image configures the container image for the scheduler CronJob.
 	// +optional
 	Image ImageSpec `json:"image,omitempty"`
@@ -187,6 +192,34 @@ type NASAApodConfig struct {
 // No additional parameters are required; the source fetches from https://www.nasa.gov/feed/.
 // +kubebuilder:object:generate=true
 type NASAImageOfTheDayConfig struct{}
+
+// ImageListConfig holds the configuration for the imagelist image source.
+// The list of image URLs is provided as a ConfigMap file (mounted at runtime),
+// not inlined into the scheduler config. A random URL is selected per run.
+// +kubebuilder:object:generate=true
+type ImageListConfig struct {
+	// ConfigMapRef is the name of a Kubernetes ConfigMap in the same namespace that holds
+	// the image list under the key "images.yaml". When omitted, the Helm chart renders a
+	// ConfigMap from an inline list and sets this reference automatically.
+	// +optional
+	ConfigMapRef string `json:"configMapRef,omitempty"`
+
+	// Headers are optional HTTP request headers applied to each image download.
+	// Use this to set e.g. a browser User-Agent for hosts that reject the default
+	// Go client. When empty the default request headers are used unchanged.
+	// +optional
+	Headers []HTTPHeader `json:"headers,omitempty"`
+}
+
+// HTTPHeader is a single HTTP request header name/value pair.
+// +kubebuilder:object:generate=true
+type HTTPHeader struct {
+	// Name is the HTTP header name (e.g. "User-Agent").
+	Name string `json:"name"`
+
+	// Value is the HTTP header value.
+	Value string `json:"value"`
+}
 
 // ServerSpec configures the goframe server Deployment.
 // +kubebuilder:object:generate=true

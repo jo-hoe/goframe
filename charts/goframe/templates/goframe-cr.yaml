@@ -88,6 +88,21 @@ spec:
         secretRef: {{ printf "%s-sched-%s-s3-credentials" $.Release.Name .name | quote }}
         {{- end }}
       {{- end }}
+      {{- if .imagelist }}
+      imagelist:
+        {{- if .imagelist.configMapRef }}
+        configMapRef: {{ .imagelist.configMapRef | quote }}
+        {{- else if .imagelist.images }}
+        configMapRef: {{ printf "%s-sched-%s-imagelist" $.Release.Name .name | quote }}
+        {{- end }}
+        {{- if .imagelist.headers }}
+        headers:
+          {{- range .imagelist.headers }}
+          - name: {{ .name | quote }}
+            value: {{ .value | quote }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
       {{- if .commands }}
       commands:
         {{- range .commands }}

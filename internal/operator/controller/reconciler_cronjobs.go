@@ -26,6 +26,8 @@ const (
 	schedulerS3CredentialsMountPath = "/etc/s3-credentials"     //nolint:gosec // mount path, not a credential
 	schedulerNASAKeyMountPath       = "/etc/nasa-api-key"       //nolint:gosec // mount path, not a credential
 	schedulerNASAKeyFileName        = "apiKey"
+	schedulerImageListMountPath     = "/etc/goframe-imagelist"
+	schedulerImageListFileName      = "images.yaml"
 )
 
 // reconcileCronJobs diffs spec.schedulers against existing CronJobs and
@@ -129,22 +131,27 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		Name   string         `yaml:"name"`
 		Params map[string]any `yaml:",inline"`
 	}
+	type httpHeader struct {
+		Name  string `yaml:"name"`
+		Value string `yaml:"value"`
+	}
 	type schedulerConfig struct {
-		GoframeURL       string      `yaml:"goframeURL"`
-		SourceName       string      `yaml:"sourceName"`
-		Source           string      `yaml:"source"`
-		Group            string      `yaml:"group,omitempty"`
-		GroupMembers     []string    `yaml:"groupMembers,omitempty"`
-		OnExternalImages string      `yaml:"onExternalImages,omitempty"`
-		DepartmentIDs    []int       `yaml:"departmentIDs,omitempty"`
-		Blogs            []string    `yaml:"blogs,omitempty"`
-		Endpoint         string      `yaml:"endpoint,omitempty"`
-		Bucket           string      `yaml:"bucket,omitempty"`
-		Prefix           string      `yaml:"prefix,omitempty"`
-		Region           string      `yaml:"region,omitempty"`
-		APIKey           string      `yaml:"apiKey,omitempty"`
-		LogLevel         string      `yaml:"logLevel"`
-		Commands         []cmdConfig `yaml:"commands,omitempty"`
+		GoframeURL       string       `yaml:"goframeURL"`
+		SourceName       string       `yaml:"sourceName"`
+		Source           string       `yaml:"source"`
+		Group            string       `yaml:"group,omitempty"`
+		GroupMembers     []string     `yaml:"groupMembers,omitempty"`
+		OnExternalImages string       `yaml:"onExternalImages,omitempty"`
+		DepartmentIDs    []int        `yaml:"departmentIDs,omitempty"`
+		Blogs            []string     `yaml:"blogs,omitempty"`
+		Endpoint         string       `yaml:"endpoint,omitempty"`
+		Bucket           string       `yaml:"bucket,omitempty"`
+		Prefix           string       `yaml:"prefix,omitempty"`
+		Region           string       `yaml:"region,omitempty"`
+		APIKey           string       `yaml:"apiKey,omitempty"`
+		Headers          []httpHeader `yaml:"headers,omitempty"`
+		LogLevel         string       `yaml:"logLevel"`
+		Commands         []cmdConfig  `yaml:"commands,omitempty"`
 	}
 
 	logLevel := sched.LogLevel
@@ -175,6 +182,7 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 	var departmentIDs []int
 	var blogs []string
 	var endpoint, bucket, prefix, region string
+	var headers []httpHeader
 
 	if sched.MetMuseum != nil {
 		departmentIDs = sched.MetMuseum.DepartmentIDs
@@ -187,6 +195,11 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		bucket = sched.S3.Bucket
 		prefix = sched.S3.Prefix
 		region = sched.S3.Region
+	}
+	if sched.ImageList != nil {
+		for _, h := range sched.ImageList.Headers {
+			headers = append(headers, httpHeader{Name: h.Name, Value: h.Value})
+		}
 	}
 
 	// For nasaapod the API key is mounted from a Secret file and read by the binary at runtime;
@@ -206,6 +219,7 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		Bucket:           bucket,
 		Prefix:           prefix,
 		Region:           region,
+		Headers:          headers,
 		LogLevel:         logLevel,
 		Commands:         cmds,
 	}
@@ -338,6 +352,28 @@ func (r *GoFrameReconciler) buildCronJob(gf *goframev1alpha1.GoFrame, sched gofr
 		})
 	}
 
+	if cmName := imageListConfigMapName(gf, sched); cmName != "" {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "imagelist",
+			MountPath: schedulerImageListMountPath,
+			ReadOnly:  true,
+		})
+		volumes = append(volumes, corev1.Volume{
+			Name: "imagelist",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: cmName,
+					},
+				},
+			},
+		})
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "IMAGE_LIST_PATH",
+			Value: schedulerImageListMountPath + "/" + schedulerImageListFileName,
+		})
+	}
+
 	return &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -384,6 +420,19 @@ func schedulerImageRef(sched goframev1alpha1.SchedulerSpec) string {
 		tag = "latest"
 	}
 	return repo + ":" + tag
+}
+
+// imageListConfigMapName resolves the ConfigMap holding the image list for an imagelist
+// scheduler. It returns the explicit ConfigMapRef when set, otherwise the per-scheduler
+// name the Helm chart renders from an inline list. Returns "" when the source is not imagelist.
+func imageListConfigMapName(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.SchedulerSpec) string {
+	if sched.ImageList == nil {
+		return ""
+	}
+	if sched.ImageList.ConfigMapRef != "" {
+		return sched.ImageList.ConfigMapRef
+	}
+	return fmt.Sprintf("%s-sched-%s-imagelist", gf.Name, sched.Name)
 }
 
 func serverURL(gf *goframev1alpha1.GoFrame) string {

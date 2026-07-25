@@ -68,6 +68,40 @@ type NASAImageOfTheDayFileConfig struct {
 	SchedulerFileConfig `yaml:",inline"`
 }
 
+// ImageListFileConfig is the typed configuration for the imagelist source.
+// It embeds all common scheduler fields; no additional fields are required here.
+// The URL list itself is mounted as a separate file and read by the source at
+// runtime (path passed via the IMAGE_LIST_PATH env var), keeping the scheduler
+// config independent of the potentially large, generated list.
+type ImageListFileConfig struct {
+	SchedulerFileConfig `yaml:",inline"`
+	// Headers are optional HTTP request headers applied to each image download.
+	// Use this to set e.g. a browser User-Agent for hosts that reject the default
+	// Go client. When empty the default request headers are used unchanged.
+	Headers []HTTPHeader `yaml:"headers"`
+}
+
+// HTTPHeader is a single HTTP request header name/value pair.
+type HTTPHeader struct {
+	Name  string `yaml:"name"`
+	Value string `yaml:"value"`
+}
+
+// HeaderMap converts the list of headers to a map suitable for request injection.
+// Returns nil when there are no headers, preserving default request behaviour.
+func HeaderMap(headers []HTTPHeader) map[string]string {
+	if len(headers) == 0 {
+		return nil
+	}
+	m := make(map[string]string, len(headers))
+	for _, h := range headers {
+		if h.Name != "" {
+			m[h.Name] = h.Value
+		}
+	}
+	return m
+}
+
 // S3FileConfig is the typed configuration for the s3 source.
 // Compatible with AWS S3, RustFS, MinIO, and any S3-compatible storage.
 type S3FileConfig struct {
@@ -207,6 +241,24 @@ func LoadNASAImageOfTheDayConfig(path string) (*NASAImageOfTheDayFileConfig, err
 	var cfg NASAImageOfTheDayFileConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse nasaimageoftheday scheduler config %s: %w", path, err)
+	}
+
+	if err := applyDefaults(&cfg.SchedulerFileConfig); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+// LoadImageListConfig reads and parses a YAML imagelist scheduler config from the given path.
+func LoadImageListConfig(path string) (*ImageListFileConfig, error) {
+	data, err := readConfigFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg ImageListFileConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse imagelist scheduler config %s: %w", path, err)
 	}
 
 	if err := applyDefaults(&cfg.SchedulerFileConfig); err != nil {
