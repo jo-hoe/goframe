@@ -176,13 +176,14 @@ spec:
                     imagelist:
                       description: |-
                         ImageList holds configuration for the imagelist source.
-                        The URL list is mounted as a ConfigMap file and read by the scheduler at runtime.
+                        The URL list is read from a file on a mounted PersistentVolumeClaim.
                       properties:
                         configMapRef:
                           description: |-
-                            ConfigMapRef is the name of a Kubernetes ConfigMap in the same namespace that holds
-                            the image list under the key "images.yaml". When omitted, the Helm chart renders a
-                            ConfigMap from an inline list and sets this reference automatically.
+                            ConfigMapRef is the name of a Kubernetes ConfigMap in the same namespace
+                            whose "images.yaml" key holds the image list. Set automatically by the
+                            Helm chart when images are inlined in values.yaml; not intended for
+                            direct use — use PVCRef to reference an externally managed list.
                           type: string
                         headers:
                           description: |-
@@ -204,6 +205,12 @@ spec:
                             - value
                             type: object
                           type: array
+                        pvcRef:
+                          description: |-
+                            PVCRef is the name of a PersistentVolumeClaim in the same namespace whose
+                            volume is mounted into the scheduler pod. The claim must contain the image
+                            list at the path "images.yaml" in the root of the volume.
+                          type: string
                       type: object
                     logLevel:
                       default: info

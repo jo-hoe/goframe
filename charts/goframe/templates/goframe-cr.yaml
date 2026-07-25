@@ -90,8 +90,8 @@ spec:
       {{- end }}
       {{- if .imagelist }}
       imagelist:
-        {{- if .imagelist.configMapRef }}
-        configMapRef: {{ .imagelist.configMapRef | quote }}
+        {{- if .imagelist.pvcRef }}
+        pvcRef: {{ .imagelist.pvcRef | quote }}
         {{- else if .imagelist.images }}
         configMapRef: {{ printf "%s-sched-%s-imagelist" $.Release.Name .name | quote }}
         {{- end }}

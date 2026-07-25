@@ -1,5 +1,5 @@
 {{- range .Values.schedulers }}
-{{- if and .imagelist .imagelist.images (not .imagelist.configMapRef) }}
+{{- if and .imagelist .imagelist.images (not .imagelist.pvcRef) }}
 ---
 apiVersion: v1
 kind: ConfigMap

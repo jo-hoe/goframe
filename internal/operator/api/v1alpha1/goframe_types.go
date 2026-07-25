@@ -123,7 +123,7 @@ type SchedulerSpec struct {
 	NASAImageOfTheDay *NASAImageOfTheDayConfig `json:"nasaimageoftheday,omitempty"`
 
 	// ImageList holds configuration for the imagelist source.
-	// The URL list is mounted as a ConfigMap file and read by the scheduler at runtime.
+	// The URL list is read from a file on a mounted PersistentVolumeClaim.
 	// +optional
 	ImageList *ImageListConfig `json:"imagelist,omitempty"`
 
@@ -194,15 +194,24 @@ type NASAApodConfig struct {
 type NASAImageOfTheDayConfig struct{}
 
 // ImageListConfig holds the configuration for the imagelist image source.
-// The list of image URLs is provided as a ConfigMap file (mounted at runtime),
-// not inlined into the scheduler config. A random URL is selected per run.
+// The list of image URLs is read from a mounted file at runtime; a random URL
+// is selected per run. The file is provided either via a chart-rendered ConfigMap
+// (populated from the inline images list in values.yaml) or a PVC.
+// Exactly one of ConfigMapRef or PVCRef should be set; PVCRef takes precedence.
 // +kubebuilder:object:generate=true
 type ImageListConfig struct {
-	// ConfigMapRef is the name of a Kubernetes ConfigMap in the same namespace that holds
-	// the image list under the key "images.yaml". When omitted, the Helm chart renders a
-	// ConfigMap from an inline list and sets this reference automatically.
+	// ConfigMapRef is the name of a Kubernetes ConfigMap in the same namespace
+	// whose "images.yaml" key holds the image list. Set automatically by the
+	// Helm chart when images are inlined in values.yaml; not intended for
+	// direct use — use PVCRef to reference an externally managed list.
 	// +optional
 	ConfigMapRef string `json:"configMapRef,omitempty"`
+
+	// PVCRef is the name of a PersistentVolumeClaim in the same namespace whose
+	// volume is mounted into the scheduler pod. The claim must contain the image
+	// list at the path "images.yaml" in the root of the volume.
+	// +optional
+	PVCRef string `json:"pvcRef,omitempty"`
 
 	// Headers are optional HTTP request headers applied to each image download.
 	// Use this to set e.g. a browser User-Agent for hosts that reject the default

@@ -352,26 +352,21 @@ func (r *GoFrameReconciler) buildCronJob(gf *goframev1alpha1.GoFrame, sched gofr
 		})
 	}
 
-	if cmName := imageListConfigMapName(gf, sched); cmName != "" {
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "imagelist",
-			MountPath: schedulerImageListMountPath,
-			ReadOnly:  true,
-		})
-		volumes = append(volumes, corev1.Volume{
-			Name: "imagelist",
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: cmName,
-					},
+	if pvcRef := imageListPVCRef(sched); pvcRef != "" {
+		volumes, volumeMounts, envVars = appendImageListMount(volumes, volumeMounts, envVars,
+			corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: pvcRef,
+					ReadOnly:  true,
 				},
-			},
-		})
-		envVars = append(envVars, corev1.EnvVar{
-			Name:  "IMAGE_LIST_PATH",
-			Value: schedulerImageListMountPath + "/" + schedulerImageListFileName,
-		})
+			})
+	} else if cmName := imageListConfigMapName(sched); cmName != "" {
+		volumes, volumeMounts, envVars = appendImageListMount(volumes, volumeMounts, envVars,
+			corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{Name: cmName},
+				},
+			})
 	}
 
 	return &batchv1.CronJob{
@@ -422,17 +417,44 @@ func schedulerImageRef(sched goframev1alpha1.SchedulerSpec) string {
 	return repo + ":" + tag
 }
 
-// imageListConfigMapName resolves the ConfigMap holding the image list for an imagelist
-// scheduler. It returns the explicit ConfigMapRef when set, otherwise the per-scheduler
-// name the Helm chart renders from an inline list. Returns "" when the source is not imagelist.
-func imageListConfigMapName(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.SchedulerSpec) string {
+// appendImageListMount adds the imagelist volume, mount, and IMAGE_LIST_PATH env var
+// to the given slices using the provided VolumeSource (PVC or ConfigMap).
+func appendImageListMount(
+	volumes []corev1.Volume,
+	mounts []corev1.VolumeMount,
+	envs []corev1.EnvVar,
+	src corev1.VolumeSource,
+) ([]corev1.Volume, []corev1.VolumeMount, []corev1.EnvVar) {
+	volumes = append(volumes, corev1.Volume{Name: "imagelist", VolumeSource: src})
+	mounts = append(mounts, corev1.VolumeMount{
+		Name:      "imagelist",
+		MountPath: schedulerImageListMountPath,
+		ReadOnly:  true,
+	})
+	envs = append(envs, corev1.EnvVar{
+		Name:  "IMAGE_LIST_PATH",
+		Value: schedulerImageListMountPath + "/" + schedulerImageListFileName,
+	})
+	return volumes, mounts, envs
+}
+
+// imageListPVCRef returns the PVC claim name for an imagelist scheduler, or ""
+// when the source is not imagelist or no PVC is configured.
+func imageListPVCRef(sched goframev1alpha1.SchedulerSpec) string {
 	if sched.ImageList == nil {
 		return ""
 	}
-	if sched.ImageList.ConfigMapRef != "" {
-		return sched.ImageList.ConfigMapRef
+	return sched.ImageList.PVCRef
+}
+
+// imageListConfigMapName returns the ConfigMap name for an imagelist scheduler,
+// or "" when the source is not imagelist, no ConfigMapRef is set, or a PVC is
+// configured (PVC takes precedence).
+func imageListConfigMapName(sched goframev1alpha1.SchedulerSpec) string {
+	if sched.ImageList == nil || sched.ImageList.PVCRef != "" {
+		return ""
 	}
-	return fmt.Sprintf("%s-sched-%s-imagelist", gf.Name, sched.Name)
+	return sched.ImageList.ConfigMapRef
 }
 
 func serverURL(gf *goframev1alpha1.GoFrame) string {

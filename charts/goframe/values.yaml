@@ -198,6 +198,8 @@ schedulerImage:
 # Example — imagelist (random image from a provided YAML list of URLs):
 # Each list entry has a required `url`; any other fields (title, description,
 # credit, altText, publishedAt, width, height, orientation) are ignored.
+# The list is always mounted as a file and read at runtime — either from a
+# chart-rendered ConfigMap (inline) or a PVC.
 # schedulers:
 #   - name: natgeo
 #     cron: "0 8 * * *"
@@ -208,9 +210,10 @@ schedulerImage:
 #         - url: https://example.com/a.jpg
 #         - url: https://example.com/b.jpg
 #           title: Behind the Scenes   # extra fields are ignored
-#       # Option B — reference an existing (e.g. generated) ConfigMap that holds
-#       #            the list under the key "images.yaml". When set, `images` is ignored.
-#       # configMapRef: my-generated-image-list
+#       # Option B — mount a PersistentVolumeClaim; the claim must contain
+#       #            "images.yaml" at the root of the volume. Takes precedence
+#       #            over images when set.
+#       # pvcRef: natgeo-image-list
 #       # headers is optional — HTTP request headers applied to each image download.
 #       # Set a browser User-Agent for hosts that reject the default Go client.
 #       # headers:
