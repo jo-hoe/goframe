@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"time"
@@ -44,8 +45,8 @@ func (x *XKCDSource) Fetch(ctx context.Context) ([]byte, error) {
 	}
 
 	comicNum := randomComicNumber(latest.Num)
-
 	url := fmt.Sprintf(comicURLFormat, comicNum)
+	slog.Info("xkcd: selected comic", "num", comicNum, "url", url)
 	comic, err := x.fetchComicMeta(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("fetching xkcd comic %d metadata: %w", comicNum, err)

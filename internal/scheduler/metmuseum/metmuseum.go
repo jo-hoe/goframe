@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"net/url"
@@ -67,6 +68,7 @@ func (m *MetMuseumSource) Fetch(ctx context.Context) ([]byte, error) {
 		if err != nil {
 			continue
 		}
+		slog.Info("metmuseum: selected object", "objectID", objectID, "url", imageURL)
 		data, err := scheduler.FetchBytes(ctx, m.httpClient, imageURL)
 		if err != nil {
 			return nil, fmt.Errorf("downloading met museum object %d image: %w", objectID, err)

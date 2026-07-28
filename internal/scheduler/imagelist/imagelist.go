@@ -21,6 +21,7 @@ package imagelist
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"os"
@@ -62,6 +63,7 @@ func (s *ImageListSource) Fetch(ctx context.Context) ([]byte, error) {
 
 	// #nosec G404 -- math/rand is intentional; image selection does not require cryptographic randomness
 	imageURL := urls[rand.IntN(len(urls))]
+	slog.Info("imagelist: selected image", "url", imageURL)
 
 	data, err := scheduler.FetchBytesWithHeaders(ctx, s.httpClient, imageURL, s.headers)
 	if err != nil {

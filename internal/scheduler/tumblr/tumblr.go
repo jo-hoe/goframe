@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"html"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"regexp"
@@ -48,6 +49,7 @@ func (t *TumblrSource) Fetch(ctx context.Context) ([]byte, error) {
 	}
 	// #nosec G404 -- math/rand is intentional; blog selection does not require cryptographic randomness
 	blog := t.blogs[rand.IntN(len(t.blogs))]
+	slog.Info("tumblr: selected blog", "blog", blog)
 	feedURL := "https://" + blog + ".tumblr.com" + rssSuffix
 
 	items, err := t.fetchFeed(ctx, feedURL)
@@ -60,6 +62,7 @@ func (t *TumblrSource) Fetch(ctx context.Context) ([]byte, error) {
 
 	// #nosec G404 -- math/rand is intentional; image selection does not require cryptographic randomness
 	imageURL := items[rand.IntN(len(items))]
+	slog.Info("tumblr: selected image", "url", imageURL, "blog", blog)
 
 	data, err := scheduler.FetchBytes(ctx, t.httpClient, imageURL)
 	if err != nil {

@@ -3,6 +3,7 @@ package oatmeal
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"regexp"
@@ -67,6 +68,7 @@ func (o *OatmealSource) Fetch(ctx context.Context) ([]byte, error) {
 			// Multi-panel or unparseable — try next.
 			continue
 		}
+		slog.Info("oatmeal: selected comic", "slug", slug, "url", imgURL)
 		data, err := scheduler.FetchBytes(ctx, o.httpClient, imgURL)
 		if err != nil {
 			return nil, fmt.Errorf("downloading oatmeal image %s: %w", imgURL, err)
