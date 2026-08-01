@@ -35,7 +35,7 @@ require (
 	github.com/go-openapi/swag/loading v0.27.0 // indirect
 	github.com/go-openapi/swag/mangling v0.27.0 // indirect
 	github.com/go-openapi/swag/netutils v0.27.0 // indirect
-	github.com/go-openapi/swag/stringutils v0.27.0 // indirect
+	github.com/go-openapi/swag/stringutils v0.28.0 // indirect
 	github.com/go-openapi/swag/typeutils v0.27.0 // indirect
 	github.com/go-openapi/swag/yamlutils v0.27.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
@@ -83,7 +83,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
-	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/net v0.56.0
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
