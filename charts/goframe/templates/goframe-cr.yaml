@@ -33,6 +33,7 @@ spec:
     thumbnailWidth: {{ .Values.server.thumbnailWidth }}
     logLevel: {{ .Values.server.logLevel | quote }}
     svgFallbackLongSidePixelCount: {{ .Values.server.svgFallbackLongSidePixelCount }}
+    maxConcurrentProcessing: {{ .Values.server.maxConcurrentProcessing }}
     serviceType: {{ .Values.server.serviceType | quote }}
     {{- if .Values.server.replicas }}
     replicas: {{ .Values.server.replicas }}

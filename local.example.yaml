@@ -10,6 +10,7 @@ thumbnailWidth: 512
 svgFallbackLongSidePixelCount: 4096
 timezone: "UTC"
 maxUploadBytes: 26214400   # 25 MiB; max accepted upload size (lightweight validation rejects larger)
+maxConcurrentProcessing: 1  # max images processed concurrently; each job can peak at hundreds of MiB
 database:
   type: "rustfs"
   endpoint: "http://localhost:9000"  # docker-compose: "http://rustfs:9000"

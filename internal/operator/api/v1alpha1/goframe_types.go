@@ -269,6 +269,15 @@ type ServerSpec struct {
 	// +optional
 	SvgFallbackLongSidePixelCount int `json:"svgFallbackLongSidePixelCount,omitempty"`
 
+	// MaxConcurrentProcessing is the maximum number of image processing pipeline
+	// jobs that may run concurrently in the server. Each job can peak at several
+	// hundred MiB of working memory; keep this value low to avoid OOM in
+	// memory-constrained pods. Default 1 (sequential).
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MaxConcurrentProcessing int `json:"maxConcurrentProcessing,omitempty"`
+
 	// ServiceType is the Kubernetes Service type for the server (ClusterIP, NodePort, LoadBalancer).
 	// +kubebuilder:default="ClusterIP"
 	// +kubebuilder:validation:Enum=ClusterIP;NodePort;LoadBalancer

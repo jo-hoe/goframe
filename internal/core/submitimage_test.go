@@ -21,10 +21,10 @@ func newTestCoreService(t *testing.T) (*CoreService, *database.FakeDatabase) {
 	t.Helper()
 	fake := database.NewFakeDatabase("/images")
 	return &CoreService{
-		config:          &config.ServiceConfig{MaxUploadBytes: config.DefaultMaxUploadBytes},
+		config:          &config.ServiceConfig{MaxUploadBytes: config.DefaultMaxUploadBytes, MaxConcurrentProcessing: config.DefaultMaxConcurrentProcessing},
 		databaseService: fake,
 		tzLoc:           time.UTC,
-		sem:             make(chan struct{}, maxConcurrentProcessing),
+		sem:             make(chan struct{}, config.DefaultMaxConcurrentProcessing),
 	}, fake
 }
 

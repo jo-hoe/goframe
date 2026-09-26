@@ -60,6 +60,10 @@ server:
   serviceType: "ClusterIP"
   # -- Number of goframe server replicas
   replicas: 1
+  # -- Maximum number of image processing jobs that run concurrently in the server.
+  # Each pipeline job can peak at several hundred MiB of working memory;
+  # keep this value low (default: 1) to avoid OOM in memory-constrained pods.
+  maxConcurrentProcessing: 1
   # -- Compute resource requests and limits for the server container. Leave empty to set none.
   resources:
     requests:

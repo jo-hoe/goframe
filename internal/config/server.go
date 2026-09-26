@@ -28,10 +28,18 @@ type ServiceConfig struct {
 	SvgFallbackLongSidePixelCount int             `yaml:"svgFallbackLongSidePixelCount"`
 	// MaxUploadBytes is the maximum accepted size of an uploaded image, in bytes.
 	MaxUploadBytes int64 `yaml:"maxUploadBytes"`
+	// MaxConcurrentProcessing is the maximum number of image processing pipeline
+	// jobs that may run concurrently. Each job can peak at several hundred MiB of
+	// working memory; keep this value low to avoid OOM in memory-constrained pods.
+	MaxConcurrentProcessing int `yaml:"maxConcurrentProcessing"`
 }
 
 // DefaultMaxUploadBytes is the default maximum upload size (25 MiB).
 const DefaultMaxUploadBytes int64 = 25 << 20
+
+// DefaultMaxConcurrentProcessing is the default number of concurrent processing
+// jobs (sequential by default to avoid OOM under burst load).
+const DefaultMaxConcurrentProcessing int = 1
 
 // LoadServerConfig reads and parses a YAML server config from the given path.
 func LoadServerConfig(path string) (*ServiceConfig, error) {
@@ -65,6 +73,9 @@ func LoadServerConfig(path string) (*ServiceConfig, error) {
 	}
 	if config.MaxUploadBytes <= 0 {
 		config.MaxUploadBytes = DefaultMaxUploadBytes
+	}
+	if config.MaxConcurrentProcessing <= 0 {
+		config.MaxConcurrentProcessing = DefaultMaxConcurrentProcessing
 	}
 	if config.Database.AccessKey == "" {
 		config.Database.AccessKey = os.Getenv("RUSTFS_ACCESS_KEY")

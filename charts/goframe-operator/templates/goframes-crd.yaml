@@ -345,6 +345,15 @@ spec:
                     description: LogLevel sets the server log verbosity (debug, info,
                       warn, error).
                     type: string
+                  maxConcurrentProcessing:
+                    default: 1
+                    description: |-
+                      MaxConcurrentProcessing is the maximum number of image processing pipeline
+                      jobs that may run concurrently in the server. Each job can peak at several
+                      hundred MiB of working memory; keep this value low to avoid OOM in
+                      memory-constrained pods. Default 1 (sequential).
+                    minimum: 1
+                    type: integer
                   port:
                     default: 8080
                     description: Port is the HTTP port the server listens on.

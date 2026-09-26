@@ -16,10 +16,6 @@ import (
 // processTimeout bounds how long a single background image-processing job may run.
 const processTimeout = 5 * time.Minute
 
-// maxConcurrentProcessing bounds how many uploads are processed concurrently so
-// that a burst of uploads cannot exhaust memory or CPU.
-const maxConcurrentProcessing = 4
-
 // CoreService is the central business logic layer for the goframe server.
 type CoreService struct {
 	config          *config.ServiceConfig
@@ -66,7 +62,7 @@ func NewCoreService(cfg *config.ServiceConfig) (*CoreService, error) {
 		databaseService: db,
 		commandConfigs:  cmdCfgs,
 		tzLoc:           loc,
-		sem:             make(chan struct{}, maxConcurrentProcessing),
+		sem:             make(chan struct{}, cfg.MaxConcurrentProcessing),
 	}, nil
 }
 
@@ -111,14 +107,17 @@ func (service *CoreService) SubmitImage(ctx context.Context, image []byte, sourc
 		return nil, fmt.Errorf("failed to store upload: %w", err)
 	}
 
+	// Copy the bytes before spawning the goroutine so the HTTP handler's buffer
+	// (backed by io.ReadAll in the multipart handler) is not pinned by the goroutine
+	// closure and can be GC'd as soon as SubmitImage returns.
+	buf := make([]byte, len(image))
+	copy(buf, image)
+
 	service.wg.Add(1)
 	// #nosec G118 -- by design: processing outlives the request. The 202 response
 	// is sent immediately, cancelling the request context; the worker uses a fresh
 	// context.Background() with its own bounded timeout (see processImage).
-	// The byte copy is deferred until the semaphore slot is acquired inside
-	// processImage so at most maxConcurrentProcessing image buffers are live
-	// in memory at once.
-	go service.processImage(id, image, source)
+	go service.processImage(id, buf, source)
 
 	return &database.UploadState{ID: id, Status: database.StatusProcessing}, nil
 }
@@ -126,26 +125,20 @@ func (service *CoreService) SubmitImage(ctx context.Context, image []byte, sourc
 // processImage runs the processing pipeline and persists the result in the
 // background. It uses a fresh, bounded context (the request context is already
 // gone once SubmitImage returned) and records the outcome via status markers.
-// The semaphore is acquired before allocating the working buffer so that at
-// most maxConcurrentProcessing images are held in memory simultaneously,
-// preventing OOM when many uploads arrive in a burst.
+// The semaphore is acquired first so at most cfg.MaxConcurrentProcessing jobs
+// run their memory-expensive pipeline concurrently.
 func (service *CoreService) processImage(id string, image []byte, source string) {
 	defer service.wg.Done()
 
-	// Acquire the slot before copying bytes so the large buffer is only
-	// allocated when a processing slot is actually available.
+	// Block until a processing slot is available. The image buffer was already
+	// copied in SubmitImage, so we only gate pipeline execution here.
 	service.sem <- struct{}{}
 	defer func() { <-service.sem }()
-
-	// Copy now (inside the semaphore slot): the caller's buffer was passed
-	// by the goroutine launch and may be freed once we return.
-	buf := make([]byte, len(image))
-	copy(buf, image)
 
 	ctx, cancel := context.WithTimeout(context.Background(), processTimeout)
 	defer cancel()
 
-	if err := service.processImageOnce(ctx, id, buf, source); err != nil {
+	if err := service.processImageOnce(ctx, id, image, source); err != nil {
 		slog.Error("CoreService.processImage: failed", "id", id, "error", err)
 		if markErr := service.databaseService.MarkFailed(ctx, id, err.Error()); markErr != nil {
 			slog.Error("CoreService.processImage: failed to record failure", "id", id, "error", markErr)

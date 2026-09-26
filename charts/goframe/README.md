@@ -1,6 +1,6 @@
 # goframe
 
-![Version: 13.4.0](https://img.shields.io/badge/Version-13.4.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 13.4.0](https://img.shields.io/badge/AppVersion-13.4.0-informational?style=flat-square)
+![Version: 13.5.0](https://img.shields.io/badge/Version-13.5.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 13.5.0](https://img.shields.io/badge/AppVersion-13.5.0-informational?style=flat-square)
 
 Helm chart for the goframe image processing web service
 
@@ -42,6 +42,7 @@ Helm chart for the goframe image processing web service
 | server.image.repository | string | `"ghcr.io/jo-hoe/goframe"` | goframe server container image repository |
 | server.image.tag | string | `""` | goframe server image tag. Defaults to the chart appVersion when empty. |
 | server.logLevel | string | `"info"` | Log verbosity level (debug, info, warn, error) |
+| server.maxConcurrentProcessing | int | `1` | Maximum number of image processing jobs that run concurrently in the server. Each pipeline job can peak at several hundred MiB of working memory; keep this value low (default: 1) to avoid OOM in memory-constrained pods. |
 | server.port | int | `8080` | Port the goframe server listens on |
 | server.replicas | int | `1` | Number of goframe server replicas |
 | server.resources | object | `{"limits":{"cpu":"1","memory":"512Mi"},"requests":{"cpu":"50m","memory":"128Mi"}}` | Compute resource requests and limits for the server container. Leave empty to set none. |

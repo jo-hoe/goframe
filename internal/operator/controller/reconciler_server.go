@@ -67,6 +67,7 @@ func buildServerConfig(gf *goframev1alpha1.GoFrame) (string, error) {
 		LogLevel                      string      `yaml:"logLevel"`
 		ThumbnailWidth                int         `yaml:"thumbnailWidth"`
 		SvgFallbackLongSidePixelCount int         `yaml:"svgFallbackLongSidePixelCount"`
+		MaxConcurrentProcessing       int         `yaml:"maxConcurrentProcessing,omitempty"`
 		Timezone                      string      `yaml:"timezone"`
 		Database                      dbConfig    `yaml:"database"`
 		Commands                      []cmdConfig `yaml:"commands,omitempty"`
@@ -115,6 +116,7 @@ func buildServerConfig(gf *goframev1alpha1.GoFrame) (string, error) {
 		LogLevel:                      logLevel,
 		ThumbnailWidth:                thumbnailWidth,
 		SvgFallbackLongSidePixelCount: svgFallback,
+		MaxConcurrentProcessing:       spec.Server.MaxConcurrentProcessing,
 		Timezone:                      tz,
 		Database: dbConfig{
 			Type:         "rustfs",
