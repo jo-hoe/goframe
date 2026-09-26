@@ -1,6 +1,6 @@
 # goframe
 
-![Version: 13.5.0](https://img.shields.io/badge/Version-13.5.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 13.5.0](https://img.shields.io/badge/AppVersion-13.5.0-informational?style=flat-square)
+![Version: 13.5.1](https://img.shields.io/badge/Version-13.5.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 13.5.1](https://img.shields.io/badge/AppVersion-13.5.1-informational?style=flat-square)
 
 Helm chart for the goframe image processing web service
 
@@ -45,7 +45,7 @@ Helm chart for the goframe image processing web service
 | server.maxConcurrentProcessing | int | `1` | Maximum number of image processing jobs that run concurrently in the server. Each pipeline job can peak at several hundred MiB of working memory; keep this value low (default: 1) to avoid OOM in memory-constrained pods. |
 | server.port | int | `8080` | Port the goframe server listens on |
 | server.replicas | int | `1` | Number of goframe server replicas |
-| server.resources | object | `{"limits":{"cpu":"1","memory":"512Mi"},"requests":{"cpu":"50m","memory":"128Mi"}}` | Compute resource requests and limits for the server container. Leave empty to set none. |
+| server.resources | object | `{"limits":{"cpu":"1","memory":"1Gi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Compute resource requests and limits for the server container. Leave empty to set none. |
 | server.serviceType | string | `"ClusterIP"` | How the server Service is exposed. Valid values: ClusterIP, NodePort, LoadBalancer. |
 | server.svgFallbackLongSidePixelCount | int | `4096` | Long-side pixel count used when converting SVGs to raster fallbacks |
 | server.thumbnailWidth | int | `512` | Width in pixels for generated thumbnails |
