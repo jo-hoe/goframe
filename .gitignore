@@ -1,4 +1,7 @@
-.claude
+# Ignore all Claude Code session state, plans, and memory — but track shared
+# agent definitions so the release workflow is available to all contributors.
+.claude/*
+!.claude/agents/
 .playwright-mcp
 
 local.yaml
