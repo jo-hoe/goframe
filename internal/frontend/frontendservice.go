@@ -116,18 +116,26 @@ func (service *FrontendService) htmxUploadImageHandler(ctx echo.Context) error {
 	}
 
 	var rows strings.Builder
-	// Track the highest status code: 202 if any file was accepted for processing,
-	// 200 if all were already succeeded, 400 if all failed validation.
-	statusCode := http.StatusOK
+	// statusCode tracks the "best" outcome across all files in the batch.
+	// Priority (highest wins): 202 > 200 > 400/500.
+	// Once a file succeeds (200) or is accepted (202), errors for other files
+	// in the same batch do not downgrade the response code.
+	statusCode := http.StatusBadRequest // default: nothing accepted yet
+
+	// raiseStatus updates statusCode only when code is strictly better.
+	// 202 > 200 > 4xx/5xx.
+	raiseStatus := func(code int) {
+		if code == http.StatusAccepted ||
+			(code == http.StatusOK && statusCode != http.StatusAccepted) {
+			statusCode = code
+		}
+	}
 
 	for _, fh := range fileHeaders {
 		src, err := fh.Open()
 		if err != nil {
 			slog.Error("htmxUploadImageHandler: failed to open file", "filename", fh.Filename, "error", err)
 			fmt.Fprintf(&rows, `<div class="error">Failed to open %s</div>`, html.EscapeString(fh.Filename))
-			if statusCode == http.StatusOK {
-				statusCode = http.StatusBadRequest
-			}
 			continue
 		}
 
@@ -136,9 +144,6 @@ func (service *FrontendService) htmxUploadImageHandler(ctx echo.Context) error {
 		if readErr != nil {
 			slog.Error("htmxUploadImageHandler: failed to read file", "filename", fh.Filename, "error", readErr)
 			fmt.Fprintf(&rows, `<div class="error">Failed to read %s</div>`, html.EscapeString(fh.Filename))
-			if statusCode == http.StatusOK {
-				statusCode = http.StatusBadRequest
-			}
 			continue
 		}
 
@@ -147,21 +152,17 @@ func (service *FrontendService) htmxUploadImageHandler(ctx echo.Context) error {
 			if verr, ok := imagevalidation.AsValidationError(submitErr); ok {
 				slog.Info("htmxUploadImageHandler: rejected invalid upload", "reason", verr.Reason, "filename", fh.Filename)
 				fmt.Fprintf(&rows, `<div class="error">%s: %s</div>`, html.EscapeString(fh.Filename), html.EscapeString(verr.Reason))
-				if statusCode == http.StatusOK {
-					statusCode = http.StatusBadRequest
-				}
 			} else {
 				slog.Error("htmxUploadImageHandler: failed to submit image", "filename", fh.Filename, "error", submitErr)
 				fmt.Fprintf(&rows, `<div class="error">Failed to submit %s</div>`, html.EscapeString(fh.Filename))
-				if statusCode == http.StatusOK {
-					statusCode = http.StatusInternalServerError
-				}
 			}
 			continue
 		}
 
 		if state.Status == database.StatusProcessing {
-			statusCode = http.StatusAccepted
+			raiseStatus(http.StatusAccepted)
+		} else {
+			raiseStatus(http.StatusOK)
 		}
 		rows.WriteString(service.renderUploadStatusFragment(ctx.Request().Context(), state))
 	}
