@@ -34,15 +34,15 @@
             <h2>Upload Image</h2>
             <form
                 hx-post="/htmx/uploadImage"
-                hx-target="#upload-result"
-                hx-swap="innerHTML"
+                hx-target="#upload-queue"
+                hx-swap="beforeend"
                 method="post"
                 enctype="multipart/form-data">
-                <input type="file" name="image" accept="image/*,image/svg+xml,.svg,.svgz" required>
+                <input type="file" name="image" accept="image/*,image/svg+xml,.svg,.svgz" multiple required>
                 <button type="submit">Upload</button>
                 <span class="htmx-indicator"><span class="loading-spinner" aria-hidden="true"></span> Uploading...</span>
             </form>
-            <div id="upload-result"></div>
+            <div id="upload-queue"></div>
         </section>
 
 

@@ -103,48 +103,71 @@ func (service *FrontendService) indexHandler(ctx echo.Context) error {
 }
 
 func (service *FrontendService) htmxUploadImageHandler(ctx echo.Context) error {
-	// Get uploaded file
-	file, err := ctx.FormFile("image")
+	form, err := ctx.MultipartForm()
 	if err != nil {
-		slog.Error("htmxUploadImageHandler: failed to get uploaded file",
-			"status", http.StatusBadRequest, "error", err)
-		return ctx.String(http.StatusBadRequest, "Failed to get uploaded file")
+		slog.Error("htmxUploadImageHandler: failed to parse multipart form", "error", err)
+		return ctx.HTML(http.StatusBadRequest, `<div class="error">Failed to parse upload form</div>`)
+	}
+	defer func() { _ = form.RemoveAll() }()
+
+	fileHeaders := form.File["image"]
+	if len(fileHeaders) == 0 {
+		return ctx.HTML(http.StatusBadRequest, `<div class="error">No files provided</div>`)
 	}
 
-	src, err := file.Open()
-	if err != nil {
-		slog.Error("htmxUploadImageHandler: failed to open uploaded file",
-			"status", http.StatusInternalServerError, "error", err, "filename", file.Filename)
-		return ctx.String(http.StatusInternalServerError, "Failed to open uploaded file")
-	}
-	defer func() {
-		if cerr := src.Close(); cerr != nil {
-			slog.Error("htmxUploadImageHandler: failed to close uploaded file reader", "error", cerr, "filename", file.Filename)
+	var rows strings.Builder
+	// Track the highest status code: 202 if any file was accepted for processing,
+	// 200 if all were already succeeded, 400 if all failed validation.
+	statusCode := http.StatusOK
+
+	for _, fh := range fileHeaders {
+		src, err := fh.Open()
+		if err != nil {
+			slog.Error("htmxUploadImageHandler: failed to open file", "filename", fh.Filename, "error", err)
+			fmt.Fprintf(&rows, `<div class="error">Failed to open %s</div>`, html.EscapeString(fh.Filename))
+			if statusCode == http.StatusOK {
+				statusCode = http.StatusBadRequest
+			}
+			continue
 		}
-	}()
 
-	// Read file content reliably
-	image, err := io.ReadAll(src)
-	if err != nil {
-		slog.Error("htmxUploadImageHandler: failed to read uploaded file",
-			"status", http.StatusInternalServerError, "error", err, "filename", file.Filename)
-		return ctx.String(http.StatusInternalServerError, "Failed to read uploaded file")
-	}
-
-	state, err := service.coreService.SubmitImage(ctx.Request().Context(), image, "")
-	if err != nil {
-		if verr, ok := imagevalidation.AsValidationError(err); ok {
-			slog.Info("htmxUploadImageHandler: rejected invalid upload", "reason", verr.Reason, "filename", file.Filename)
-			return ctx.HTML(http.StatusBadRequest, fmt.Sprintf(`<div id="upload-result" class="error">%s</div>`, html.EscapeString(verr.Reason)))
+		image, readErr := io.ReadAll(src)
+		_ = src.Close()
+		if readErr != nil {
+			slog.Error("htmxUploadImageHandler: failed to read file", "filename", fh.Filename, "error", readErr)
+			fmt.Fprintf(&rows, `<div class="error">Failed to read %s</div>`, html.EscapeString(fh.Filename))
+			if statusCode == http.StatusOK {
+				statusCode = http.StatusBadRequest
+			}
+			continue
 		}
-		slog.Error("htmxUploadImageHandler: failed to submit uploaded image",
-			"status", http.StatusInternalServerError, "error", err, "filename", file.Filename)
-		return ctx.String(http.StatusInternalServerError, "Failed to submit uploaded image")
+
+		state, submitErr := service.coreService.SubmitImage(ctx.Request().Context(), image, "")
+		if submitErr != nil {
+			if verr, ok := imagevalidation.AsValidationError(submitErr); ok {
+				slog.Info("htmxUploadImageHandler: rejected invalid upload", "reason", verr.Reason, "filename", fh.Filename)
+				fmt.Fprintf(&rows, `<div class="error">%s: %s</div>`, html.EscapeString(fh.Filename), html.EscapeString(verr.Reason))
+				if statusCode == http.StatusOK {
+					statusCode = http.StatusBadRequest
+				}
+			} else {
+				slog.Error("htmxUploadImageHandler: failed to submit image", "filename", fh.Filename, "error", submitErr)
+				fmt.Fprintf(&rows, `<div class="error">Failed to submit %s</div>`, html.EscapeString(fh.Filename))
+				if statusCode == http.StatusOK {
+					statusCode = http.StatusInternalServerError
+				}
+			}
+			continue
+		}
+
+		if state.Status == database.StatusProcessing {
+			statusCode = http.StatusAccepted
+		}
+		rows.WriteString(service.renderUploadStatusFragment(ctx.Request().Context(), state))
 	}
 
-	// Return a fragment that polls the derived status until processing completes.
 	service.setNoCache(ctx)
-	return ctx.HTML(http.StatusAccepted, service.renderUploadStatusFragment(ctx.Request().Context(), state))
+	return ctx.HTML(statusCode, rows.String())
 }
 
 func (service *FrontendService) htmxUploadStatusHandler(ctx echo.Context) error {
@@ -152,34 +175,36 @@ func (service *FrontendService) htmxUploadStatusHandler(ctx echo.Context) error 
 	state, err := service.coreService.GetUploadState(ctx.Request().Context(), id)
 	if err != nil {
 		slog.Info("htmxUploadStatusHandler: invalid image id", "image_id", id, "error", err)
-		return ctx.HTML(http.StatusBadRequest, `<div id="upload-result" class="error">Invalid image id</div>`)
+		return ctx.HTML(http.StatusBadRequest, fmt.Sprintf(`<div id="upload-result-%s" class="error">Invalid image id</div>`, html.EscapeString(id)))
 	}
 	service.setNoCache(ctx)
 	return ctx.HTML(http.StatusOK, service.renderUploadStatusFragment(ctx.Request().Context(), state))
 }
 
-// renderUploadStatusFragment renders the #upload-result fragment for the given
-// derived state. While processing it keeps polling; on success it stops polling
-// and emits an out-of-band refresh of the image list; on failure it shows the
-// error and stops polling.
+// renderUploadStatusFragment renders a per-upload status row for the given
+// derived state. Each row is uniquely identified by "upload-result-<id>" so
+// multiple in-flight uploads can coexist without replacing each other.
+// While processing the row keeps self-polling; on success it stops polling and
+// emits an out-of-band refresh of the image list; on failure it shows the error.
 func (service *FrontendService) renderUploadStatusFragment(ctx context.Context, state *database.UploadState) string {
+	elemID := "upload-result-" + html.EscapeString(state.ID)
 	switch state.Status {
 	case database.StatusSucceeded:
 		listHTML, err := service.buildImageListHTML(ctx)
 		if err != nil {
 			slog.Error("renderUploadStatusFragment: failed to build image list", "error", err)
-			return `<div id="upload-result" class="success">Upload successful.</div>`
+			return fmt.Sprintf(`<div id="%s" class="success">Upload successful.</div>`, elemID)
 		}
 		oob := fmt.Sprintf(`<div id="image-list" hx-swap-oob="true">%s</div>`, listHTML)
-		return `<div id="upload-result" class="success">Upload successful.</div>` + oob
+		return fmt.Sprintf(`<div id="%s" class="success">Upload successful.</div>`, elemID) + oob
 	case database.StatusFailed:
-		return fmt.Sprintf(`<div id="upload-result" class="error">Processing failed: %s</div>`, html.EscapeString(state.Error))
+		return fmt.Sprintf(`<div id="%s" class="error">Processing failed: %s</div>`, elemID, html.EscapeString(state.Error))
 	default:
 		// pending / processing / unknown: keep polling.
 		return fmt.Sprintf(
-			`<div id="upload-result" hx-get="/htmx/uploadStatus/%s" hx-trigger="load delay:2s" hx-swap="outerHTML">`+
+			`<div id="%s" hx-get="/htmx/uploadStatus/%s" hx-trigger="load delay:2s" hx-swap="outerHTML">`+
 				`<span class="loading-spinner" aria-hidden="true"></span> Upload received — processing…</div>`,
-			html.EscapeString(state.ID),
+			elemID, html.EscapeString(state.ID),
 		)
 	}
 }
