@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 )
 
@@ -75,44 +76,112 @@ func imageOriginalKey(id string) string { return "images/" + id + "/original.png
 // imageProcessedKey returns the S3 object key for the processed image blob.
 func imageProcessedKey(id string) string { return "images/" + id + "/processed.png" }
 
+// imageUploadKey returns the S3 object key for the raw uploaded bytes, stored
+// synchronously before processing so an accepted upload is durable immediately.
+func imageUploadKey(id string) string { return "images/" + id + "/upload" }
+
 // CreateImage uploads blobs to RustFS, then atomically registers the image in
-// rotation.json. When afterID is empty the image is appended; otherwise it is
-// inserted immediately after that image in the ordered list.
-func (r *RustFSDatabase) CreateImage(ctx context.Context, original, processed []byte, createdAt time.Time, source, afterID string) (string, error) {
+// rotation.json. id is the content-addressed image ID and is validated before
+// use as an object key. When afterID is empty the image is appended; otherwise
+// it is inserted immediately after that image in the ordered list. If the id is
+// already registered, the rotation order is left unchanged (upsert), so a rerun
+// after a partial failure does not create a duplicate entry.
+func (r *RustFSDatabase) CreateImage(ctx context.Context, id string, original, processed []byte, createdAt time.Time, source, afterID string) error {
+	if err := ValidateContentID(id); err != nil {
+		return err
+	}
 	if original == nil {
-		return "", fmt.Errorf("original image data cannot be nil")
+		return fmt.Errorf("original image data cannot be nil")
 	}
 	if processed == nil {
-		return "", fmt.Errorf("processed image data cannot be nil")
-	}
-
-	id, err := generateID()
-	if err != nil {
-		return "", err
+		return fmt.Errorf("processed image data cannot be nil")
 	}
 
 	if err := r.s3.PutObject(ctx, imageOriginalKey(id), "image/png", original); err != nil {
-		return "", fmt.Errorf("rustfs: uploading original for %s: %w", id, err)
+		return fmt.Errorf("rustfs: uploading original for %s: %w", id, err)
 	}
 	if err := r.s3.PutObject(ctx, imageProcessedKey(id), "image/png", processed); err != nil {
 		_ = r.s3.DeleteObject(ctx, imageOriginalKey(id))
-		return "", fmt.Errorf("rustfs: uploading processed for %s: %w", id, err)
+		return fmt.Errorf("rustfs: uploading processed for %s: %w", id, err)
 	}
 
 	rs, err := r.getRotationState(ctx)
 	if err != nil {
-		return "", fmt.Errorf("rustfs: reading rotation state for create: %w", err)
+		return fmt.Errorf("rustfs: reading rotation state for create: %w", err)
 	}
 	if rs.Images == nil {
 		rs.Images = make(map[string]imageMetadata)
 	}
 	rs.Images[id] = imageMetadata{CreatedAt: createdAt.UTC(), Source: source}
-	rs.OrderedIDs = insertIDAfter(rs.OrderedIDs, id, afterID)
+	if !containsID(rs.OrderedIDs, id) {
+		rs.OrderedIDs = insertIDAfter(rs.OrderedIDs, id, afterID)
+	}
 	if err := r.putRotationState(ctx, rs); err != nil {
-		return "", fmt.Errorf("rustfs: updating rotation state after create: %w", err)
+		return fmt.Errorf("rustfs: updating rotation state after create: %w", err)
 	}
 
-	return id, nil
+	return nil
+}
+
+// StoreUpload persists the raw uploaded bytes under the upload key. It is called
+// synchronously before returning 202 so an accepted upload is durable before any
+// processing runs. Storing identical bytes again is a harmless overwrite.
+func (r *RustFSDatabase) StoreUpload(ctx context.Context, id string, raw []byte) error {
+	if err := ValidateContentID(id); err != nil {
+		return err
+	}
+	if raw == nil {
+		return fmt.Errorf("upload data cannot be nil")
+	}
+	if err := r.s3.PutObject(ctx, imageUploadKey(id), "application/octet-stream", raw); err != nil {
+		return fmt.Errorf("rustfs: storing upload for %s: %w", id, err)
+	}
+	return nil
+}
+
+// ImageExists reports whether a processed blob exists for the given ID.
+func (r *RustFSDatabase) ImageExists(ctx context.Context, id string) (bool, error) {
+	if err := ValidateContentID(id); err != nil {
+		return false, err
+	}
+	return r.s3.HeadObject(ctx, imageProcessedKey(id))
+}
+
+// GetUploadState returns the derived processing state for a content-addressed ID.
+func (r *RustFSDatabase) GetUploadState(ctx context.Context, id string) (*UploadState, error) {
+	return deriveUploadState(ctx, id, r.s3.HeadObject, r.s3.GetObject)
+}
+
+// MarkProcessing writes the "processing" status marker for the given ID.
+func (r *RustFSDatabase) MarkProcessing(ctx context.Context, id string) error {
+	if err := ValidateContentID(id); err != nil {
+		return err
+	}
+	return r.s3.PutObject(ctx, imageProcessingMarkerKey(id), "application/octet-stream", []byte{})
+}
+
+// MarkFailed writes the "failed" status marker (with errMsg) for the given ID.
+func (r *RustFSDatabase) MarkFailed(ctx context.Context, id, errMsg string) error {
+	if err := ValidateContentID(id); err != nil {
+		return err
+	}
+	data, err := newFailureMarker(errMsg)
+	if err != nil {
+		return err
+	}
+	_ = r.s3.DeleteObject(ctx, imageProcessingMarkerKey(id))
+	return r.s3.PutObject(ctx, imageFailedMarkerKey(id), "application/json", data)
+}
+
+// ClearStatusMarkers removes the processing and failed markers for the given ID.
+func (r *RustFSDatabase) ClearStatusMarkers(ctx context.Context, id string) error {
+	if err := ValidateContentID(id); err != nil {
+		return err
+	}
+	if err := r.s3.DeleteObject(ctx, imageProcessingMarkerKey(id)); err != nil {
+		return err
+	}
+	return r.s3.DeleteObject(ctx, imageFailedMarkerKey(id))
 }
 
 // GetImageMetadata returns all image metadata in current display order (index 0 = today).
@@ -163,6 +232,7 @@ func (r *RustFSDatabase) DeleteImage(ctx context.Context, id string) error {
 
 	_ = r.s3.DeleteObject(ctx, imageOriginalKey(id))
 	_ = r.s3.DeleteObject(ctx, imageProcessedKey(id))
+	_ = r.s3.DeleteObject(ctx, imageUploadKey(id))
 	return nil
 }
 
@@ -253,6 +323,11 @@ func removeID(ids []string, id string) []string {
 		}
 	}
 	return result
+}
+
+// containsID reports whether id is present in ids.
+func containsID(ids []string, id string) bool {
+	return slices.Contains(ids, id)
 }
 
 // RotationStateClient is a lightweight S3-only client for reading and writing

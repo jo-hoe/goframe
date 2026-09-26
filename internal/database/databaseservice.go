@@ -10,10 +10,37 @@ type DatabaseService interface {
 	Close() error
 
 	// CreateImage uploads blobs to RustFS and registers the image in the rotation state.
+	// id is the content-addressed image ID (SHA-256 hex of the original bytes); it is
+	// validated before use as an object key. If an image with this id is already
+	// registered in the rotation order it is not appended again (upsert), so a rerun
+	// after a partial failure is safe.
 	// createdAt is stored as-is (caller is responsible for timezone).
 	// source is an informational origin label (empty string for manual uploads).
 	// afterID is the image ID to insert after in the display order; pass "" to append.
-	CreateImage(ctx context.Context, original []byte, processed []byte, createdAt time.Time, source string, afterID string) (string, error)
+	CreateImage(ctx context.Context, id string, original []byte, processed []byte, createdAt time.Time, source string, afterID string) error
+
+	// StoreUpload persists the raw uploaded bytes for the given content-addressed
+	// ID before any processing runs. It is called synchronously during submit so
+	// an accepted upload is durable before 202 is returned. Storing identical
+	// bytes again is a harmless overwrite (idempotent).
+	StoreUpload(ctx context.Context, id string, raw []byte) error
+
+	// ImageExists reports whether a processed blob exists for the given ID.
+	ImageExists(ctx context.Context, id string) (bool, error)
+
+	// GetUploadState returns the derived processing state for a content-addressed
+	// image ID, computed from the presence of the processed blob and status markers.
+	GetUploadState(ctx context.Context, id string) (*UploadState, error)
+
+	// MarkProcessing writes the "processing" status marker for the given ID.
+	MarkProcessing(ctx context.Context, id string) error
+
+	// MarkFailed writes the "failed" status marker (with errMsg) for the given ID.
+	MarkFailed(ctx context.Context, id string, errMsg string) error
+
+	// ClearStatusMarkers removes the processing and failed status markers for the
+	// given ID. Called on successful completion.
+	ClearStatusMarkers(ctx context.Context, id string) error
 
 	// GetImageMetadata returns all image metadata in current display order (index 0 = today).
 	GetImageMetadata(ctx context.Context) ([]*Image, error)

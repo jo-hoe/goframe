@@ -26,7 +26,12 @@ type ServiceConfig struct {
 	ThumbnailWidth                int             `yaml:"thumbnailWidth"`
 	LogLevel                      string          `yaml:"logLevel"`
 	SvgFallbackLongSidePixelCount int             `yaml:"svgFallbackLongSidePixelCount"`
+	// MaxUploadBytes is the maximum accepted size of an uploaded image, in bytes.
+	MaxUploadBytes int64 `yaml:"maxUploadBytes"`
 }
+
+// DefaultMaxUploadBytes is the default maximum upload size (25 MiB).
+const DefaultMaxUploadBytes int64 = 25 << 20
 
 // LoadServerConfig reads and parses a YAML server config from the given path.
 func LoadServerConfig(path string) (*ServiceConfig, error) {
@@ -57,6 +62,9 @@ func LoadServerConfig(path string) (*ServiceConfig, error) {
 	}
 	if config.LogLevel == "" {
 		config.LogLevel = "info"
+	}
+	if config.MaxUploadBytes <= 0 {
+		config.MaxUploadBytes = DefaultMaxUploadBytes
 	}
 	if config.Database.AccessKey == "" {
 		config.Database.AccessKey = os.Getenv("RUSTFS_ACCESS_KEY")

@@ -305,7 +305,9 @@ func (c *goframeClient) uploadImage(ctx context.Context, data []byte, sourceName
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusCreated {
+	if resp.StatusCode != http.StatusCreated &&
+		resp.StatusCode != http.StatusAccepted &&
+		resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status %d", resp.StatusCode)
 	}
 	return nil

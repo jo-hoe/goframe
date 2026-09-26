@@ -4,13 +4,21 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
-	"github.com/jo-hoe/goframe/internal/common"
 	"github.com/jo-hoe/goframe/internal/config"
 	"github.com/jo-hoe/goframe/internal/database"
 	"github.com/jo-hoe/goframe/internal/imageprocessing"
+	"github.com/jo-hoe/goframe/internal/imagevalidation"
 )
+
+// processTimeout bounds how long a single background image-processing job may run.
+const processTimeout = 5 * time.Minute
+
+// maxConcurrentProcessing bounds how many uploads are processed concurrently so
+// that a burst of uploads cannot exhaust memory or CPU.
+const maxConcurrentProcessing = 4
 
 // CoreService is the central business logic layer for the goframe server.
 type CoreService struct {
@@ -18,6 +26,11 @@ type CoreService struct {
 	databaseService database.DatabaseService
 	commandConfigs  []imageprocessing.CommandConfig
 	tzLoc           *time.Location
+
+	// sem bounds concurrent background processing.
+	sem chan struct{}
+	// wg tracks in-flight background workers so tests can await completion.
+	wg sync.WaitGroup
 }
 
 // NewCoreService constructs and initialises a CoreService from the given config.
@@ -53,24 +66,110 @@ func NewCoreService(cfg *config.ServiceConfig) (*CoreService, error) {
 		databaseService: db,
 		commandConfigs:  cmdCfgs,
 		tzLoc:           loc,
+		sem:             make(chan struct{}, maxConcurrentProcessing),
 	}, nil
 }
 
-// AddImage processes and persists a new image.
-func (service *CoreService) AddImage(ctx context.Context, image []byte, source string) (*common.ApiImage, error) {
-	slog.Info("CoreService.AddImage: start", "bytes", len(image), "source", source)
-
-	convertedImageData, processedImage, err := service.applyPipeline(image)
-	if err != nil {
+// SubmitImage validates the image, then processes it asynchronously. It returns
+// immediately with the derived upload state. The image ID is the SHA-256 of the
+// bytes, so submitting identical bytes is idempotent: if the image already
+// exists or is already being processed, no new work is started.
+//
+// The returned state reflects the moment of submission (succeeded for an
+// already-processed image, otherwise processing). Callers poll GetUploadState
+// with the returned ID to observe progress.
+func (service *CoreService) SubmitImage(ctx context.Context, image []byte, source string) (*database.UploadState, error) {
+	if err := imagevalidation.Validate(image, service.config.MaxUploadBytes); err != nil {
 		return nil, err
 	}
 
-	databaseImageID, err := service.databaseService.CreateImage(ctx, convertedImageData, processedImage, time.Now().In(service.tzLoc), source, "")
+	id := database.ContentID(image)
+
+	state, err := service.databaseService.GetUploadState(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create database image: %w", err)
+		return nil, fmt.Errorf("failed to read upload state: %w", err)
+	}
+	switch state.Status {
+	case database.StatusSucceeded, database.StatusProcessing:
+		slog.Info("CoreService.SubmitImage: idempotent no-op", "id", id, "status", state.Status)
+		return state, nil
 	}
 
-	return &common.ApiImage{ID: databaseImageID}, nil
+	if err := service.databaseService.MarkProcessing(ctx, id); err != nil {
+		return nil, fmt.Errorf("failed to mark processing: %w", err)
+	}
+
+	// Persist the raw upload synchronously before returning 202 so an accepted
+	// upload is durable the instant the API accepts it, even if the process
+	// crashes before background normalization/processing runs. Normalization and
+	// the full pipeline (storing original.png + processed.png) happen afterwards
+	// in processImage.
+	if err := service.databaseService.StoreUpload(ctx, id, image); err != nil {
+		if clearErr := service.databaseService.ClearStatusMarkers(ctx, id); clearErr != nil {
+			slog.Error("CoreService.SubmitImage: failed to clear markers after upload failure", "id", id, "error", clearErr)
+		}
+		return nil, fmt.Errorf("failed to store upload: %w", err)
+	}
+
+	// Copy the bytes: the caller may reuse/free its buffer once we return.
+	buf := make([]byte, len(image))
+	copy(buf, image)
+
+	service.wg.Add(1)
+	// #nosec G118 -- by design: processing outlives the request. The 202 response
+	// is sent immediately, cancelling the request context; the worker uses a fresh
+	// context.Background() with its own bounded timeout (see processImage).
+	go service.processImage(id, buf, source)
+
+	return &database.UploadState{ID: id, Status: database.StatusProcessing}, nil
+}
+
+// processImage runs the processing pipeline and persists the result in the
+// background. It uses a fresh, bounded context (the request context is already
+// gone once SubmitImage returned) and records the outcome via status markers.
+func (service *CoreService) processImage(id string, image []byte, source string) {
+	defer service.wg.Done()
+
+	service.sem <- struct{}{}
+	defer func() { <-service.sem }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), processTimeout)
+	defer cancel()
+
+	if err := service.processImageOnce(ctx, id, image, source); err != nil {
+		slog.Error("CoreService.processImage: failed", "id", id, "error", err)
+		if markErr := service.databaseService.MarkFailed(ctx, id, err.Error()); markErr != nil {
+			slog.Error("CoreService.processImage: failed to record failure", "id", id, "error", markErr)
+		}
+		return
+	}
+	if err := service.databaseService.ClearStatusMarkers(ctx, id); err != nil {
+		slog.Error("CoreService.processImage: failed to clear markers", "id", id, "error", err)
+	}
+	slog.Info("CoreService.processImage: succeeded", "id", id)
+}
+
+// processImageOnce applies the pipeline and stores the resulting blobs + metadata.
+func (service *CoreService) processImageOnce(ctx context.Context, id string, image []byte, source string) error {
+	convertedImageData, processedImage, err := service.applyPipeline(image)
+	if err != nil {
+		return err
+	}
+	if err := service.databaseService.CreateImage(ctx, id, convertedImageData, processedImage, time.Now().In(service.tzLoc), source, ""); err != nil {
+		return fmt.Errorf("failed to create database image: %w", err)
+	}
+	return nil
+}
+
+// GetUploadState returns the derived processing state for a content-addressed ID.
+func (service *CoreService) GetUploadState(ctx context.Context, id string) (*database.UploadState, error) {
+	return service.databaseService.GetUploadState(ctx, id)
+}
+
+// WaitForProcessing blocks until all in-flight background processing completes.
+// It is intended for tests and graceful shutdown.
+func (service *CoreService) WaitForProcessing() {
+	service.wg.Wait()
 }
 
 // GetImageById returns a single image's metadata by ID. Blobs are not populated.

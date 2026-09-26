@@ -12,6 +12,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"gopkg.in/yaml.v3"
 
@@ -164,23 +166,50 @@ func (r *GoFrameReconciler) reconcileServerConfigMap(ctx context.Context, gf *go
 	return configData, nil
 }
 
-func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *goframev1alpha1.GoFrame, configData string, credHash string) error {
+// buildServerDeployment renders the desired hardened server Deployment for the
+// given GoFrame spec. It is pure (no client calls) so it can be unit-tested.
+func buildServerDeployment(gf *goframev1alpha1.GoFrame, configHash, credHash string) *appsv1.Deployment {
 	replicas := int32(1)
-	img := serverImageRef(gf)
+	if gf.Spec.Server.Replicas != nil {
+		replicas = *gf.Spec.Server.Replicas
+	}
 	port := gf.Spec.Server.Port
 	if port == 0 {
 		port = serverPort
 	}
 
-	configHash := fmt.Sprintf("%x", sha256.Sum256([]byte(configData)))
+	container := corev1.Container{
+		Name:            serverBinary,
+		Image:           serverImageRef(gf),
+		ImagePullPolicy: imagePullPolicy(gf.Spec.Server.Image.PullPolicy),
+		Ports: []corev1.ContainerPort{
+			{ContainerPort: port, Protocol: corev1.ProtocolTCP},
+		},
+		Args: []string{"--config", "/etc/goframe/config.yaml"},
+		Env:  rustfsServerEnvVars(gf),
+		VolumeMounts: []corev1.VolumeMount{
+			{Name: "config", MountPath: "/etc/goframe", ReadOnly: true},
+			{Name: "tmp", MountPath: "/tmp"},
+		},
+		ReadinessProbe:  serverProbe(port, 5, 10),
+		LivenessProbe:   serverProbe(port, 15, 20),
+		StartupProbe:    serverStartupProbe(port),
+		SecurityContext: serverContainerSecurityContext(),
+	}
+	if res := gf.Spec.Server.Resources; res != nil {
+		container.Resources = *res
+	}
 
-	desired := &appsv1.Deployment{
+	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      serverName(gf),
 			Namespace: gf.Namespace,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
+			Strategy: appsv1.DeploymentStrategy{
+				Type: appsv1.RollingUpdateDeploymentStrategyType,
+			},
 			Selector: &metav1.LabelSelector{
 				MatchLabels: serverLabels(gf),
 			},
@@ -193,21 +222,8 @@ func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *g
 					},
 				},
 				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:            serverBinary,
-							Image:           img,
-							ImagePullPolicy: imagePullPolicy(gf.Spec.Server.Image.PullPolicy),
-							Ports: []corev1.ContainerPort{
-								{ContainerPort: port, Protocol: corev1.ProtocolTCP},
-							},
-							Args: []string{"--config", "/etc/goframe/config.yaml"},
-							Env:  rustfsServerEnvVars(gf),
-							VolumeMounts: []corev1.VolumeMount{
-								{Name: "config", MountPath: "/etc/goframe", ReadOnly: true},
-							},
-						},
-					},
+					SecurityContext: serverPodSecurityContext(),
+					Containers:      []corev1.Container{container},
 					Volumes: []corev1.Volume{
 						{
 							Name: "config",
@@ -217,11 +233,22 @@ func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *g
 								},
 							},
 						},
+						{
+							Name: "tmp",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{},
+							},
+						},
 					},
 				},
 			},
 		},
 	}
+}
+
+func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *goframev1alpha1.GoFrame, configData string, credHash string) error {
+	configHash := fmt.Sprintf("%x", sha256.Sum256([]byte(configData)))
+	desired := buildServerDeployment(gf, configHash, credHash)
 	if err := ctrl.SetControllerReference(gf, desired, r.Scheme); err != nil {
 		return err
 	}
@@ -243,9 +270,13 @@ func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *g
 		existingContainer.ImagePullPolicy != desiredContainer.ImagePullPolicy ||
 		existingHash != configHash ||
 		existingCredHash != credHash ||
+		!equalInt32Ptr(existing.Spec.Replicas, desired.Spec.Replicas) ||
+		existing.Spec.Strategy.Type != desired.Spec.Strategy.Type ||
 		!equality.Semantic.DeepEqual(existingContainer.Env, desiredContainer.Env) ||
 		!equality.Semantic.DeepEqual(existing.Spec.Template.Spec.Containers, desired.Spec.Template.Spec.Containers)
 	if needsUpdate {
+		existing.Spec.Replicas = desired.Spec.Replicas
+		existing.Spec.Strategy = desired.Spec.Strategy
 		existing.Spec.Template.Spec = desired.Spec.Template.Spec
 		if existing.Spec.Template.Annotations == nil {
 			existing.Spec.Template.Annotations = map[string]string{}
@@ -255,6 +286,76 @@ func (r *GoFrameReconciler) reconcileServerDeployment(ctx context.Context, gf *g
 		return r.Update(ctx, existing)
 	}
 	return nil
+}
+
+// equalInt32Ptr reports whether two *int32 values are equal, treating nil as 0.
+func equalInt32Ptr(a, b *int32) bool {
+	av, bv := int32(0), int32(0)
+	if a != nil {
+		av = *a
+	}
+	if b != nil {
+		bv = *b
+	}
+	return av == bv
+}
+
+// serverProbe builds an HTTP GET readiness/liveness probe against the /probe
+// endpoint the server already serves on its container port.
+func serverProbe(port, initialDelay, period int32) *corev1.Probe {
+	return &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Path: "/probe",
+				Port: intstr.FromInt32(port),
+			},
+		},
+		InitialDelaySeconds: initialDelay,
+		PeriodSeconds:       period,
+	}
+}
+
+// serverStartupProbe gives a slow-starting server up to ~30s (10 * 3s) to come
+// up before liveness starts killing it.
+func serverStartupProbe(port int32) *corev1.Probe {
+	return &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Path: "/probe",
+				Port: intstr.FromInt32(port),
+			},
+		},
+		PeriodSeconds:    3,
+		FailureThreshold: 10,
+	}
+}
+
+// serverPodSecurityContext returns a hardened pod-level security context:
+// run as an unprivileged user and default seccomp profile.
+func serverPodSecurityContext() *corev1.PodSecurityContext {
+	runAsUser := int64(65532) // nonroot user baked into distroless/static images
+	return &corev1.PodSecurityContext{
+		RunAsNonRoot: ptr.To(true),
+		RunAsUser:    &runAsUser,
+		RunAsGroup:   &runAsUser,
+		FSGroup:      &runAsUser,
+		SeccompProfile: &corev1.SeccompProfile{
+			Type: corev1.SeccompProfileTypeRuntimeDefault,
+		},
+	}
+}
+
+// serverContainerSecurityContext returns a hardened container-level security
+// context following Kubernetes restricted-profile best practices.
+func serverContainerSecurityContext() *corev1.SecurityContext {
+	return &corev1.SecurityContext{
+		AllowPrivilegeEscalation: ptr.To(false),
+		ReadOnlyRootFilesystem:   ptr.To(true),
+		RunAsNonRoot:             ptr.To(true),
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+		},
+	}
 }
 
 func (r *GoFrameReconciler) reconcileServerService(ctx context.Context, gf *goframev1alpha1.GoFrame) error {

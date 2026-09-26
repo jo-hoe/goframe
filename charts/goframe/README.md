@@ -43,6 +43,8 @@ Helm chart for the goframe image processing web service
 | server.image.tag | string | `""` | goframe server image tag. Defaults to the chart appVersion when empty. |
 | server.logLevel | string | `"info"` | Log verbosity level (debug, info, warn, error) |
 | server.port | int | `8080` | Port the goframe server listens on |
+| server.replicas | int | `1` | Number of goframe server replicas |
+| server.resources | object | `{"limits":{"cpu":"1","memory":"512Mi"},"requests":{"cpu":"50m","memory":"128Mi"}}` | Compute resource requests and limits for the server container. Leave empty to set none. |
 | server.serviceType | string | `"ClusterIP"` | How the server Service is exposed. Valid values: ClusterIP, NodePort, LoadBalancer. |
 | server.svgFallbackLongSidePixelCount | int | `4096` | Long-side pixel count used when converting SVGs to raster fallbacks |
 | server.thumbnailWidth | int | `512` | Width in pixels for generated thumbnails |

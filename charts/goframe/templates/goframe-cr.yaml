@@ -34,6 +34,13 @@ spec:
     logLevel: {{ .Values.server.logLevel | quote }}
     svgFallbackLongSidePixelCount: {{ .Values.server.svgFallbackLongSidePixelCount }}
     serviceType: {{ .Values.server.serviceType | quote }}
+    {{- if .Values.server.replicas }}
+    replicas: {{ .Values.server.replicas }}
+    {{- end }}
+    {{- if .Values.server.resources }}
+    resources:
+      {{- toYaml .Values.server.resources | nindent 6 }}
+    {{- end }}
 
   {{- if .Values.commands }}
   commands:

@@ -1,5 +1,7 @@
 include help.mk
 
+SHELL := /bin/bash
+
 # get root dir
 ROOT_DIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 
@@ -99,6 +101,10 @@ install-operator: ## install goframe-operator chart (CRD + operator deployment)
 
 .PHONY: start-k3d
 start-k3d: start-cluster push-k3d push-k3d-operator install-operator ## start k3d cluster and deploy operator + GoFrame CR
+	@echo "Waiting for Traefik Middleware CRD (installed by k3d's built-in Traefik)..."
+	@kubectl wait --for condition=established --timeout=120s crd/middlewares.traefik.io 2>/dev/null || \
+		kubectl wait --for condition=established --timeout=120s crd/middlewares.traefik.containo.us 2>/dev/null || \
+		echo "WARNING: Traefik Middleware CRD not found after 120s; continuing anyway"
 	@helm upgrade --install ${IMAGE_NAME} ${ROOT_DIR}charts/${IMAGE_NAME} \
 		-f ${ROOT_DIR}k3d/values.k3d.yaml \
 		--set server.image.repository=registry.localhost:5000/${IMAGE_NAME} \

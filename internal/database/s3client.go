@@ -182,6 +182,31 @@ func (c *s3Client) GetObject(ctx context.Context, key string) ([]byte, error) {
 	return data, nil
 }
 
+// HeadObject reports whether the object at key exists. It uses an HTTP HEAD,
+// so it does not transfer the object body.
+func (c *s3Client) HeadObject(ctx context.Context, key string) (bool, error) {
+	rawURL := c.objectURL(key)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, rawURL, nil)
+	if err != nil {
+		return false, fmt.Errorf("s3: building HEAD request for %q: %w", key, err)
+	}
+	c.signRequest(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("s3: HEAD %q: %w", key, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusNoContent:
+		return true, nil
+	case http.StatusNotFound:
+		return false, nil
+	default:
+		return false, fmt.Errorf("s3: HEAD %q: unexpected status %d", key, resp.StatusCode)
+	}
+}
+
 // signRequest signs a request with an empty body using AWS SigV4.
 func (c *s3Client) signRequest(req *http.Request) {
 	c.signRequestWithBody(req, nil)

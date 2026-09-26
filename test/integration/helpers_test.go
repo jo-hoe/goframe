@@ -43,7 +43,8 @@ func requireConfig(t *testing.T) *Config {
 	return cfg
 }
 
-// uploadTestImage uploads peppers.png and returns the image ID.
+// uploadTestImage uploads peppers.png, waits for processing to complete, and
+// returns the image ID.
 func uploadTestImage(t *testing.T, client *http.Client, baseURL string) string {
 	t.Helper()
 
@@ -51,6 +52,15 @@ func uploadTestImage(t *testing.T, client *http.Client, baseURL string) string {
 	if err != nil {
 		t.Fatalf("reading test fixture: %v", err)
 	}
+	id := submitImage(t, client, baseURL, data)
+	waitForStatus(t, client, baseURL, id, "succeeded")
+	return id
+}
+
+// submitImage POSTs the given bytes to /api/image and returns the derived ID.
+// It accepts 202 (accepted/processing) and 200 (already processed / idempotent).
+func submitImage(t *testing.T, client *http.Client, baseURL string, data []byte) string {
+	t.Helper()
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
@@ -81,13 +91,14 @@ func uploadTestImage(t *testing.T, client *http.Client, baseURL string) string {
 		}
 	}()
 
-	if resp.StatusCode != http.StatusCreated {
+	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		t.Fatalf("upload: expected 201, got %d: %s", resp.StatusCode, b)
+		t.Fatalf("upload: expected 202 or 200, got %d: %s", resp.StatusCode, b)
 	}
 
 	var result struct {
-		ID string `json:"id"`
+		ID     string `json:"id"`
+		Status string `json:"status"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("decoding upload response: %v", err)
@@ -96,6 +107,38 @@ func uploadTestImage(t *testing.T, client *http.Client, baseURL string) string {
 		t.Fatal("upload: response contained empty id")
 	}
 	return result.ID
+}
+
+// waitForStatus polls GET /api/images/:id/status until it reaches want or times out.
+func waitForStatus(t *testing.T, client *http.Client, baseURL, id, want string) {
+	t.Helper()
+
+	deadline := time.Now().Add(30 * time.Second)
+	var last string
+	for time.Now().Before(deadline) {
+		resp, err := client.Get(fmt.Sprintf("%s/api/images/%s/status", baseURL, id))
+		if err != nil {
+			t.Fatalf("status request: %v", err)
+		}
+		var state struct {
+			Status string `json:"status"`
+			Error  string `json:"error"`
+		}
+		err = json.NewDecoder(resp.Body).Decode(&state)
+		_ = resp.Body.Close()
+		if err != nil {
+			t.Fatalf("decoding status response: %v", err)
+		}
+		last = state.Status
+		if state.Status == want {
+			return
+		}
+		if state.Status == "failed" {
+			t.Fatalf("image %s processing failed: %s", id, state.Error)
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for status %q (last=%q) for image %s", want, last, id)
 }
 
 // listImages returns the current image list from GET /api/images.

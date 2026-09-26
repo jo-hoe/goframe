@@ -58,6 +58,16 @@ server:
   svgFallbackLongSidePixelCount: 4096
   # -- How the server Service is exposed. Valid values: ClusterIP, NodePort, LoadBalancer.
   serviceType: "ClusterIP"
+  # -- Number of goframe server replicas
+  replicas: 1
+  # -- Compute resource requests and limits for the server container. Leave empty to set none.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
 
 # -- Image processing pipeline applied to every ingested image.
 # Supported commands: OrientationCommand, ScaleCommand, PixelScaleCommand,

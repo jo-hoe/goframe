@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/jo-hoe/goframe/internal/core"
+	"github.com/jo-hoe/goframe/internal/database"
+	"github.com/jo-hoe/goframe/internal/imagevalidation"
 
 	"github.com/labstack/echo/v4"
 )
@@ -32,6 +34,7 @@ func (s *APIService) SetRoutes(e *echo.Echo) {
 
 	e.GET("/api/image.png", s.handleGetCurrentImage)
 	e.POST("/api/image", s.handleUploadImage)
+	e.GET("/api/images/:id/status", s.handleGetUploadStatus)
 	e.GET("/api/images/:id/processed.png", s.handleGetProcessedImageByID)
 	e.GET("/api/images/:id/original.png", s.handleGetOriginalImageByID)
 	e.GET("/api/images", s.handleListImages)
@@ -55,11 +58,13 @@ func (s *APIService) handleGetCurrentImage(ctx echo.Context) error {
 	return ctx.Redirect(http.StatusFound, imageURL)
 }
 
-func (s *APIService) handleUploadImage(ctx echo.Context) error {
+// readSingleUploadedFile extracts the bytes of the first file part from a
+// multipart form. It is shared by the upload handlers. It returns a client
+// error (400) when no file is present and a server error (500) on read failure.
+func readSingleUploadedFile(ctx echo.Context) ([]byte, string, error) {
 	form, err := ctx.MultipartForm()
 	if err != nil {
-		slog.Info("invalid multipart form", "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
-		return ctx.String(http.StatusBadRequest, "Invalid multipart form")
+		return nil, "", echo.NewHTTPError(http.StatusBadRequest, "Invalid multipart form")
 	}
 	defer func() { _ = form.RemoveAll() }()
 
@@ -71,37 +76,73 @@ func (s *APIService) handleUploadImage(ctx echo.Context) error {
 		}
 	}
 	if fh == nil {
-		slog.Info("no file provided in multipart form", "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
-		return ctx.String(http.StatusBadRequest, "No file provided")
+		return nil, "", echo.NewHTTPError(http.StatusBadRequest, "No file provided")
 	}
 
 	src, err := fh.Open()
 	if err != nil {
-		slog.Error("failed to open uploaded file", "file", fh.Filename, "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
-		return ctx.String(http.StatusInternalServerError, "Failed to open uploaded file")
+		return nil, fh.Filename, echo.NewHTTPError(http.StatusInternalServerError, "Failed to open uploaded file")
 	}
 	defer func() { _ = src.Close() }()
 
 	data, err := io.ReadAll(src)
 	if err != nil {
-		slog.Error("failed to read uploaded file", "file", fh.Filename, "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
-		return ctx.String(http.StatusInternalServerError, "Failed to read uploaded file")
+		return nil, fh.Filename, echo.NewHTTPError(http.StatusInternalServerError, "Failed to read uploaded file")
 	}
 
 	source := ""
 	if sv := form.Value["source"]; len(sv) > 0 {
 		source = sv[0]
 	}
+	return data, source, nil
+}
 
-	apiImg, err := s.coreService.AddImage(ctx.Request().Context(), data, source)
+type uploadResponse struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	StatusURL string `json:"statusUrl"`
+}
+
+func (s *APIService) handleUploadImage(ctx echo.Context) error {
+	data, source, err := readSingleUploadedFile(ctx)
 	if err != nil {
-		slog.Error("failed to process uploaded image", "file", fh.Filename, "sizeBytes", len(data), "error", err, "method", ctx.Request().Method, "path", ctx.Request().URL.Path)
-		return ctx.String(http.StatusInternalServerError, "Failed to process uploaded image")
+		return err
 	}
 
-	return ctx.JSON(http.StatusCreated, map[string]string{
-		"id": apiImg.ID,
+	state, err := s.coreService.SubmitImage(ctx.Request().Context(), data, source)
+	if err != nil {
+		if verr, ok := imagevalidation.AsValidationError(err); ok {
+			slog.Info("rejected invalid upload", "reason", verr.Reason, "sizeBytes", len(data))
+			return ctx.String(http.StatusBadRequest, verr.Reason)
+		}
+		slog.Error("failed to submit uploaded image", "sizeBytes", len(data), "error", err)
+		return ctx.String(http.StatusInternalServerError, "Failed to submit uploaded image")
+	}
+
+	statusURL := "/api/images/" + state.ID + "/status"
+	ctx.Response().Header().Set("Location", statusURL)
+
+	// 200 when the image already exists (idempotent repeat), 202 when accepted
+	// for (or already undergoing) background processing.
+	code := http.StatusAccepted
+	if state.Status == database.StatusSucceeded {
+		code = http.StatusOK
+	}
+	return ctx.JSON(code, uploadResponse{
+		ID:        state.ID,
+		Status:    string(state.Status),
+		StatusURL: statusURL,
 	})
+}
+
+func (s *APIService) handleGetUploadStatus(ctx echo.Context) error {
+	id := ctx.Param("id")
+	state, err := s.coreService.GetUploadState(ctx.Request().Context(), id)
+	if err != nil {
+		slog.Info("failed to get upload status", "imageId", id, "error", err)
+		return ctx.String(http.StatusBadRequest, "Invalid image id")
+	}
+	return ctx.JSON(http.StatusOK, state)
 }
 
 func (s *APIService) handleGetProcessedImageByID(ctx echo.Context) error {

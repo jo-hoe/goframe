@@ -3,6 +3,7 @@ package frontend
 import (
 	"context"
 	"fmt"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/jo-hoe/goframe/internal/config"
 	"github.com/jo-hoe/goframe/internal/core"
+	"github.com/jo-hoe/goframe/internal/database"
+	"github.com/jo-hoe/goframe/internal/imagevalidation"
 	"github.com/labstack/echo/v4"
 )
 
@@ -83,6 +86,7 @@ func (service *FrontendService) SetRoutes(e *echo.Echo) {
 	e.GET("/", service.rootRedirectHandler) // Redirect root to index.html
 	e.GET("/"+MainPageName, service.indexHandler)
 	e.POST("/htmx/uploadImage", service.htmxUploadImageHandler)
+	e.GET("/htmx/uploadStatus/:id", service.htmxUploadStatusHandler)
 
 	// Routes for listing, fetching by ID, and deleting images
 	e.GET("/htmx/images", service.htmxListImagesHandler)
@@ -127,29 +131,57 @@ func (service *FrontendService) htmxUploadImageHandler(ctx echo.Context) error {
 		return ctx.String(http.StatusInternalServerError, "Failed to read uploaded file")
 	}
 
-	_, err = service.coreService.AddImage(ctx.Request().Context(), image, "")
+	state, err := service.coreService.SubmitImage(ctx.Request().Context(), image, "")
 	if err != nil {
-		slog.Error("htmxUploadImageHandler: failed to process uploaded image",
+		if verr, ok := imagevalidation.AsValidationError(err); ok {
+			slog.Info("htmxUploadImageHandler: rejected invalid upload", "reason", verr.Reason, "filename", file.Filename)
+			return ctx.HTML(http.StatusBadRequest, fmt.Sprintf(`<div id="upload-result" class="error">%s</div>`, html.EscapeString(verr.Reason)))
+		}
+		slog.Error("htmxUploadImageHandler: failed to submit uploaded image",
 			"status", http.StatusInternalServerError, "error", err, "filename", file.Filename)
-		return ctx.String(http.StatusInternalServerError, "Failed to process uploaded image")
+		return ctx.String(http.StatusInternalServerError, "Failed to submit uploaded image")
 	}
 
-	// Return an out-of-band swap to refresh the displayed image, plus a simple status message
+	// Return a fragment that polls the derived status until processing completes.
+	service.setNoCache(ctx)
+	return ctx.HTML(http.StatusAccepted, service.renderUploadStatusFragment(ctx.Request().Context(), state))
+}
 
-	// Build out-of-band update for the image list
-	imageListHTML, listErr := service.buildImageListHTML(ctx.Request().Context())
-	if listErr != nil {
-		// If building the list fails, still return the upload result
-		slog.Error("htmxUploadImageHandler: failed to list images for OOB update",
-			"status", http.StatusInternalServerError, "error", listErr)
-		html := fmt.Sprintf(`<div id="upload-result">Uploaded file: %s</div>`, file.Filename)
-		return ctx.HTML(http.StatusOK, html)
+func (service *FrontendService) htmxUploadStatusHandler(ctx echo.Context) error {
+	id := ctx.Param("id")
+	state, err := service.coreService.GetUploadState(ctx.Request().Context(), id)
+	if err != nil {
+		slog.Info("htmxUploadStatusHandler: invalid image id", "image_id", id, "error", err)
+		return ctx.HTML(http.StatusBadRequest, `<div id="upload-result" class="error">Invalid image id</div>`)
 	}
-	imageListOOB := fmt.Sprintf(`<div id="image-list" hx-swap-oob="true">%s</div>`, imageListHTML)
+	service.setNoCache(ctx)
+	return ctx.HTML(http.StatusOK, service.renderUploadStatusFragment(ctx.Request().Context(), state))
+}
 
-	// Return HTML with OOB swap for image list
-	html := fmt.Sprintf(`<div id="upload-result">Uploaded file: %s</div>%s`, file.Filename, imageListOOB)
-	return ctx.HTML(http.StatusOK, html)
+// renderUploadStatusFragment renders the #upload-result fragment for the given
+// derived state. While processing it keeps polling; on success it stops polling
+// and emits an out-of-band refresh of the image list; on failure it shows the
+// error and stops polling.
+func (service *FrontendService) renderUploadStatusFragment(ctx context.Context, state *database.UploadState) string {
+	switch state.Status {
+	case database.StatusSucceeded:
+		listHTML, err := service.buildImageListHTML(ctx)
+		if err != nil {
+			slog.Error("renderUploadStatusFragment: failed to build image list", "error", err)
+			return `<div id="upload-result" class="success">Upload successful.</div>`
+		}
+		oob := fmt.Sprintf(`<div id="image-list" hx-swap-oob="true">%s</div>`, listHTML)
+		return `<div id="upload-result" class="success">Upload successful.</div>` + oob
+	case database.StatusFailed:
+		return fmt.Sprintf(`<div id="upload-result" class="error">Processing failed: %s</div>`, html.EscapeString(state.Error))
+	default:
+		// pending / processing / unknown: keep polling.
+		return fmt.Sprintf(
+			`<div id="upload-result" hx-get="/htmx/uploadStatus/%s" hx-trigger="load delay:2s" hx-swap="outerHTML">`+
+				`<span class="loading-spinner" aria-hidden="true"></span> Upload received — processing…</div>`,
+			html.EscapeString(state.ID),
+		)
+	}
 }
 
 func (service *FrontendService) htmxListImagesHandler(ctx echo.Context) error {

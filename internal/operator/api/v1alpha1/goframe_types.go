@@ -3,6 +3,7 @@ package v1alpha1
 
 import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -236,6 +237,17 @@ type ServerSpec struct {
 	// Image configures the container image for the server Deployment.
 	// +optional
 	Image ImageSpec `json:"image,omitempty"`
+
+	// Replicas is the number of server pods to run.
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	Replicas *int32 `json:"replicas,omitempty"`
+
+	// Resources describes the compute resource requests and limits for the
+	// server container. When omitted, no resource constraints are set.
+	// +optional
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 
 	// Port is the HTTP port the server listens on.
 	// +kubebuilder:default=8080

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -72,7 +73,7 @@ func main() {
 		slog.Error("failed to initialise core service", "error", err)
 		os.Exit(1)
 	}
-	server := defineServer()
+	server := defineServer(config.MaxUploadBytes)
 
 	api := apihandler.NewAPIService(coreService)
 	api.SetRoutes(server)
@@ -104,8 +105,13 @@ func main() {
 	}
 }
 
-func defineServer() *echo.Echo {
+func defineServer(maxUploadBytes int64) *echo.Echo {
 	e := echo.New()
+
+	if maxUploadBytes > 0 {
+		// Reject oversized request bodies early, before buffering the upload.
+		e.Use(middleware.BodyLimit(strconv.FormatInt(maxUploadBytes, 10)))
+	}
 
 	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		Skipper: func(c echo.Context) bool {
