@@ -143,17 +143,19 @@ func (f *FakeDatabase) ImageExists(ctx context.Context, id string) (bool, error)
 func (f *FakeDatabase) GetUploadState(ctx context.Context, id string) (*UploadState, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return deriveUploadState(ctx, id, f.objectExists, f.getObject)
+	return deriveUploadState(ctx, id, DefaultProcessingMarkerTTL, f.objectExists, f.getObject)
 }
 
-// MarkProcessing writes the "processing" status marker for the given ID.
+// MarkProcessing writes the "processing" status marker for the given ID. The
+// marker carries a timestamp so a stale marker (left by a crashed worker) can
+// be detected by deriveUploadState.
 func (f *FakeDatabase) MarkProcessing(_ context.Context, id string) error {
 	if err := ValidateContentID(id); err != nil {
 		return err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.objects[imageProcessingMarkerKey(id)] = []byte{}
+	f.objects[imageProcessingMarkerKey(id)] = newProcessingMarker()
 	return nil
 }
 

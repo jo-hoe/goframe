@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -159,4 +160,46 @@ func assertStatus(t *testing.T, db *FakeDatabase, id string, want UploadStatus) 
 	if state.Status != want {
 		t.Fatalf("status = %q, want %q", state.Status, want)
 	}
+}
+
+func TestFakeDatabase_StaleProcessingMarkerIsUnknown(t *testing.T) {
+	// A processing marker older than the TTL was orphaned by a crashed worker;
+	// it must derive to unknown so the same bytes can be re-submitted.
+	db := NewFakeDatabase("/images")
+	id := validID(t, "stale")
+
+	stale, err := json.Marshal(processingMarker{StartedAt: time.Now().Add(-2 * DefaultProcessingMarkerTTL)})
+	if err != nil {
+		t.Fatalf("marshal stale marker: %v", err)
+	}
+	db.objects[imageProcessingMarkerKey(id)] = stale
+
+	assertStatus(t, db, id, StatusUnknown)
+}
+
+func TestFakeDatabase_FreshProcessingMarkerIsProcessing(t *testing.T) {
+	db := NewFakeDatabase("/images")
+	id := validID(t, "fresh")
+
+	fresh, err := json.Marshal(processingMarker{StartedAt: time.Now()})
+	if err != nil {
+		t.Fatalf("marshal fresh marker: %v", err)
+	}
+	db.objects[imageProcessingMarkerKey(id)] = fresh
+
+	assertStatus(t, db, id, StatusProcessing)
+}
+
+func TestFakeDatabase_EmptyProcessingMarkerIsUnknown(t *testing.T) {
+	// Legacy markers (written before the timestamp field existed) and any
+	// unparseable payload carry no start time and are treated as stale.
+	db := NewFakeDatabase("/images")
+
+	empty := validID(t, "empty")
+	db.objects[imageProcessingMarkerKey(empty)] = []byte{}
+	assertStatus(t, db, empty, StatusUnknown)
+
+	garbage := validID(t, "garbage")
+	db.objects[imageProcessingMarkerKey(garbage)] = []byte("not json")
+	assertStatus(t, db, garbage, StatusUnknown)
 }

@@ -149,15 +149,17 @@ func (r *RustFSDatabase) ImageExists(ctx context.Context, id string) (bool, erro
 
 // GetUploadState returns the derived processing state for a content-addressed ID.
 func (r *RustFSDatabase) GetUploadState(ctx context.Context, id string) (*UploadState, error) {
-	return deriveUploadState(ctx, id, r.s3.HeadObject, r.s3.GetObject)
+	return deriveUploadState(ctx, id, DefaultProcessingMarkerTTL, r.s3.HeadObject, r.s3.GetObject)
 }
 
-// MarkProcessing writes the "processing" status marker for the given ID.
+// MarkProcessing writes the "processing" status marker for the given ID. The
+// marker carries a timestamp so a marker left behind by a crashed worker can be
+// detected as stale (see deriveUploadState).
 func (r *RustFSDatabase) MarkProcessing(ctx context.Context, id string) error {
 	if err := ValidateContentID(id); err != nil {
 		return err
 	}
-	return r.s3.PutObject(ctx, imageProcessingMarkerKey(id), "application/octet-stream", []byte{})
+	return r.s3.PutObject(ctx, imageProcessingMarkerKey(id), "application/json", newProcessingMarker())
 }
 
 // MarkFailed writes the "failed" status marker (with errMsg) for the given ID.

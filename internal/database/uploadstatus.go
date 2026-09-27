@@ -7,7 +7,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"time"
 )
+
+// DefaultProcessingMarkerTTL bounds how long a "processing" marker is trusted.
+// It mirrors the server's per-job processTimeout (5 minutes): a marker older
+// than the maximum possible job duration was left behind by a crashed worker
+// (e.g. an OOM-killed pod) and is definitionally stale. A stale marker derives
+// to StatusUnknown so the same bytes can simply be re-submitted to restart
+// processing — no manual cleanup required.
+const DefaultProcessingMarkerTTL = 5 * time.Minute
 
 // UploadStatus is the derived processing state of a content-addressed upload.
 // It is never stored directly; it is computed from which objects exist under
@@ -64,15 +73,55 @@ type failureMarker struct {
 	Error string `json:"error"`
 }
 
+// processingMarker is the JSON payload stored in the "processing" marker object.
+// The timestamp lets deriveUploadState detect markers orphaned by a crashed
+// worker: once older than the TTL, the marker is treated as stale.
+type processingMarker struct {
+	StartedAt time.Time `json:"started_at"`
+}
+
+// newProcessingMarker serialises a processing marker stamped with the current
+// time. On the (practically impossible) marshal error it falls back to an empty
+// JSON object, which parses as a zero timestamp and is therefore treated as
+// immediately stale — the safe default.
+func newProcessingMarker() []byte {
+	data, err := json.Marshal(processingMarker{StartedAt: time.Now().UTC()})
+	if err != nil {
+		return []byte("{}")
+	}
+	return data
+}
+
+// parseProcessingMarkerStartedAt extracts the start timestamp from a processing
+// marker payload. It returns (t, true) on success and (zero, false) when the
+// payload is empty, unparseable, or carries no timestamp — all of which are
+// treated as stale by the caller (e.g. legacy empty markers from before this
+// field existed, or markers left by a crashed pod).
+func parseProcessingMarkerStartedAt(data []byte) (time.Time, bool) {
+	if len(data) == 0 {
+		return time.Time{}, false
+	}
+	var m processingMarker
+	if err := json.Unmarshal(data, &m); err != nil || m.StartedAt.IsZero() {
+		return time.Time{}, false
+	}
+	return m.StartedAt, true
+}
+
 // deriveUploadState computes the upload state for id from the presence of the
 // processed blob and the status markers, in precedence order. It performs at
 // most three GETs and requires no object listing.
 //
 // getObject and objectExists are injected so the same logic backs both the
-// RustFS implementation and the in-memory fake.
+// RustFS implementation and the in-memory fake. ttl bounds how long a
+// "processing" marker is trusted: a marker older than ttl (or one that carries
+// no parseable timestamp) is treated as stale and derives to StatusUnknown, so
+// an upload orphaned by a crashed worker can be restarted by re-submitting the
+// same bytes.
 func deriveUploadState(
 	ctx context.Context,
 	id string,
+	ttl time.Duration,
 	objectExists func(context.Context, string) (bool, error),
 	getObject func(context.Context, string) ([]byte, error),
 ) (*UploadState, error) {
@@ -96,12 +145,16 @@ func deriveUploadState(
 		return &UploadState{ID: id, Status: StatusFailed, Error: parseFailureMarker(failed)}, nil
 	}
 
-	processing, err := objectExists(ctx, imageProcessingMarkerKey(id))
+	marker, err := getObject(ctx, imageProcessingMarkerKey(id))
 	if err != nil {
 		return nil, err
 	}
-	if processing {
-		return &UploadState{ID: id, Status: StatusProcessing}, nil
+	if marker != nil {
+		if startedAt, ok := parseProcessingMarkerStartedAt(marker); ok && time.Since(startedAt) <= ttl {
+			return &UploadState{ID: id, Status: StatusProcessing}, nil
+		}
+		// Absent timestamp or age beyond the TTL: the worker that wrote this
+		// marker is gone. Treat as unknown so the same bytes can be re-submitted.
 	}
 
 	return &UploadState{ID: id, Status: StatusUnknown}, nil
