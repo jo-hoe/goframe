@@ -37,12 +37,39 @@ func (s *staticSource) Name() string                             { return s.name
 func (s *staticSource) Fetch(_ context.Context) ([]byte, error) { return s.data, s.err }
 
 // goframeTestServer simulates the goframe REST API for image scheduler integration tests.
+//
+// It mirrors the real async upload contract: POST /api/image returns 202 with a
+// JSON body and does NOT immediately register the image in the list. The image
+// only appears once its status flips to "succeeded", which happens after
+// processingPolls status polls — modelling background processing latency. This
+// is what exercises waitForTerminal and guards against the eviction/prune race.
 type goframeTestServer struct {
 	images []apiImageItem
 	// uploadedSource records the source form field value from the last upload.
 	uploadedSource string
 	// deletedIDs records all deleted image IDs in order.
 	deletedIDs []string
+	// processingPolls is the number of status polls that return "processing"
+	// before the upload flips to "succeeded" (and the image is registered).
+	processingPolls int
+	// failUpload, when true, makes the uploaded image flip to "failed" instead
+	// of "succeeded" after processingPolls polls (and never registers it).
+	failUpload bool
+
+	// pendingID is the ID of the upload currently being processed.
+	pendingID string
+	// pendingSource is the source of the upload currently being processed.
+	pendingSource string
+	// pollCount counts status polls for the pending upload.
+	pollCount int
+}
+
+func (g *goframeTestServer) uploadResponseBody() uploadResponse {
+	return uploadResponse{
+		ID:        g.pendingID,
+		Status:    string(statusProcessing),
+		StatusURL: "/api/images/" + g.pendingID + "/status",
+	}
 }
 
 func (g *goframeTestServer) handler() http.Handler {
@@ -66,31 +93,83 @@ func (g *goframeTestServer) handler() http.Handler {
 			return
 		}
 		g.uploadedSource = r.FormValue("source")
-		newID := "new-id-" + g.uploadedSource
-		g.images = append(g.images, apiImageItem{
-			ID:        newID,
-			CreatedAt: time.Now(),
-			Source:    g.uploadedSource,
-		})
-		w.WriteHeader(http.StatusCreated)
+		g.pendingSource = g.uploadedSource
+		g.pendingID = "new-id-" + g.uploadedSource
+		g.pollCount = 0
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(w).Encode(g.uploadResponseBody())
 	})
-	mux.HandleFunc("/api/images/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodDelete {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		id := strings.TrimPrefix(r.URL.Path, "/api/images/")
-		g.deletedIDs = append(g.deletedIDs, id)
-		updated := g.images[:0]
-		for _, img := range g.images {
-			if img.ID != id {
-				updated = append(updated, img)
+	mux.HandleFunc("/api/images/", g.handleImageSubpath)
+	return mux
+}
+
+// handleImageSubpath routes GET /api/images/{id}/status and DELETE /api/images/{id}.
+func (g *goframeTestServer) handleImageSubpath(w http.ResponseWriter, r *http.Request) {
+	rest := strings.TrimPrefix(r.URL.Path, "/api/images/")
+	if id, ok := strings.CutSuffix(rest, "/status"); ok {
+		g.handleStatus(w, r, id)
+		return
+	}
+	g.handleDelete(w, r, rest)
+}
+
+func (g *goframeTestServer) handleStatus(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	status := statusProcessing
+	if id == g.pendingID {
+		g.pollCount++
+		if g.pollCount > g.processingPolls {
+			if g.failUpload {
+				status = statusFailed
+			} else {
+				status = statusSucceeded
+				g.registerPending()
 			}
 		}
-		g.images = updated
-		w.WriteHeader(http.StatusNoContent)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(uploadStateResponse{ID: id, Status: string(status)})
+}
+
+// registerPending appends the pending upload to the image list, mimicking the
+// server's CreateImage at the end of background processing. It is idempotent.
+func (g *goframeTestServer) registerPending() {
+	if g.pendingID == "" {
+		return
+	}
+	for _, img := range g.images {
+		if img.ID == g.pendingID {
+			return
+		}
+	}
+	g.images = append(g.images, apiImageItem{
+		ID:        g.pendingID,
+		CreatedAt: time.Now(),
+		Source:    g.pendingSource,
 	})
-	return mux
+}
+
+func (g *goframeTestServer) handleDelete(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	g.deletedIDs = append(g.deletedIDs, id)
+	updated := g.images[:0]
+	for _, img := range g.images {
+		if img.ID != id {
+			updated = append(updated, img)
+		}
+	}
+	g.images = updated
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func newGoframeTestServer(images []apiImageItem) (*httptest.Server, *goframeTestServer) {
@@ -197,6 +276,66 @@ func TestRunOnce_SourceFetchError(t *testing.T) {
 	}
 	if state.uploadedSource != "" {
 		t.Error("expected no upload when source fetch fails")
+	}
+}
+
+func TestRunOnce_WaitsForAsyncUploadBeforePruning(t *testing.T) {
+	// Regression for the async-upload eviction race: POST /api/image returns 202
+	// and the new image is registered in the list only after several status
+	// polls (background processing). RunOnce must wait for "succeeded" before it
+	// lists + prunes; otherwise it would see only the pre-existing own image,
+	// prune nothing, and end with two own images.
+	initialImages := []apiImageItem{
+		{ID: "sched-old-1", Source: "test-source"},
+	}
+	srv, state := newGoframeTestServer(initialImages)
+	state.processingPolls = 2 // image appears only on the 3rd status poll
+	defer srv.Close()
+
+	cfg := Config{
+		GoframeBaseURL: srv.URL,
+		SourceName:     "test-source",
+		Source:         &staticSource{name: "test-source", data: minimalPNG()},
+	}
+
+	if err := RunOnce(context.Background(), cfg); err != nil {
+		t.Fatalf("RunOnce error: %v", err)
+	}
+
+	own := filterBySource(state.images, "test-source")
+	if len(own) != 1 {
+		t.Fatalf("expected exactly 1 own image after RunOnce, got %d: %v", len(own), state.images)
+	}
+	if own[0].ID != "new-id-test-source" {
+		t.Errorf("expected the newly uploaded image to remain, got %q", own[0].ID)
+	}
+	if len(state.deletedIDs) != 1 || state.deletedIDs[0] != "sched-old-1" {
+		t.Errorf("expected the old image sched-old-1 to be pruned, got deletedIDs=%v", state.deletedIDs)
+	}
+}
+
+func TestRunOnce_FailedUploadReturnsErrorAndDoesNotPrune(t *testing.T) {
+	// If background processing fails, RunOnce must surface an error and not prune
+	// (there is no new image to prune around; the next run reconciles).
+	initialImages := []apiImageItem{
+		{ID: "sched-old-1", Source: "test-source"},
+	}
+	srv, state := newGoframeTestServer(initialImages)
+	state.failUpload = true
+	defer srv.Close()
+
+	cfg := Config{
+		GoframeBaseURL: srv.URL,
+		SourceName:     "test-source",
+		Source:         &staticSource{name: "test-source", data: minimalPNG()},
+	}
+
+	err := RunOnce(context.Background(), cfg)
+	if err == nil {
+		t.Fatal("expected error when upload processing fails, got nil")
+	}
+	if len(state.deletedIDs) != 0 {
+		t.Errorf("expected no deletions on failed upload, got %v", state.deletedIDs)
 	}
 }
 

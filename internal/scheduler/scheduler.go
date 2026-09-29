@@ -31,6 +31,27 @@ const (
 	OnExternalImagesYield OnExternalImages = "yield"
 )
 
+// uploadStatus mirrors the server's derived upload status (see
+// internal/database.UploadStatus). Duplicated here as plain strings so the
+// scheduler does not depend on the database package.
+type uploadStatus string
+
+const (
+	statusProcessing uploadStatus = "processing"
+	statusSucceeded  uploadStatus = "succeeded"
+	statusFailed     uploadStatus = "failed"
+	statusUnknown    uploadStatus = "unknown"
+)
+
+// uploadWaitTimeout bounds how long RunOnce waits for a submitted image to
+// finish background processing before giving up. It must exceed the server's
+// per-job processTimeout (5m) so a legitimately slow pipeline is not abandoned.
+const uploadWaitTimeout = 6 * time.Minute
+
+// uploadPollInterval is the delay between status polls while waiting for a
+// submitted image to reach a terminal state.
+const uploadPollInterval = time.Second
+
 // Config holds all parameters required for a single image scheduler run.
 type Config struct {
 	// GoframeBaseURL is the base URL of the goframe service.
@@ -96,10 +117,28 @@ func RunOnce(ctx context.Context, cfg Config) error {
 		slog.Info("image-scheduler: applied command pipeline", "source", cfg.SourceName, "commands", len(cfg.Commands), "bytes", len(imageData))
 	}
 
-	if err := client.uploadImage(ctx, imageData, cfg.SourceName); err != nil {
+	uploaded, err := client.uploadImage(ctx, imageData, cfg.SourceName)
+	if err != nil {
 		return fmt.Errorf("uploading image: %w", err)
 	}
-	slog.Info("image-scheduler: uploaded new image", "source", cfg.SourceName)
+	slog.Info("image-scheduler: uploaded new image",
+		"source", cfg.SourceName, "id", uploaded.ID, "status", uploaded.Status)
+
+	// POST returns 202 the moment the raw upload is stored; the image is
+	// registered in rotation.json only when background processing finishes.
+	// Wait for a terminal state so the post-upload list below includes the new
+	// image — otherwise pruneOwnImages sees only the previous image, prunes
+	// nothing, and two own images accumulate.
+	if uploaded.Status != statusSucceeded {
+		terminal, waitErr := waitForTerminal(ctx, client, uploaded.ID)
+		if waitErr != nil {
+			return fmt.Errorf("waiting for upload %s to finish: %w", uploaded.ID, waitErr)
+		}
+		if terminal == statusFailed {
+			return fmt.Errorf("upload %s failed during processing", uploaded.ID)
+		}
+		slog.Info("image-scheduler: upload processed", "source", cfg.SourceName, "id", uploaded.ID)
+	}
 
 	images, err = client.listImages(ctx)
 	if err != nil {
@@ -275,42 +314,123 @@ func (c *goframeClient) listImages(ctx context.Context) ([]apiImageItem, error) 
 	return items, nil
 }
 
-func (c *goframeClient) uploadImage(ctx context.Context, data []byte, sourceName string) error {
+// uploadResult is the parsed response of a successful POST /api/image.
+type uploadResult struct {
+	ID     string
+	Status uploadStatus
+}
+
+// uploadResponse mirrors the JSON body returned by POST /api/image
+// (see internal/apihandler.uploadResponse).
+type uploadResponse struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	StatusURL string `json:"statusUrl"`
+}
+
+// uploadStateResponse mirrors the JSON body of GET /api/images/:id/status
+// (see internal/database.UploadState).
+type uploadStateResponse struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
+	Error  string `json:"error"`
+}
+
+func (c *goframeClient) uploadImage(ctx context.Context, data []byte, sourceName string) (uploadResult, error) {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
 	part, err := writer.CreateFormFile("image", "image.png")
 	if err != nil {
-		return err
+		return uploadResult{}, err
 	}
 	if _, err := io.Copy(part, bytes.NewReader(data)); err != nil {
-		return err
+		return uploadResult{}, err
 	}
 	if err := writer.WriteField("source", sourceName); err != nil {
-		return err
+		return uploadResult{}, err
 	}
 	if err := writer.Close(); err != nil {
-		return err
+		return uploadResult{}, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/image", body)
 	if err != nil {
-		return err
+		return uploadResult{}, err
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return uploadResult{}, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated &&
 		resp.StatusCode != http.StatusAccepted &&
 		resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status %d", resp.StatusCode)
+		return uploadResult{}, fmt.Errorf("unexpected status %d", resp.StatusCode)
 	}
-	return nil
+
+	var body2 uploadResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body2); err != nil {
+		return uploadResult{}, fmt.Errorf("decoding upload response: %w", err)
+	}
+	if body2.ID == "" {
+		return uploadResult{}, fmt.Errorf("upload response missing id")
+	}
+	return uploadResult{ID: body2.ID, Status: uploadStatus(body2.Status)}, nil
+}
+
+// getUploadStatus fetches the derived processing state for a content-addressed ID.
+func (c *goframeClient) getUploadStatus(ctx context.Context, id string) (uploadStatus, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/images/"+id+"/status", nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected status %d", resp.StatusCode)
+	}
+
+	var state uploadStateResponse
+	if err := json.NewDecoder(resp.Body).Decode(&state); err != nil {
+		return "", fmt.Errorf("decoding status response: %w", err)
+	}
+	return uploadStatus(state.Status), nil
+}
+
+// waitForTerminal polls the upload status endpoint until the upload reaches a
+// terminal state (succeeded or failed) or the wait budget is exhausted. It
+// returns the terminal status; a timeout or a cancelled context is an error.
+func waitForTerminal(ctx context.Context, client *goframeClient, id string) (uploadStatus, error) {
+	waitCtx, cancel := context.WithTimeout(ctx, uploadWaitTimeout)
+	defer cancel()
+
+	ticker := time.NewTicker(uploadPollInterval)
+	defer ticker.Stop()
+
+	for {
+		status, err := client.getUploadStatus(waitCtx, id)
+		if err == nil {
+			switch status {
+			case statusSucceeded, statusFailed:
+				return status, nil
+			}
+		}
+
+		select {
+		case <-waitCtx.Done():
+			return "", fmt.Errorf("timed out after %s waiting for terminal status (last known: %q)", uploadWaitTimeout, id)
+		case <-ticker.C:
+		}
+	}
 }
 
 func (c *goframeClient) deleteImage(ctx context.Context, id string) error {
