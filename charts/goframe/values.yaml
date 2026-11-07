@@ -73,6 +73,70 @@ server:
       cpu: "1"
       memory: 1Gi
 
+# Optional bundled image store app (dufs): a low-footprint file server with a UI
+# and HTTP API for browsing/managing images on a PVC. A `dufs` scheduler source
+# can pull images from it into goframe. The UI is exposed on the same host(s) as
+# the server under a distinct path (default /gallery). Authentication is OFF by
+# default: co-hosting a Basic-auth UI with the rustfs S3 endpoint on one hostname
+# makes the browser leak the gallery login to /images, which rustfs rejects.
+# Enable auth only when the gallery runs on its own hostname.
+imageStore:
+  # -- Enable the bundled image store app (dufs) for browsing/managing images on a PVC
+  enabled: false
+  image:
+    # -- dufs container image repository
+    repository: sigoden/dufs
+    # -- dufs image tag
+    tag: "v0.47.0"
+    # -- Image pull policy for the dufs container
+    pullPolicy: IfNotPresent
+  # -- Name of a Secret with keys `username` and `password`. Only used when auth.enabled. Auto-created when empty.
+  secretRef: ""
+  # Authentication for the gallery UI and HTTP API. Disabled by default so the UI
+  # and rustfs can safely share a hostname (an enabled Basic-auth login leaks to
+  # the rustfs /images S3 endpoint and breaks image serving).
+  auth:
+    # -- Enable HTTP Basic auth on the image store. Keep false when sharing a host with rustfs.
+    enabled: false
+    # -- Image store username. Defaults to "admin" when empty. Only used when auth.enabled.
+    username: ""
+    # -- Image store password. Auto-generated (random) when empty. Only used when auth.enabled.
+    password: ""
+  # -- Port dufs listens on
+  port: 5000
+  # -- Subpath dufs serves under (DUFS_PATH_PREFIX). Must match ingress.path.
+  pathPrefix: /gallery
+  # -- Number of image store replicas
+  replicas: 1
+  # -- How the image store Service is exposed (ClusterIP, NodePort, LoadBalancer)
+  serviceType: ClusterIP
+  # -- Compute resource requests and limits for the dufs container. Leave empty to set none.
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+  persistence:
+    # -- Persistent volume size for stored images
+    size: 5Gi
+    # -- StorageClass for the persistent volume. Empty = cluster default.
+    storageClass: ""
+    # -- PVC access mode
+    accessMode: ReadWriteOnce
+  # The gallery UI is exposed on the same host(s) as the server (.Values.ingress.hosts)
+  # under a distinct path (default /gallery), with TLS inherited from the server ingress.
+  ingress:
+    # -- Expose the image store UI via Kubernetes Ingress
+    enabled: false
+    # -- IngressClass name. Falls back to .Values.ingress.className when empty.
+    className: ""
+    # -- Annotations for the image store Ingress resource (e.g. cert-manager issuer)
+    annotations: {}
+    # -- Path on the shared host for the gallery UI. Must match imageStore.pathPrefix.
+    path: /gallery
+
 # -- Image processing pipeline applied to every ingested image.
 # Supported commands: OrientationCommand, ScaleCommand, PixelScaleCommand,
 #                     CropCommand, PngConverterCommand, DitherCommand
@@ -104,7 +168,7 @@ schedulerImage:
 
 # -- CronJob-based image schedulers (one CronJob per entry).
 # Each entry requires: name, cron, source.
-# Supported sources: xkcd, oatmeal, metmuseum, tumblr, s3, nasaapod, nasaimageoftheday, imagelist.
+# Supported sources: xkcd, oatmeal, metmuseum, tumblr, s3, dufs, nasaapod, nasaimageoftheday, imagelist.
 #
 # group: optional. Schedulers sharing the same group evict each other's images on
 # a successful upload, so only one group member's image is displayed at a time. Use this to
@@ -176,6 +240,22 @@ schedulerImage:
 #       # secretRef names a Kubernetes Secret with keys "accessKey" and "secretKey".
 #       # Omit for anonymous access to public buckets.
 #       secretRef: "my-s3-credentials"
+#
+# Example — dufs source (pull from the bundled image store app or any dufs instance):
+# schedulers:
+#   - name: dufs-daily
+#     cron: "0 8 * * *"
+#     source: dufs
+#     dufs:
+#       # endpoint is the dufs base URL including the path prefix. For the bundled
+#       # image store app it is the in-cluster Service + prefix:
+#       # "http://<release>-imagestore:5000/gallery".
+#       endpoint: "http://<release>-imagestore:5000/gallery"
+#       # secretRef names a Kubernetes Secret with keys "username" and "password".
+#       # Only needed when imageStore.auth.enabled=true: omit to reuse the bundled
+#       # app's auto-created credentials ("<release>-imagestore-credentials").
+#       # Omit entirely for an unauthenticated dufs instance (the default).
+#       secretRef: "my-imagestore-credentials"
 #
 # Example — single source with per-scheduler processing pipeline:
 # schedulers:

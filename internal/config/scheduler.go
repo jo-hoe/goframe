@@ -127,6 +127,21 @@ type S3FileConfig struct {
 	SecretKey string `yaml:"secretKey"`
 }
 
+// DufsFileConfig is the typed configuration for the dufs source.
+// It embeds all common scheduler fields and adds the dufs endpoint plus optional
+// credentials. Credentials are normally mounted from a Secret at runtime rather
+// than inlined here.
+type DufsFileConfig struct {
+	SchedulerFileConfig `yaml:",inline"`
+	// Endpoint is the base URL of the dufs instance, including any path prefix
+	// (e.g. "http://myrelease-imagestore:5000/gallery"). No trailing slash.
+	Endpoint string `yaml:"endpoint"`
+	// Username is the HTTP basic-auth user. Leave empty for anonymous access.
+	Username string `yaml:"username"`
+	// Password is the HTTP basic-auth password. Leave empty for anonymous access.
+	Password string `yaml:"password"`
+}
+
 // LoadSchedulerConfig reads and parses a YAML image scheduler config from the given path.
 func LoadSchedulerConfig(path string) (*SchedulerFileConfig, error) {
 	data, err := readConfigFile(path)
@@ -209,6 +224,28 @@ func LoadS3Config(path string) (*S3FileConfig, error) {
 	}
 	if cfg.Region == "" {
 		return nil, fmt.Errorf("s3 scheduler config %s: region is required", path)
+	}
+	return &cfg, nil
+}
+
+// LoadDufsConfig reads and parses a YAML dufs scheduler config from the given path.
+// Returns an error if the required Endpoint field is empty.
+func LoadDufsConfig(path string) (*DufsFileConfig, error) {
+	data, err := readConfigFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg DufsFileConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse dufs scheduler config %s: %w", path, err)
+	}
+
+	if err := applyDefaults(&cfg.SchedulerFileConfig); err != nil {
+		return nil, err
+	}
+	if cfg.Endpoint == "" {
+		return nil, fmt.Errorf("dufs scheduler config %s: endpoint is required", path)
 	}
 	return &cfg, nil
 }

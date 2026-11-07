@@ -1,0 +1,46 @@
+{{- if and .Values.imageStore.enabled .Values.imageStore.ingress.enabled }}
+{{- /*
+  The gallery UI is served on the SAME host(s) as the goframe server, under a
+  distinct path (default /gallery). dufs is told its own prefix via
+  DUFS_PATH_PREFIX so it serves correct absolute URLs natively — no path-strip
+  middleware needed. TLS is inherited from the server ingress (.Values.ingress.tls);
+  one cert covers /, /images, and /gallery on the shared host.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-imagestore
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: goframe
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: imagestore
+  {{- with .Values.imageStore.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- $imageStoreClass := .Values.imageStore.ingress.className | default .Values.ingress.className }}
+  {{- if $imageStoreClass }}
+  ingressClassName: {{ $imageStoreClass | quote }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - {{- if .host }}
+      host: {{ .host | quote }}
+      {{- end }}
+      http:
+        paths:
+          - path: {{ $.Values.imageStore.ingress.path | quote }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Release.Name }}-imagestore
+                port:
+                  number: {{ $.Values.imageStore.port }}
+    {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
