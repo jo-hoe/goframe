@@ -27,6 +27,7 @@ import (
 // +kubebuilder:rbac:groups=goframe.io,resources=goframes/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
 type GoFrameReconciler struct {
@@ -45,7 +46,8 @@ func (r *GoFrameReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 		var reqs []reconcile.Request
 		for _, gf := range gfList.Items {
-			if gf.Spec.RustFS.SecretRef == obj.GetName() {
+			if gf.Spec.RustFS.SecretRef == obj.GetName() ||
+				gf.Spec.ImageStore.SecretRef == obj.GetName() {
 				reqs = append(reqs, reconcile.Request{
 					NamespacedName: types.NamespacedName{Name: gf.Name, Namespace: gf.Namespace},
 				})
@@ -59,6 +61,7 @@ func (r *GoFrameReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.PersistentVolumeClaim{}).
 		Owns(&batchv1.CronJob{}).
 		Watches(&corev1.Secret{}, secretToGoFrame).
 		Complete(r)
@@ -78,6 +81,10 @@ func (r *GoFrameReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	if err := r.reconcileServer(ctx, gf); err != nil {
 		return ctrl.Result{}, fmt.Errorf("reconcileServer: %w", err)
+	}
+
+	if err := r.reconcileImageStore(ctx, gf); err != nil {
+		return ctrl.Result{}, fmt.Errorf("reconcileImageStore: %w", err)
 	}
 
 	if err := r.reconcileCronJobs(ctx, gf); err != nil {
