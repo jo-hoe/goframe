@@ -52,6 +52,11 @@ type GoFrameSpec struct {
 	// RustFS configures the RustFS storage used by the operator and server.
 	// +optional
 	RustFS RustFSSpec `json:"rustfs,omitempty"`
+
+	// ImageStore configures the optional bundled image store app (dufs) that
+	// serves a UI + HTTP API for browsing and managing images on a PVC.
+	// +optional
+	ImageStore ImageStoreSpec `json:"imageStore,omitempty"`
 }
 
 // CommandSpec describes a single image-processing command in the pipeline.
@@ -97,7 +102,7 @@ type SchedulerSpec struct {
 	// +optional
 	Commands []CommandSpec `json:"commands,omitempty"`
 
-	// Source is the image source identifier (e.g. "xkcd", "oatmeal", "metmuseum", "tumblr", "s3").
+	// Source is the image source identifier (e.g. "xkcd", "oatmeal", "metmuseum", "tumblr", "s3", "dufs").
 	Source string `json:"source"`
 
 	// MetMuseum holds configuration for the metmuseum source.
@@ -113,6 +118,11 @@ type SchedulerSpec struct {
 	// Required when source is "s3".
 	// +optional
 	S3 *S3Config `json:"s3,omitempty"`
+
+	// Dufs holds configuration for the dufs source (the bundled image store app
+	// or any external dufs instance). Required when source is "dufs".
+	// +optional
+	Dufs *DufsConfig `json:"dufs,omitempty"`
 
 	// NASAApod holds configuration for the nasaapod source.
 	// +optional
@@ -174,6 +184,23 @@ type S3Config struct {
 	// SecretRef is the name of a Kubernetes Secret in the same namespace that holds
 	// the S3 credentials. The Secret must contain the keys "accessKey" and "secretKey".
 	// Omit for anonymous access to public buckets.
+	// +optional
+	SecretRef string `json:"secretRef,omitempty"`
+}
+
+// DufsConfig holds the configuration for the dufs image source.
+// dufs is a static file server; the source lists its served directory and
+// downloads a random image. It targets the bundled image store app or any
+// external dufs instance.
+// +kubebuilder:object:generate=true
+type DufsConfig struct {
+	// Endpoint is the base URL of the dufs instance, including any path prefix
+	// (e.g. "http://myrelease-imagestore:5000/gallery"). No trailing slash.
+	Endpoint string `json:"endpoint"`
+
+	// SecretRef is the name of a Kubernetes Secret in the same namespace that holds
+	// the dufs credentials. The Secret must contain the keys "username" and "password".
+	// Omit for anonymous access to an unauthenticated dufs instance.
 	// +optional
 	SecretRef string `json:"secretRef,omitempty"`
 }
@@ -329,6 +356,77 @@ type ImageSpec struct {
 	// +kubebuilder:validation:Enum=Always;Never;IfNotPresent
 	// +optional
 	PullPolicy string `json:"pullPolicy,omitempty"`
+}
+
+// ImageStoreSpec configures the optional bundled image store app (dufs).
+// When enabled the operator reconciles a Deployment, Service, and PVC that
+// serve a UI + HTTP API for managing images on persistent storage.
+// +kubebuilder:object:generate=true
+type ImageStoreSpec struct {
+	// Enabled toggles deployment of the image store app.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Image configures the container image for the image store Deployment.
+	// +optional
+	Image ImageSpec `json:"image,omitempty"`
+
+	// SecretRef is the name of a Kubernetes Secret in the same namespace that holds
+	// the image store credentials. The Secret must contain the keys "username" and
+	// "password". When empty the chart auto-generates "<release>-imagestore-credentials".
+	// +optional
+	SecretRef string `json:"secretRef,omitempty"`
+
+	// Port is the HTTP port dufs listens on.
+	// +kubebuilder:default=5000
+	// +optional
+	Port int32 `json:"port,omitempty"`
+
+	// PathPrefix is the subpath the UI is served under (dufs DUFS_PATH_PREFIX).
+	// Must match the ingress path so the UI and routing agree.
+	// +kubebuilder:default="/gallery"
+	// +optional
+	PathPrefix string `json:"pathPrefix,omitempty"`
+
+	// Replicas is the number of image store pods to run.
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	Replicas *int32 `json:"replicas,omitempty"`
+
+	// Resources describes the compute resource requests and limits for the
+	// image store container. When omitted, no resource constraints are set.
+	// +optional
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// ServiceType is the Kubernetes Service type (ClusterIP, NodePort, LoadBalancer).
+	// +kubebuilder:default="ClusterIP"
+	// +kubebuilder:validation:Enum=ClusterIP;NodePort;LoadBalancer
+	// +optional
+	ServiceType string `json:"serviceType,omitempty"`
+
+	// Persistence configures the PersistentVolumeClaim backing the image store.
+	// +optional
+	Persistence ImageStorePersistence `json:"persistence,omitempty"`
+}
+
+// ImageStorePersistence configures the PVC backing the image store app.
+// +kubebuilder:object:generate=true
+type ImageStorePersistence struct {
+	// Size is the requested storage size for the image store volume.
+	// +kubebuilder:default="5Gi"
+	// +optional
+	Size string `json:"size,omitempty"`
+
+	// StorageClass is the StorageClass for the volume. Empty uses the cluster default.
+	// +optional
+	StorageClass string `json:"storageClass,omitempty"`
+
+	// AccessMode is the PVC access mode.
+	// +kubebuilder:default="ReadWriteOnce"
+	// +kubebuilder:validation:Enum=ReadWriteOnce;ReadWriteMany;ReadOnlyMany;ReadWriteOncePod
+	// +optional
+	AccessMode string `json:"accessMode,omitempty"`
 }
 
 // GoFrameStatus defines the observed state of GoFrame.

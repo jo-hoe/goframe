@@ -58,6 +58,39 @@ func TestLoadImageListConfig_NoHeaders(t *testing.T) {
 	}
 }
 
+func TestLoadDufsConfig_Valid(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "image-scheduler.yaml")
+	content := "goframeURL: http://goframe:8080\nsourceName: dufs\nsource: dufs\nendpoint: http://imagestore:5000/gallery\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := LoadDufsConfig(path)
+	if err != nil {
+		t.Fatalf("LoadDufsConfig failed: %v", err)
+	}
+	if cfg.Endpoint != "http://imagestore:5000/gallery" {
+		t.Errorf("endpoint = %q", cfg.Endpoint)
+	}
+	if cfg.LogLevel != "info" {
+		t.Errorf("expected default logLevel info, got %q", cfg.LogLevel)
+	}
+}
+
+func TestLoadDufsConfig_MissingEndpoint(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "image-scheduler.yaml")
+	content := "goframeURL: http://goframe:8080\nsourceName: dufs\nsource: dufs\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	if _, err := LoadDufsConfig(path); err == nil {
+		t.Fatal("expected error for missing endpoint, got nil")
+	}
+}
+
 func TestHeaderMap(t *testing.T) {
 	if got := HeaderMap(nil); got != nil {
 		t.Errorf("expected nil for no headers, got %v", got)

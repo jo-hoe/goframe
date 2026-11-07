@@ -24,6 +24,40 @@ spec:
     imageBaseURL: {{ .Values.rustfs.imageBaseURL | quote }}
     {{- end }}
 
+  {{- if .Values.imageStore.enabled }}
+  imageStore:
+    enabled: true
+    image:
+      repository: {{ .Values.imageStore.image.repository | quote }}
+      tag: {{ .Values.imageStore.image.tag | quote }}
+      pullPolicy: {{ .Values.imageStore.image.pullPolicy | quote }}
+    {{- if .Values.imageStore.auth.enabled }}
+    {{- if .Values.imageStore.secretRef }}
+    secretRef: {{ .Values.imageStore.secretRef | quote }}
+    {{- else }}
+    secretRef: {{ printf "%s-imagestore-credentials" .Release.Name | quote }}
+    {{- end }}
+    {{- end }}
+    port: {{ .Values.imageStore.port }}
+    {{- if .Values.imageStore.pathPrefix }}
+    pathPrefix: {{ .Values.imageStore.pathPrefix | quote }}
+    {{- end }}
+    {{- if .Values.imageStore.replicas }}
+    replicas: {{ .Values.imageStore.replicas }}
+    {{- end }}
+    serviceType: {{ .Values.imageStore.serviceType | quote }}
+    {{- if .Values.imageStore.resources }}
+    resources:
+      {{- toYaml .Values.imageStore.resources | nindent 6 }}
+    {{- end }}
+    persistence:
+      size: {{ .Values.imageStore.persistence.size | quote }}
+      {{- if .Values.imageStore.persistence.storageClass }}
+      storageClass: {{ .Values.imageStore.persistence.storageClass | quote }}
+      {{- end }}
+      accessMode: {{ .Values.imageStore.persistence.accessMode | quote }}
+  {{- end }}
+
   server:
     image:
       repository: {{ .Values.server.image.repository | quote }}
@@ -94,6 +128,19 @@ spec:
         secretRef: {{ .s3.secretRef | quote }}
         {{- else if and .s3.accessKey .s3.secretKey }}
         secretRef: {{ printf "%s-sched-%s-s3-credentials" $.Release.Name .name | quote }}
+        {{- end }}
+      {{- end }}
+      {{- if .dufs }}
+      dufs:
+        endpoint: {{ .dufs.endpoint | quote }}
+        {{- if .dufs.secretRef }}
+        secretRef: {{ .dufs.secretRef | quote }}
+        {{- else if and $.Values.imageStore.enabled $.Values.imageStore.auth.enabled }}
+        {{- if $.Values.imageStore.secretRef }}
+        secretRef: {{ $.Values.imageStore.secretRef | quote }}
+        {{- else }}
+        secretRef: {{ printf "%s-imagestore-credentials" $.Release.Name | quote }}
+        {{- end }}
         {{- end }}
       {{- end }}
       {{- if .imagelist }}

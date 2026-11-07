@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"gopkg.in/yaml.v3"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -13,21 +14,21 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"gopkg.in/yaml.v3"
 
 	goframev1alpha1 "github.com/jo-hoe/goframe/internal/operator/api/v1alpha1"
 )
 
 const (
-	schedulerInstanceLabel          = "goframe-instance"
-	schedulerNameLabel              = "goframe-scheduler"
-	schedulerConfigMountPath        = "/etc/goframe-scheduler"
-	schedulerConfigFileName         = "image-scheduler.yaml"
-	schedulerS3CredentialsMountPath = "/etc/s3-credentials"     //nolint:gosec // mount path, not a credential
-	schedulerNASAKeyMountPath       = "/etc/nasa-api-key"       //nolint:gosec // mount path, not a credential
-	schedulerNASAKeyFileName        = "apiKey"
-	schedulerImageListMountPath     = "/etc/goframe-imagelist"
-	schedulerImageListFileName      = "images.yaml"
+	schedulerInstanceLabel            = "goframe-instance"
+	schedulerNameLabel                = "goframe-scheduler"
+	schedulerConfigMountPath          = "/etc/goframe-scheduler"
+	schedulerConfigFileName           = "image-scheduler.yaml"
+	schedulerS3CredentialsMountPath   = "/etc/s3-credentials" //nolint:gosec // mount path, not a credential
+	schedulerNASAKeyMountPath         = "/etc/nasa-api-key"   //nolint:gosec // mount path, not a credential
+	schedulerNASAKeyFileName          = "apiKey"
+	schedulerImageListMountPath       = "/etc/goframe-imagelist"
+	schedulerImageListFileName        = "images.yaml"
+	schedulerDufsCredentialsMountPath = "/etc/dufs-credentials" //nolint:gosec // mount path, not a credential
 )
 
 // reconcileCronJobs diffs spec.schedulers against existing CronJobs and
@@ -196,6 +197,9 @@ func buildSchedulerConfig(gf *goframev1alpha1.GoFrame, sched goframev1alpha1.Sch
 		prefix = sched.S3.Prefix
 		region = sched.S3.Region
 	}
+	if sched.Dufs != nil {
+		endpoint = sched.Dufs.Endpoint
+	}
 	if sched.ImageList != nil {
 		for _, h := range sched.ImageList.Headers {
 			headers = append(headers, httpHeader{Name: h.Name, Value: h.Value})
@@ -332,6 +336,26 @@ func (r *GoFrameReconciler) buildCronJob(gf *goframev1alpha1.GoFrame, sched gofr
 		})
 	}
 
+	if sched.Dufs != nil && sched.Dufs.SecretRef != "" {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "dufs-credentials",
+			MountPath: schedulerDufsCredentialsMountPath,
+			ReadOnly:  true,
+		})
+		volumes = append(volumes, corev1.Volume{
+			Name: "dufs-credentials",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: sched.Dufs.SecretRef,
+				},
+			},
+		})
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "DUFS_CREDENTIALS_PATH",
+			Value: schedulerDufsCredentialsMountPath,
+		})
+	}
+
 	if sched.NASAApod != nil && sched.NASAApod.APIKeySecretRef != "" {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      "nasa-api-key",
@@ -392,8 +416,8 @@ func (r *GoFrameReconciler) buildCronJob(gf *goframev1alpha1.GoFrame, sched gofr
 									Name:            "scheduler",
 									Image:           img,
 									ImagePullPolicy: imagePullPolicy(sched.Image.PullPolicy),
-									Env:          envVars,
-									VolumeMounts: volumeMounts,
+									Env:             envVars,
+									VolumeMounts:    volumeMounts,
 								},
 							},
 							Volumes: volumes,
