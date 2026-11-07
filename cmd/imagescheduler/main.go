@@ -10,6 +10,7 @@ import (
 	"github.com/jo-hoe/goframe/internal/config"
 	"github.com/jo-hoe/goframe/internal/imageprocessing"
 	"github.com/jo-hoe/goframe/internal/scheduler"
+	dufssource "github.com/jo-hoe/goframe/internal/scheduler/dufs"
 	"github.com/jo-hoe/goframe/internal/scheduler/imagelist"
 	"github.com/jo-hoe/goframe/internal/scheduler/metmuseum"
 	"github.com/jo-hoe/goframe/internal/scheduler/nasaapod"
@@ -70,6 +71,14 @@ func main() {
 			AccessKey: fileOr(s3CredentialPath("accessKey"), s3Cfg.AccessKey),
 			SecretKey: fileOr(s3CredentialPath("secretKey"), s3Cfg.SecretKey),
 		})
+	case "dufs":
+		dufsCfg, loadErr := config.LoadDufsConfig(path)
+		if loadErr != nil {
+			slog.Error("image-scheduler: failed to load config", "path", path, "error", loadErr)
+			os.Exit(1)
+		}
+		baseCfg = &dufsCfg.SchedulerFileConfig
+		source = newDufsSource(dufsCfg)
 	case "nasaapod":
 		apodCfg, loadErr := config.LoadNASAAPODConfig(path)
 		if loadErr != nil {
@@ -181,6 +190,28 @@ const s3CredentialsMountPath = "/etc/s3-credentials" //nolint:gosec // mount pat
 
 func s3CredentialPath(key string) string {
 	return filepath.Join(s3CredentialsMountPath, key)
+}
+
+// newDufsSource builds a dufs image source, resolving credentials from the
+// mounted Secret files under DUFS_CREDENTIALS_PATH when present, falling back to
+// any values inlined in the config (mirroring the s3 credential resolution).
+func newDufsSource(cfg *config.DufsFileConfig) *dufssource.DufsSource {
+	return dufssource.NewDufsSource(dufssource.Config{
+		Endpoint: cfg.Endpoint,
+		Username: fileOr(dufsCredentialPath("username"), cfg.Username),
+		Password: fileOr(dufsCredentialPath("password"), cfg.Password),
+	})
+}
+
+// dufsCredentialPath returns the file path for a dufs credential key, resolved
+// from the DUFS_CREDENTIALS_PATH env var set by the operator when a secretRef is
+// configured. Returns "" when unset, so fileOr falls back to the inline value.
+func dufsCredentialPath(key string) string {
+	dir := os.Getenv("DUFS_CREDENTIALS_PATH")
+	if dir == "" {
+		return ""
+	}
+	return filepath.Join(dir, key)
 }
 
 // nasaAPIKeyPath returns the file path for the NASA API key, resolved from the
