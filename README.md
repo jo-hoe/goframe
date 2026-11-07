@@ -16,6 +16,7 @@ A Kubernetes operator manages:
 - RustFS (StatefulSet + Service + Secret)
 - goframe server (Deployment + Service + ConfigMap)
 - CronJob per scheduler entry
+- Optional image store app (Deployment + Service + PVC) when `imageStore.enabled`
 
 See [docs/architecture.md](docs/architecture.md) for detailed diagrams.
 

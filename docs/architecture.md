@@ -109,15 +109,19 @@ graph LR
     Browser -->|"GET /*"| Traefik[Traefik Ingress Controller]
 
     Traefik -->|"path: /images/*"| RustFS_Ingress[RustFS Ingress]
+    Traefik -->|"path: /gallery/*"| ImageStore_Ingress[Image Store Ingress]
     Traefik -->|"path: /*"| Server_Ingress[Server Ingress]
 
     RustFS_Ingress -->|"rewrite: /{bucket}/images/*"| RustFS[RustFS :9000]
+    ImageStore_Ingress --> ImageStore[Image Store dufs :5000]
     Server_Ingress --> Server[GoFrame Server :8080]
 ```
 
 The RustFS ingress uses a Traefik `replacePathRegex` Middleware to rewrite `/images/(.*)` to `/{bucket}/images/$1`, mapping the browser-facing URL to the S3 object key.
 
 A bucket policy grants anonymous `s3:GetObject` on `images/*`, so no authentication is required for image fetches through the ingress.
+
+The optional image store (dufs) is served on the same host under `/gallery` (its `DUFS_PATH_PREFIX`), so dufs emits correct absolute URLs natively without a path-rewrite middleware. It is only present when `imageStore.enabled` is set, and its ingress is only rendered when `imageStore.ingress.enabled` is also set. Because the gallery shares the host with the RustFS `/images` endpoint, its authentication is off by default — an enabled HTTP Basic-auth login would leak the browser `Authorization` header to RustFS (an S3 endpoint) and break image delivery.
 
 ---
 
@@ -129,6 +133,7 @@ graph TD
 
     R --> RS[reconcileServer]
     R --> RC[reconcileCronJobs]
+    R --> RI[reconcileImageStore]
     R --> RR[reconcileRotation]
     R --> US[updateStatus]
 
@@ -142,6 +147,10 @@ graph TD
     RC --> |per scheduler| SCM[ConfigMap: scheduler config]
     RC --> |per scheduler| SCRON[CronJob: scheduler]
     RC --> |if s3 source| SSEC[Secret: s3-credentials]
+
+    RI --> |if imageStore.enabled| ISDEP[Deployment: imagestore dufs]
+    RI --> |if imageStore.enabled| ISSVC[Service: imagestore]
+    RI --> |if imageStore.enabled| ISPVC[PVC: imagestore data]
 
     RR --> |read/write| ROT[rotation.json in RustFS]
     RR --> |advance at midnight| ORDER[Rotate ordered_ids]
