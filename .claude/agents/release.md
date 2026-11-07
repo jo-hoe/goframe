@@ -45,8 +45,19 @@ make generate
 ```
 
 This regenerates `internal/operator/api/v1alpha1/zz_generated.deepcopy.go` and
-`charts/goframe-operator/templates/goframes-crd.yaml`. Commit any changes it produces
-together with any other uncommitted working-tree changes (app code, tests, config, docs):
+`charts/goframe-operator/templates/goframes-crd.yaml`.
+
+Note: the Makefile runs `controller-gen@latest`. When a newer controller-gen has been
+published since the CRD was last generated, `make generate` will change **only** the
+`controller-gen.kubebuilder.io/version:` annotation at the top of `goframes-crd.yaml`
+(e.g. `v0.22.0` → `v0.23.0`) with no schema change. This is expected drift — commit it.
+It must be committed, or the `test` CI workflow's `make generate-check` step will fail
+with "generated files are out of sync" (this is what breaks PRs branched off an
+un-regenerated main). If `make generate` changes anything *beyond* that annotation,
+inspect the diff normally before committing.
+
+Commit any changes it produces together with any other uncommitted working-tree changes
+(app code, tests, config, docs):
 
 ```bash
 git status --short
