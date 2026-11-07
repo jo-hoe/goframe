@@ -2,7 +2,6 @@
 
 [![Lint](https://github.com/jo-hoe/goframe/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/jo-hoe/goframe/actions/workflows/lint.yml)
 [![Test](https://github.com/jo-hoe/goframe/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/jo-hoe/goframe/actions/workflows/test.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/jo-hoe/goframe)](https://goreportcard.com/report/github.com/jo-hoe/goframe)
 [![Coverage Status](https://coveralls.io/repos/github/jo-hoe/goframe/badge.svg?branch=main)](https://coveralls.io/github/jo-hoe/goframe?branch=main)
 
 Image processing web service written in Go. The service is used for e-ink photo frames that display a different image each day from a curated set.
@@ -56,7 +55,6 @@ API test:
 The chart is located in `charts/goframe`. Install with:
 
 ```bash
-helm dependency build charts/goframe
 helm install goframe charts/goframe
 ```
 
@@ -66,7 +64,7 @@ The operator chart (`charts/goframe-operator`) must be installed first to regist
 
 CronJob-based image schedulers fetch images from external sources automatically.
 
-Supported sources: `xkcd`, `oatmeal`, `metmuseum`, `tumblr`, `s3`, `nasaapod`, `nasaimageoftheday`
+Supported sources: `xkcd`, `oatmeal`, `metmuseum`, `tumblr`, `s3`, `dufs`, `nasaapod`, `nasaimageoftheday`, `imagelist`
 
 Key configuration:
 - **group**: Schedulers sharing a group evict each other's images on upload (mutual exclusion)
@@ -75,6 +73,24 @@ Key configuration:
 Each scheduler always keeps exactly one image per source.
 
 See `charts/goframe/values.yaml` for full examples.
+
+## Image store (optional)
+
+The chart can optionally deploy a bundled, low-footprint image-management app
+([dufs](https://github.com/sigoden/dufs)) with a web UI and HTTP API for browsing and
+managing images on a PersistentVolumeClaim. When enabled, the operator reconciles a
+Deployment, Service, and PVC for it, and the UI is exposed on the same host as the server
+under `/gallery` by default.
+
+The `dufs` scheduler source pairs with it: point a scheduler at the image store (or any
+external dufs instance) to ingest its images into goframe.
+
+Authentication is **off by default** (`imageStore.auth.enabled: false`): the gallery UI
+shares a hostname with the RustFS `/images` endpoint, and an enabled HTTP Basic-auth login
+would leak the browser's `Authorization` header to RustFS (an S3 endpoint), breaking image
+delivery. Enable auth only when serving the gallery from its own hostname.
+
+Enable via `imageStore.enabled: true` in `charts/goframe/values.yaml`.
 
 ## Make
 
